@@ -1,0 +1,109 @@
+"""Scene interface, shared session state and the scene manager."""
+
+from dataclasses import dataclass, field
+
+import pygame
+
+from .. import config
+from ..config import px
+from ..desktop import set_cursor
+from ..ui import Button, draw_text
+
+
+@dataclass
+class Session:
+    """State shared between scenes during one run of the game."""
+    level_id: int = 1
+    ship_id: str | None = None                      # None = the level's default ship
+    fx_text: str = ""
+    fy_text: str = ""
+    stats: dict = field(default_factory=dict)       # last win/fail details
+    records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
+
+
+class Scene:
+    def __init__(self, manager):
+        self.manager = manager
+
+    @property
+    def session(self):
+        return self.manager.session
+
+    @property
+    def audio(self):
+        return self.manager.audio
+
+    def handle_event(self, event):
+        pass
+
+    def update(self, dt):
+        pass
+
+    def draw(self, surface):
+        pass
+
+
+class SceneManager:
+    def __init__(self, audio):
+        self.audio = audio
+        self.session = Session()
+        self.scene = None
+        self.running = True
+        self.time = 0.0
+        self.screen = None          # the surface the game draws on (set by main)
+
+    def switch(self, scene):
+        self.scene = scene
+        set_cursor("arrow")
+
+    def quit(self):
+        self.running = False
+
+    def handle_event(self, event):
+        if event.type == pygame.QUIT:
+            self.quit()
+            return
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_m and event.mod & pygame.KMOD_CTRL:
+            self.audio.toggle_mute()
+            return
+        self.scene.handle_event(event)
+
+    def update(self, dt):
+        self.time += dt
+        self.scene.update(dt)
+
+    def draw(self, surface):
+        self.scene.draw(surface)
+
+
+def draw_overlay_card(surface, background, title, title_color, lines, card_h=320):
+    """Dimmed snapshot + centered card with a title and (label, value) lines."""
+    if background is not None:
+        surface.blit(background, (0, 0))
+    shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+    shade.fill((5, 8, 18, 200))
+    surface.blit(shade, (0, 0))
+
+    card = pygame.Rect(0, 0, px(520), px(card_h))
+    card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+    pygame.draw.rect(surface, config.PANEL_BG, card, border_radius=px(6))
+    pygame.draw.rect(surface, title_color, card, width=max(1, px(1)), border_radius=px(6))
+    draw_text(surface, title, (card.centerx, card.y + px(28)), 34, title_color, kind="bold", anchor="midtop")
+
+    y = card.y + px(104)
+    for label, value in lines:
+        draw_text(surface, label, (card.x + px(48), y), 17, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, value, (card.right - px(48), y), 17, config.TEXT, kind="mono", anchor="midright")
+        y += px(30)
+    return card
+
+
+def result_buttons(first_label):
+    """Three buttons under a result card: [first_label] [Levels] [Main Menu]."""
+    cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
+    w, h, gap = px(150), px(46), px(14)
+    left = cx - (3 * w + 2 * gap) // 2
+    labels = (first_label, "Levels", "Main Menu")
+    styles = ("primary", "plain", "plain")
+    return [Button((left + i * (w + gap), 0, w, h), label, style=style, font_size=17)
+            for i, (label, style) in enumerate(zip(labels, styles))]
