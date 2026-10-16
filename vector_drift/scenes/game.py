@@ -9,7 +9,7 @@ from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
 from ..data import SHIPS, get_level
-from ..expr_parser import diagnose
+from ..expr_parser import diagnose_expression
 from ..physics import Flight, ForceField, Outcome
 from ..ui import CodeEditor, IconButton, draw_panel_box, draw_text
 from .base import Scene
@@ -122,17 +122,36 @@ class GameScene(Scene):
     def _on_text_change(self, editor):
         fx_text, fy_text = editor.lines
         self.session.fx_text, self.session.fy_text = fx_text, fy_text
-        fx, fx_err, fx_pos = diagnose(fx_text)
-        fy, fy_err, fy_pos = diagnose(fy_text)
-        editor.set_errors([(fx_err, fx_pos) if fx_err else None,
-                           (fy_err, fy_pos) if fy_err else None])
+
+        fx, fx_err, fx_pos = diagnose_expression(fx_text)
+        fy, fy_err, fy_pos = diagnose_expression(fy_text)
+
+        editor.set_errors([
+            (fx_err, fx_pos) if fx_err else None,
+            (fy_err, fy_pos) if fy_err else None,
+        ])
+
         self.valid = fx is not None and fy is not None
+
         if self.valid:
             field = ForceField.from_exprs(fx, fy)
+
             if field != self.field or self.field_layer is None:
-                self.field = field
-                self.field_layer, self.max_force = render.make_field_layer(self.viewport, field)
-                self._field_version += 1
+                try:
+                    layer, max_force = render.make_field_layer(
+                        self.viewport, field
+                    )
+                except (ArithmeticError, ValueError, TypeError, OverflowError):
+                    # The expression is syntactically valid, but may fail
+                    # at some coordinates during preview sampling.
+                    self.valid = False
+                else:
+                    # Update the preview only after rendering succeeds.
+                    self.field = field
+                    self.field_layer = layer
+                    self.max_force = max_force
+                    self._field_version += 1
+
         self._refresh_buttons()
 
     def _refresh_buttons(self):
@@ -318,7 +337,10 @@ class GameScene(Scene):
             fx, fy = f.force
             return f.x, f.y, f.vx, f.vy, fx, fy
         x, y = self.launch_pos
-        fx, fy = self.field.at(x, y)
+        try:
+            fx, fy = self.field.at(x, y)
+        except (ArithmeticError, ValueError, TypeError, OverflowError):
+            fx = fy = float("nan")
         return x, y, 0.0, 0.0, fx, fy
 
     def _plot_base_surface(self):

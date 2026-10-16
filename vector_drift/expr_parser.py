@@ -1,102 +1,233 @@
-"""Parser for linear force expressions of the form  p*x + q*y + r.
+"""Extensible mathematical expression parser.
 
-Accepted:  2x, 2*x, -x, x/2, 1/2x, -3/4 y, .5, y + x + 1, "" (= 0)
-Rejected with a readable reason: products, powers, parentheses, functions,
-repeated terms, unknown symbols, division by zero, dangling operators.
+Supported:
+    2x, 2*x, -x, x/2, 1/2x
+    x + y + 1
+    (x + y) * 2
+    x^2, x**2, -x^2
+    sin(x), sqrt(x^2 + y^2), log(x), abs(y)
+    pi, e
+    Custom functions via register_function()
+
+Variables: x, y
+No eval() or arbitrary Python code execution.
 """
-
 import math
 import re
 from dataclasses import dataclass
-
-FUNCTION_NAMES = {"sin", "cos", "tan", "exp", "log", "ln", "sqrt", "abs"}
-_NUMBER_RE = re.compile(r"\d+(?:\.\d*)?|\.\d+")
-_LETTERS_RE = re.compile(r"[A-Za-z_]+")
-_BRACKETS = "()[]{}"
+from typing import Callable
 
 
-@dataclass(frozen=True)
-class LinearExpr:
-    x: float = 0.0      # coefficient of x
-    y: float = 0.0      # coefficient of y
-    c: float = 0.0      # constant term
+_NUMBER_RE = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
+
+CONSTANTS = {
+    "pi": math.pi,
+    "e": math.e,
+}
+
+FUNCTIONS: dict[str, Callable] = {
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "sinh": math.sinh,
+    "cosh": math.cosh,
+    "tanh": math.tanh,
+    "exp": math.exp,
+    "log": math.log,
+    "ln": math.log,
+    "log10": math.log10,
+    "sqrt": math.sqrt,
+    "abs": abs,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "min": min,
+    "max": max,
+}
+# Validate the argument count for built-in functions.
+expected_args = {
+    "sin": 1,
+    "cos": 1,
+    "tan": 1,
+    "asin": 1,
+    "acos": 1,
+    "atan": 1,
+    "sinh": 1,
+    "cosh": 1,
+    "tanh": 1,
+    "exp": 1,
+    "log": (1, 2),
+    "ln": 1,
+    "log10": 1,
+    "sqrt": 1,
+    "abs": 1,
+    "floor": 1,
+    "ceil": 1,
+    "min": 2,
+    "max": 2,
+}
 
 
 class ParseError(ValueError):
+    """An expression has invalid syntax."""
+
     def __init__(self, message, pos=0):
         super().__init__(message)
         self.message = message
         self.pos = pos
 
 
+class EvaluationError(ValueError):
+    """A valid expression could not be evaluated."""
+
+
 @dataclass(frozen=True)
-class _Tok:
-    kind: str           # "num", "var", "op"
+class _Token:
+    kind: str
     value: object
     pos: int
 
 
+@dataclass(frozen=True)
+class LinearExpr:
+    """Legacy linear expression: x coefficient, y coefficient, constant."""
+
+    x: float = 0.0
+    y: float = 0.0
+    c: float = 0.0
+
+
+@dataclass(frozen=True)
+class Expression:
+    """A parsed expression that can be evaluated for any x and y."""
+
+    _node: tuple
+
+    def evaluate(self, x=0.0, y=0.0):
+        try:
+            result = _evaluate(self._node, {"x": x, "y": y})
+            result = float(result)
+        except EvaluationError:
+            raise
+        except (ArithmeticError, ValueError, TypeError, OverflowError) as exc:
+            raise EvaluationError(
+                f"Cannot evaluate expression: {exc}"
+            ) from exc
+
+        if not math.isfinite(result):
+            raise EvaluationError("Expression produced a non-finite value")
+
+        return result
+
+    __call__ = evaluate
+
+
+def register_function(name, function):
+    """Register a custom mathematical function.
+
+    Example:
+        register_function("cube", lambda value: value ** 3)
+        expr = parse_expression("cube(x)")
+    """
+    if not isinstance(name, str) or not re.fullmatch(
+        r"[A-Za-z_][A-Za-z_0-9]*", name
+    ):
+        raise ValueError("Invalid function name")
+
+    name = name.lower()
+
+    if name in {"x", "y"} or name in CONSTANTS:
+        raise ValueError("Function name conflicts with a variable or constant")
+
+    if not callable(function):
+        raise TypeError("function must be callable")
+
+    FUNCTIONS[name] = function
+
+
 def _tokenize(text):
     tokens = []
-    i, n = 0, len(text)
+    i = 0
+    n = len(text)
+
     while i < n:
         ch = text[i]
+
         if ch.isspace():
             i += 1
             continue
+
         if ch.isdigit() or ch == ".":
-            m = _NUMBER_RE.match(text, i)
-            if not m:
-                raise ParseError("Invalid number '.'", i)
-            end = m.end()
+            match = _NUMBER_RE.match(text, i)
+            if not match:
+                raise ParseError("Invalid number", i)
+
+            end = match.end()
             if end < n and text[end] == ".":
                 raise ParseError("Invalid number (two decimal points)", i)
-            tokens.append(_Tok("num", float(m.group()), i))
+
+            tokens.append(_Token("num", float(match.group()), i))
             i = end
             continue
+
         if ch.isalpha() or ch == "_":
-            m = _LETTERS_RE.match(text, i)
-            word = m.group()
-            lower = word.lower()
-            after = m.end()
-            while after < n and text[after].isspace():
-                after += 1
-            if lower in FUNCTION_NAMES or (after < n and text[after] == "("):
-                raise ParseError("Functions are not supported", i)
-            if lower.startswith("e") and i > 0 and (text[i - 1].isdigit() or text[i - 1] == "."):
-                raise ParseError("Scientific notation is not supported", i)
-            if lower in ("x", "y"):
-                tokens.append(_Tok("var", lower, i))
-            elif set(lower) <= {"x", "y"}:
-                raise ParseError("Products of variables are not supported", i)
-            else:
-                raise ParseError(f"Unknown symbol '{word}'", i)
-            i = m.end()
+            match = _IDENT_RE.match(text, i)
+            word = match.group()
+            tokens.append(_Token("ident", word.lower(), i))
+            i = match.end()
             continue
-        if ch in "+-−":
-            tokens.append(_Tok("op", "-" if ch != "+" else "+", i))
+
+        if ch == "*" and i + 1 < n and text[i + 1] == "*":
+            tokens.append(_Token("op", "^", i))
+            i += 2
+            continue
+
+        if ch in "+-−*/^(),":
+            value = "-" if ch == "−" else ch
+            tokens.append(_Token("op", value, i))
             i += 1
             continue
-        if ch == "*":
-            if i + 1 < n and text[i + 1] == "*":
-                raise ParseError("Powers are not supported", i)
-            tokens.append(_Tok("op", "*", i))
-            i += 1
-            continue
-        if ch == "/":
-            tokens.append(_Tok("op", "/", i))
-            i += 1
-            continue
-        if ch == "^":
-            raise ParseError("Powers are not supported", i)
-        if ch in _BRACKETS:
-            raise ParseError("Parentheses are not supported", i)
-        if ch == ",":
-            raise ParseError("Use '.' for decimals", i)
+
         if ch == "=":
-            raise ParseError("Enter only the right-hand side", i)
+            raise ParseError("Enter only the expression, without '='", i)
+
         raise ParseError(f"Unexpected character '{ch}'", i)
-    return tokens
+
+    # Insert implicit multiplication:
+    # 2x, 2(x+1), (x+1)y, 2pi, 2sin(x).
+    expanded = []
+
+    def ends_atom(token):
+        if token.kind == "num":
+            return True
+        if token.kind == "op" and token.value == ")":
+            return True
+        if token.kind == "ident":
+            return token.value in {"x", "y", "pi", "e"}
+        return False
+
+    def starts_atom(token):
+        if token.kind == "num":
+            return True
+        if token.kind == "op" and token.value == "(":
+            return True
+        if token.kind == "ident":
+            return (
+                token.value in {"x", "y", "pi", "e"}
+                or token.value in FUNCTIONS
+            )
+        return False
+
+    for token in tokens:
+        if expanded and ends_atom(expanded[-1]) and starts_atom(token):
+            expanded.append(_Token("op", "*", token.pos))
+        expanded.append(token)
+
+    expanded.append(_Token("eof", None, n))
+    return expanded
 
 
 class _Parser:
@@ -105,138 +236,309 @@ class _Parser:
         self.tokens = _tokenize(text)
         self.i = 0
 
-    # -- token helpers ----------------------------------------------------
     def peek(self):
-        return self.tokens[self.i] if self.i < len(self.tokens) else None
+        return self.tokens[self.i]
 
     def advance(self):
-        tok = self.tokens[self.i]
+        token = self.peek()
         self.i += 1
-        return tok
+        return token
 
-    def at_op(self, *ops):
-        tok = self.peek()
-        return tok is not None and tok.kind == "op" and tok.value in ops
+    def accept(self, value):
+        token = self.peek()
+        if token.kind == "op" and token.value == value:
+            return self.advance()
+        return None
 
-    def end_pos(self):
-        return len(self.text)
+    def expect(self, value):
+        token = self.accept(value)
+        if token is None:
+            raise ParseError(f"Expected '{value}'", self.peek().pos)
+        return token
 
-    # -- grammar ----------------------------------------------------------
     def parse(self):
-        coeffs = {}
-        if not self.tokens:
-            return LinearExpr()
-        while True:
-            sign = 1.0
-            if self.at_op("+", "-"):
-                sign = -1.0 if self.advance().value == "-" else 1.0
-                if self.at_op("+", "-"):
-                    raise ParseError("Two signs in a row", self.peek().pos)
-            if self.peek() is None:
-                raise ParseError("Expression ends with an operator", self.end_pos())
-            term_pos = self.peek().pos
+        if self.peek().kind == "eof":
+            return ("num", 0.0)
 
-            key, value = self.parse_term()
-            if key in coeffs:
-                name = "Constant term" if key == "c" else key
-                raise ParseError(f"{name} appears more than once", term_pos)
-            coeffs[key] = sign * value
+        node = self.expression()
 
-            tok = self.peek()
-            if tok is None:
-                break
-            if not self.at_op("+", "-"):
-                raise ParseError("Missing '+' or '-' between terms", tok.pos)
+        if self.peek().kind != "eof":
+            token = self.peek()
+            raise ParseError(
+                f"Unexpected token '{token.value}'", token.pos
+            )
 
-        result = LinearExpr(**coeffs)
-        for v in (result.x, result.y, result.c):
-            if not math.isfinite(v):
-                raise ParseError("Number too large", 0)
-        return result
+        return node
 
-    def expect_number_after(self, op_tok):
-        tok = self.peek()
-        if tok is None:
-            raise ParseError("Expression ends with an operator", self.end_pos())
-        if tok.kind == "var":
-            raise ParseError("Cannot divide by a variable", tok.pos)
-        if tok.kind != "num":
-            raise ParseError(f"Expected a number after '{op_tok.value}'", tok.pos)
-        self.advance()
-        if tok.value == 0:
-            raise ParseError("Division by zero", tok.pos)
-        return tok.value
+    # expression := term (('+' | '-') term)*
+    def expression(self):
+        node = self.term()
 
-    def parse_term(self):
-        """Return (key, coefficient) where key is 'x', 'y' or 'c'."""
-        coef = None
-        tok = self.peek()
+        while self.peek().kind == "op" and self.peek().value in ("+", "-"):
+            op = self.advance().value
+            right = self.term()
+            node = ("binary", op, node, right)
 
-        if tok.kind == "num":
-            coef = self.advance().value
-            if self.at_op("/"):
-                coef /= self.expect_number_after(self.advance())
-                if self.at_op("/"):
-                    raise ParseError("Only one '/' per coefficient", self.peek().pos)
-            if self.at_op("*"):
-                star = self.advance()
-                nxt = self.peek()
-                if nxt is None:
-                    raise ParseError("Expression ends with an operator", self.end_pos())
-                if nxt.kind == "num":
-                    raise ParseError("Write a single number instead of a product", nxt.pos)
-                if nxt.kind != "var":
-                    raise ParseError("Expected x or y after '*'", star.pos)
-        elif tok.kind == "op":
-            raise ParseError(f"Unexpected '{tok.value}'", tok.pos)
+        return node
 
-        tok = self.peek()
-        if tok is not None and tok.kind == "var":
-            var = self.advance().value
-            explicit_coef = coef is not None
-            if coef is None:
-                coef = 1.0
-            if self.at_op("/"):
-                coef /= self.expect_number_after(self.advance())
-                if self.at_op("/"):
-                    raise ParseError("Only one '/' per coefficient", self.peek().pos)
-            nxt = self.peek()
-            if nxt is not None:
-                if nxt.kind == "var":
-                    raise ParseError("Products of variables are not supported", nxt.pos)
-                if nxt.kind == "num":
-                    if explicit_coef:
-                        raise ParseError("Missing '+' or '-' between terms", nxt.pos)
-                    raise ParseError("Put the coefficient before the variable (2x)", nxt.pos)
-                if nxt.kind == "op" and nxt.value == "*":
-                    self.advance()
-                    after = self.peek()
-                    if after is None:
-                        raise ParseError("Expression ends with an operator", self.end_pos())
-                    if after.kind == "var":
-                        raise ParseError("Products of variables are not supported", after.pos)
-                    raise ParseError("Put the coefficient before the variable (2x)", after.pos)
-            return var, coef
+    # term := unary (('*' | '/') unary)*
+    def term(self):
+        node = self.unary()
 
-        # Constant term
-        if tok is not None and tok.kind == "num":
-            raise ParseError("Missing '+' or '-' between numbers", tok.pos)
-        return "c", coef
+        while self.peek().kind == "op" and self.peek().value in ("*", "/"):
+            op = self.advance().value
+            right = self.unary()
+            node = ("binary", op, node, right)
+
+        return node
+
+    # -x^2 means -(x^2); x^-2 is also valid.
+    def unary(self):
+        if self.accept("+"):
+            return self.unary()
+
+        if self.accept("-"):
+            return ("neg", self.unary())
+
+        return self.power()
+
+    # power := atom ['^' unary]
+    # Right associative: x^2^3 == x^(2^3).
+    def power(self):
+        node = self.atom()
+
+        if self.accept("^"):
+            node = ("binary", "^", node, self.unary())
+
+        return node
+
+    def atom(self):
+        token = self.advance()
+
+        if token.kind == "num":
+            return ("num", token.value)
+
+        if token.kind == "op" and token.value == "(":
+            node = self.expression()
+            self.expect(")")
+            return node
+
+        if token.kind == "ident":
+            name = token.value
+
+            if name == "x" or name == "y":
+                return ("var", name)
+
+            if name in CONSTANTS:
+                return ("num", CONSTANTS[name])
+
+            if name not in FUNCTIONS:
+                raise ParseError(f"Unknown symbol '{name}'", token.pos)
+
+            self.expect("(")
+            args = []
+
+            if not (
+                self.peek().kind == "op"
+                and self.peek().value == ")"
+            ):
+                args.append(self.expression())
+
+                while self.accept(","):
+                    args.append(self.expression())
+
+            self.expect(")")
+
+            # Reject empty function calls such as sin().
+            if not args:
+                raise ParseError(
+                    f"Function '{name}' requires at least one argument",
+                    token.pos,
+                )
+
+            
+
+            if name in expected_args:
+                expected = expected_args[name]
+
+                if isinstance(expected, int):
+                    valid_count = len(args) == expected
+                else:
+                    minimum, maximum = expected
+                    valid_count = (
+                        len(args) >= minimum
+                        and (maximum is None or len(args) <= maximum)
+                    )
+
+                if not valid_count:
+                    raise ParseError(
+                        f"Invalid number of arguments for '{name}'",
+                        token.pos,
+                    )
+
+            return ("call", name, tuple(args))
+
+        if token.kind == "eof":
+            raise ParseError("Expression ends unexpectedly", token.pos)
+
+        raise ParseError(
+            f"Unexpected token '{token.value}'", token.pos
+        )
+
+
+def _evaluate(node, variables):
+    kind = node[0]
+
+    if kind == "num":
+        return node[1]
+
+    if kind == "var":
+        return variables[node[1]]
+
+    if kind == "neg":
+        return -_evaluate(node[1], variables)
+
+    if kind == "binary":
+        op, left, right = node[1], node[2], node[3]
+        a = _evaluate(left, variables)
+        b = _evaluate(right, variables)
+
+        if op == "+":
+            return a + b
+        if op == "-":
+            return a - b
+        if op == "*":
+            return a * b
+        if op == "/":
+            if b == 0:
+                raise ZeroDivisionError("division by zero")
+            return a / b
+        if op == "^":
+            return a ** b
+
+    if kind == "call":
+        name, args = node[1], node[2]
+        values = [_evaluate(arg, variables) for arg in args]
+        return FUNCTIONS[name](*values)
+
+    raise EvaluationError(f"Unknown expression node: {kind}")
+
+
+def parse_expression(text):
+    """Parse a general expression into an Expression object."""
+    try:
+        return Expression(_Parser(text).parse())
+    except RecursionError as exc:
+        raise ParseError("Expression is nested too deeply", 0) from exc
+
+
+def try_parse_expression(text):
+    """Return (Expression, None) or (None, error message)."""
+    try:
+        return parse_expression(text), None
+    except ParseError as exc:
+        return None, exc.message
+
+
+def diagnose_expression(text):
+    """Return (Expression, None, None) or (None, message, position)."""
+    try:
+        return parse_expression(text), None, None
+    except ParseError as exc:
+        return None, exc.message, exc.pos
+
+
+def _linear_coefficients(node):
+    """Convert an AST to linear coefficients, rejecting nonlinear terms."""
+    kind = node[0]
+
+    if kind == "num":
+        return 0.0, 0.0, float(node[1])
+
+    if kind == "var":
+        return (
+            (1.0, 0.0, 0.0)
+            if node[1] == "x"
+            else (0.0, 1.0, 0.0)
+        )
+
+    if kind == "neg":
+        return tuple(-v for v in _linear_coefficients(node[1]))
+
+    if kind != "binary":
+        raise ValueError("Functions are not supported by parse_linear()")
+
+    op, left_node, right_node = node[1], node[2], node[3]
+    left = _linear_coefficients(left_node)
+    right = _linear_coefficients(right_node)
+
+    if op in ("+", "-"):
+        sign = 1.0 if op == "+" else -1.0
+        return tuple(left[i] + sign * right[i] for i in range(3))
+
+    left_var = left[0] != 0 or left[1] != 0
+    right_var = right[0] != 0 or right[1] != 0
+
+    if op == "*":
+        if left_var and right_var:
+            raise ValueError("Expression is not linear")
+        if left_var:
+            return tuple(v * right[2] for v in left)
+        if right_var:
+            return tuple(v * left[2] for v in right)
+        return 0.0, 0.0, left[2] * right[2]
+
+    if op == "/":
+        if right_var:
+            raise ValueError("Cannot divide by a variable expression")
+        if right[2] == 0:
+            raise ValueError("Division by zero")
+        return tuple(v / right[2] for v in left)
+
+    if op == "^":
+        if right_var:
+            raise ValueError("Variable exponent is not linear")
+        exponent = right[2]
+
+        if exponent == 1:
+            return left
+
+        if exponent == 0:
+            return 0.0, 0.0, 1.0
+
+        if not left_var:
+            return 0.0, 0.0, left[2] ** exponent
+
+        raise ValueError("Expression is not linear")
+
+    raise ValueError(f"Unsupported operator '{op}'")
 
 
 def parse_linear(text):
-    """Parse text into a LinearExpr. Raises ParseError on invalid input."""
-    return _Parser(text).parse()
+    """Backward-compatible parser for linear expressions only."""
+    expression = parse_expression(text)
+
+    try:
+        a, b, c = _linear_coefficients(expression._node)
+    except (ValueError, ArithmeticError, OverflowError) as exc:
+        raise ParseError(str(exc), 0) from exc
+
+    if not all(math.isfinite(v) for v in (a, b, c)):
+        raise ParseError("Number too large", 0)
+
+    return LinearExpr(a, b, c)
 
 
 def try_parse(text):
-    """Return (LinearExpr, None) on success or (None, error message)."""
-    expr, error, _pos = diagnose(text)
-    return expr, error
+    """Return (LinearExpr, None) or (None, error message)."""
+    try:
+        return parse_linear(text), None
+    except ParseError as exc:
+        return None, exc.message
 
 
 def diagnose(text):
-    """Return (LinearExpr, None, None) or (None, error message, character index)."""
+    """Return (LinearExpr, None, None) or (None, message, position)."""
     try:
         return parse_linear(text), None, None
     except ParseError as exc:

@@ -230,7 +230,11 @@ def field_samples(viewport, field):
         x = (i + 0.5) * ARROW_SPACING_M
         for j in range(-ny, ny):
             y = (j + 0.5) * ARROW_SPACING_M
-            samples.append((x, y, *field.at(x, y)))
+            try:
+                fx, fy = field.at(x, y)
+            except (ArithmeticError, ValueError, TypeError, OverflowError):
+                continue
+            samples.append((x, y, fx, fy))
     return samples
 
 

@@ -1,19 +1,25 @@
 # Vector Drift
 
-Steer a spaceship by designing a linear force field
+Steer a spaceship by designing a mathematical force field.
 
-    F(x, y) = (ax + by + c,  dx + ey + f)   [N]
+```
+F(x, y) = (Fx(x, y), Fy(x, y))   [N]
+```
 
-The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each launch has 10 seconds.
-Every miss costs one of 5 lives:
+The force components can be defined using mathematical expressions, including supported functions, parentheses, and combinations of operations.
 
-- **Time up**: the next launch starts (at rest) where the ship stopped.
-- **Abort / Out of bounds / Diverged**: the next launch starts back at (-7, 0).
+The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each launch has 10 seconds. Every miss costs one of 5 lives:
+
+* ​**Time up**​: the next launch starts (at rest) where the ship stopped.
+* ​**Abort / Out of bounds / Diverged**​: the next launch starts back at (-7, 0).
+* ​**Invalid mathematical result**​: if evaluating a force expression produces an invalid numerical result during flight, such as `log(-1)`, the launch fails and costs one life.
 
 ## Run
 
-    pip install -r requirements.txt
-    python main.py
+```
+pip install -r requirements.txt
+python main.py
+```
 
 The game opens fullscreen at the screen's real resolution (sharp on high-DPI
 screens such as Windows scaling 200%). The 16:9 layout is scaled to fit; on other
@@ -44,27 +50,50 @@ Main menu -> **Start** -> level select -> level. In a level, the round button ne
 
 ## Formula format
 
-Each box takes a linear expression `px + qy + r`; any term may be omitted and terms may be in any order.
-`2x`, `2*x`, `-x`, `x/2`, `1/2x`, `-0.5y + 3` are all valid; an empty box means 0.
-Products, powers, parentheses, functions and repeated terms are rejected with a reason.
+Each box takes a mathematical expression in terms of `x` and `y`. Unlike a purely linear expression, formulas can include supported mathematical functions, parentheses, and combinations of operations.
+
+For example, depending on the supported functions and operators:
+
+* `2x + y`
+* `sin(y) + x^2`
+* `-(x + y) / 2`
+* `sin(x) * cos(y)`
+* `log(x)`
+
+An empty box means 0.
+
+The parser accepts only supported mathematical syntax. Unsupported functions or invalid expressions are rejected with a reason.
+
+## Invalid Mathematical Results
+
+A formula may be syntactically valid but produce an invalid or undefined numerical result at certain coordinates. For example, `log(-1)` is undefined over the real numbers.
+
+If evaluating a force expression produces an invalid numerical result during flight, the launch fails and costs one life.
+
+Consider the valid input domain of your expressions when designing a force field. An expression that works at one position may become invalid elsewhere along the ship's trajectory.
+
 
 ## Tests
 
-    python -m pytest tests
+```
+python -m pytest tests
+```
 
 ## Layout
 
-    main.py                 entry point
-    vector_drift/
-      config.py             layout, colors, physics constants
-      data.py               ships and levels (add new ones here)
-      expr_parser.py        formula parser
-      physics.py            fixed-step semi-implicit Euler flight
-      coords.py             world <-> screen mapping
-      render.py             grid, arrow field, color legend
-      sprites.py            ship, planet, trail, vectors (all code-drawn)
-      ui.py                 fonts, Button, TextBox
-      audio.py              optional CC0 sound slots
-      scenes/               menu, game, win, fail
-    assets/                 optional sounds, music, fonts (see assets/README.md)
-    tests/                  parser and physics tests
+```
+main.py                 entry point
+vector_drift/
+  config.py             layout, colors, physics constants
+  data.py               ships and levels (add new ones here)
+  expr_parser.py        formula parser
+  physics.py            fixed-step semi-implicit Euler flight
+  coords.py             world <-> screen mapping
+  render.py             grid, arrow field, color legend
+  sprites.py            ship, planet, trail, vectors (all code-drawn)
+  ui.py                 fonts, Button, TextBox
+  audio.py              optional CC0 sound slots
+  scenes/               menu, game, win, fail
+assets/                 optional sounds, music, fonts (see assets/README.md)
+tests/                  parser and physics tests
+```
