@@ -101,12 +101,31 @@ def _render_ship(length, hull, wing, trim):
 
 def draw_ship(surface, center, heading, size, ship):
     """Draw the ship. `size` = ship length in px, `heading` in world radians."""
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        heading = float(heading)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(heading)):
+        return
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError):
+        return
+    # Fully off-screen (huge-finite tunneling) -> skip instead of crashing blit.
+    cull = config.MAX_PX_CULL
+    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
+        return
+    center = (cx, cy)
     size = max(6, round(size))
     deg = math.degrees(heading)
     img = _cached(("ship", ship.id, size),
                   lambda: _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color))
-    rotated = pygame.transform.rotozoom(img, deg, 1.0)
-    surface.blit(rotated, rotated.get_rect(center=center))
+    try:
+        rotated = pygame.transform.rotozoom(img, deg, 1.0)
+        surface.blit(rotated, rotated.get_rect(center=center))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
 
 
 def draw_ship_icon(surface, center, size, ship, alive=True):
@@ -240,36 +259,90 @@ class TrailLayer:
     def draw(self, surface, topleft, alpha=255):
         """Blit only the part of the layer that has content."""
         if self.bounds.w and self.bounds.h:
-            self.layer.set_alpha(alpha)
-            surface.blit(self.layer, (topleft[0] + self.bounds.x, topleft[1] + self.bounds.y), self.bounds)
-            self.layer.set_alpha(255)
+            try:
+                self.layer.set_alpha(alpha)
+                surface.blit(self.layer, (topleft[0] + self.bounds.x, topleft[1] + self.bounds.y), self.bounds)
+                self.layer.set_alpha(255)
+            except (pygame.error, TypeError, ValueError, OverflowError):
+                try:
+                    self.layer.set_alpha(255)
+                except (pygame.error, TypeError, ValueError):
+                    pass
+                return
 
     def extend(self, points):
         if not points:
             return
+        try:
+            clean = []
+            for p in points:
+                x, y = float(p[0]), float(p[1])
+                if math.isfinite(x) and math.isfinite(y):
+                    clean.append((x, y))
+            if self.last is not None:
+                lx, ly = float(self.last[0]), float(self.last[1])
+                if not (math.isfinite(lx) and math.isfinite(ly)):
+                    self.last = None
+            if not clean:
+                return
+            # Drop segments that jump absurdly far in one step (huge-finite
+            # tunneling): keep the pen but skip the giant line. NOTE: legit
+            # teleports (launch reset) must call clear() first; TrailLayer
+            # keeps `last` intentionally so a single skipped segment cannot
+            # corrupt bounds/dirty bookkeeping.
+            if self.last is not None:
+                dx, dy = clean[0][0] - self.last[0], clean[0][1] - self.last[1]
+                if math.hypot(dx, dy) > config.MAX_PX_CULL:
+                    self.last = clean[-1]
+                    return
+        except (TypeError, ValueError, OverflowError):
+            return
         k = self.k
-        pts = ([self.last] if self.last is not None else []) + list(points)
-        line_w = max(1, round(self.width * k))
-        radius = self.width * k / 2
-        if self.last is None:
-            pygame.draw.circle(self.big, self.color, (pts[0][0] * k, pts[0][1] * k), radius)
-        for a, b in zip(pts, pts[1:]):
-            pa, pb = (a[0] * k, a[1] * k), (b[0] * k, b[1] * k)
-            pygame.draw.line(self.big, self.color, pa, pb, line_w)
-            pygame.draw.circle(self.big, self.color, pb, radius)
+        pts = ([self.last] if self.last is not None else []) + clean
+        # Cull off-layer points: pygame.draw.line with 5e13 coords overflows
+        # C long -> TypeError. Skip segments fully outside, clamp the rest.
+        try:
+            lw, lh = self.layer.get_size()
+        except (pygame.error, TypeError, ValueError):
+            return
+        cull = config.MAX_PX_CULL
+        def _clamp(p):
+            return (min(max(p[0], -cull), lw + cull), min(max(p[1], -cull), lh + cull))
+        try:
+            line_w = max(1, round(self.width * k))
+            radius = self.width * k / 2
+            if self.last is None:
+                c0 = _clamp(pts[0])
+                pygame.draw.circle(self.big, self.color, (c0[0] * k, c0[1] * k), radius)
+            for a, b in zip(pts, pts[1:]):
+                if max(a[0], b[0]) < 0 or min(a[0], b[0]) > lw or max(a[1], b[1]) < 0 or min(a[1], b[1]) > lh:
+                    continue
+                ca, cb = _clamp(a), _clamp(b)
+                pa, pb = (ca[0] * k, ca[1] * k), (cb[0] * k, cb[1] * k)
+                pygame.draw.line(self.big, self.color, pa, pb, line_w)
+                pygame.draw.circle(self.big, self.color, pb, radius)
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            self.last = pts[-1]
+            return
         self.last = pts[-1]
 
         margin = self.width + 2
-        x0 = math.floor(min(p[0] for p in pts) - margin)
-        y0 = math.floor(min(p[1] for p in pts) - margin)
-        x1 = math.ceil(max(p[0] for p in pts) + margin)
-        y1 = math.ceil(max(p[1] for p in pts) + margin)
-        dirty = pygame.Rect(x0, y0, x1 - x0, y1 - y0).clip(self.layer.get_rect())
+        try:
+            x0 = math.floor(min(p[0] for p in pts) - margin)
+            y0 = math.floor(min(p[1] for p in pts) - margin)
+            x1 = math.ceil(max(p[0] for p in pts) + margin)
+            y1 = math.ceil(max(p[1] for p in pts) + margin)
+            dirty = pygame.Rect(x0, y0, x1 - x0, y1 - y0).clip(self.layer.get_rect())
+        except (TypeError, ValueError, OverflowError):
+            return
         if dirty.w <= 0 or dirty.h <= 0:
             return
-        sub = self.big.subsurface((dirty.x * k, dirty.y * k, dirty.w * k, dirty.h * k))
-        self.layer.fill((0, 0, 0, 0), dirty)
-        self.layer.blit(pygame.transform.smoothscale(sub, dirty.size), dirty.topleft)
+        try:
+            sub = self.big.subsurface((dirty.x * k, dirty.y * k, dirty.w * k, dirty.h * k))
+            self.layer.fill((0, 0, 0, 0), dirty)
+            self.layer.blit(pygame.transform.smoothscale(sub, dirty.size), dirty.topleft)
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
         self.bounds = self.bounds.union(dirty) if self.bounds.w and self.bounds.h else dirty
 
 
@@ -281,11 +354,21 @@ def vector_length_px(magnitude, cap=120):
 
 def draw_vector(surface, start, vec, color):
     """Arrow from `start` (screen) along world vector `vec`, log-scaled length."""
-    mag = math.hypot(*vec)
+    try:
+        sx, sy = float(start[0]), float(start[1])
+        vx, vy = float(vec[0]), float(vec[1])
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not all(math.isfinite(v) for v in (sx, sy, vx, vy)):
+        return
+    mag = math.hypot(vx, vy)
     length = vector_length_px(mag)
     if length <= 0:
         return
-    ux, uy = vec[0] / mag, -vec[1] / mag
-    end = (start[0] + ux * length, start[1] + uy * length)
+    ux, uy = vx / mag, -vy / mag
+    end = (sx + ux * length, sy + uy * length)
     u = config.UI_SCALE
-    draw_smooth_arrow(surface, start, end, color, width=2.5 * u, head=9 * u, k=2 if u >= 1.5 else 3)
+    try:
+        draw_smooth_arrow(surface, (sx, sy), end, color, width=2.5 * u, head=9 * u, k=2 if u >= 1.5 else 3)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return

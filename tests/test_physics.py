@@ -433,6 +433,57 @@ def test_huge_coefficient_diverges():
     assert flight.outcome is Outcome.DIVERGED
 
 
+def test_huge_finite_force_diverges_instead_of_tunneling():
+    # tan(pi/2) ~= 1.6e16 is finite: without a clamp it tunnels to REACHED
+    # in one step and then crashes the renderer with 1e12-scale coords.
+    field = ForceField.from_exprs(
+        ExpressionStub(lambda x, y: 1.633123935319537e16),
+        ExpressionStub(lambda x, y: 0.0),
+    )
+
+    with pytest.raises(ArithmeticError):
+        field.at(-7, 0)
+
+    flight = fly(field)
+
+    assert flight.outcome is Outcome.DIVERGED
+
+
+def test_large_but_legit_force_still_flies():
+    flight = fly(ForceField(c=1e5))
+
+    assert flight.outcome is Outcome.REACHED
+
+
+def test_force_at_exact_threshold_boundary():
+    from vector_drift import config
+
+    # Exactly at the ceiling: allowed. One ulp over: diverged.
+    field = ForceField.from_exprs(
+        ExpressionStub(lambda x, y: config.MAX_FORCE),
+        ExpressionStub(lambda x, y: 0.0),
+    )
+
+    assert field.at(0, 0) == (config.MAX_FORCE, 0.0)
+
+    over = ForceField.from_exprs(
+        ExpressionStub(lambda x, y: config.MAX_FORCE * (1 + 1e-12)),
+        ExpressionStub(lambda x, y: 0.0),
+    )
+    with pytest.raises(ArithmeticError):
+        over.at(0, 0)
+
+
+def test_step_displacement_boundary():
+    from vector_drift import config
+
+    assert config.MAX_STEP_M == 50.0
+    # Sanity: 1e5 N moves ~14 m in a single step under dt=1/120, mass=1.
+    dx = 1e5 * config.DT * config.DT
+
+    assert dx < config.MAX_STEP_M
+
+
 def test_mass_scales_arrival_time_not_path():
     heavy = SHIPS[LEVEL.ship_id].__class__(
         id="h",

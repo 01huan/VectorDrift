@@ -509,6 +509,15 @@ def test_make_field_layer_handles_non_finite_force_values(viewport):
     assert max_mag == pytest.approx(5.0)
 
 
+def test_draw_smooth_arrow_with_huge_coords_does_not_crash():
+    surface = pygame.Surface((200, 200))
+
+    # Must not raise (previously: C-long overflow in Rect / blit TypeError).
+    pl.draw_smooth_arrow(surface, (54437464510795.0, 100.0), (100.0, 100.0), (255, 0, 0))
+    pl.draw_smooth_arrow(surface, (float("inf"), 0.0), (10.0, 10.0), (255, 0, 0))
+    pl.draw_smooth_arrow(surface, (0.0, 0.0), (10.0, 10.0), (255, 0, 0))
+
+
 # ---------------------------------------------------------------------------
 # Force formatting and legend
 # ---------------------------------------------------------------------------

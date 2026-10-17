@@ -1,5 +1,6 @@
 """Game screen: set up the force field, launch, watch the flight."""
 
+import logging
 import math
 
 import pygame
@@ -13,6 +14,21 @@ from ..expr_parser import diagnose_expression
 from ..physics import Flight, ForceField, Outcome
 from ..ui import CodeEditor, IconButton, draw_panel_box, draw_text
 from .base import Scene
+
+log = logging.getLogger(__name__)
+
+# Physics-expected failures (bad user expression, overflow, huge-finite clamp).
+# Anything outside this tuple is an internal bug: still contained as DIVERGED
+# so the frame loop never dies, but logged at exception level for debugging.
+_PHYSICS_ERRORS = (
+    ArithmeticError, ValueError, TypeError, OverflowError,
+    RecursionError, MemoryError,
+)
+# Rendering never raises for bad numbers; only these pygame/data errors are
+# contained (never bare `Exception`, so real bugs stay visible in logs).
+_RENDER_ERRORS = (
+    pygame.error, ValueError, TypeError, OverflowError, MemoryError,
+)
 
 SETUP, FLIGHT, ARRIVED = "setup", "flight", "arrived"
 
@@ -54,7 +70,13 @@ LEGEND_Y = 662
 
 
 def fmt_pair(x, y, unit):
-    return f"({x:.2f}, {y:.2f}) {unit}"
+    try:
+        fx, fy = float(x), float(y)
+    except (TypeError, ValueError, OverflowError):
+        return f"— {unit}"
+    if not (math.isfinite(fx) and math.isfinite(fy)):
+        return f"— {unit}"
+    return f"({fx:.2f}, {fy:.2f}) {unit}"
 
 
 def fmt_clock(seconds):
@@ -141,9 +163,11 @@ class GameScene(Scene):
                     layer, max_force = render.make_field_layer(
                         self.viewport, field
                     )
-                except (ArithmeticError, ValueError, TypeError, OverflowError):
+                except _PHYSICS_ERRORS + _RENDER_ERRORS as exc:
                     # The expression is syntactically valid, but may fail
                     # at some coordinates during preview sampling.
+                    log.warning("field preview contained: %r", exc)
+                    editor.set_errors([(str(exc), 0), None])
                     self.valid = False
                 else:
                     # Update the preview only after rendering succeeds.
@@ -291,24 +315,81 @@ class GameScene(Scene):
         if len(pts) <= self._trail_count:
             return
         vp = self.viewport
-        new = [(vp.cx - vp.left + x * vp.scale, vp.cy - vp.top - y * vp.scale)
-               for x, y in pts[self._trail_count:]]
-        self.trail.extend(new)
+        try:
+            new = [(vp.cx - vp.left + x * vp.scale, vp.cy - vp.top - y * vp.scale)
+                   for x, y in pts[self._trail_count:]]
+        except (TypeError, ValueError, OverflowError):
+            self._trail_count = len(pts)
+            return
+        try:
+            self.trail.extend(new)
+        except _RENDER_ERRORS as exc:
+            log.warning("trail extend contained: %r", exc)
         self._trail_count = len(pts)
+
+    def _safe_end_flight(self, outcome, banner=None):
+        """End-of-flight bookkeeping that never raises out of update()."""
+        try:
+            self._end_flight(outcome)
+        except _PHYSICS_ERRORS as exc:
+            # State may be half-updated (lives/trail); log and force a
+            # consistent SETUP so the next launch starts clean.
+            log.warning("end-flight %s contained: %r", outcome, exc)
+            self.flight = None
+            self.launch_pos = self.level.start
+            self.state = SETUP
+            self._refresh_buttons()
+        except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
+            log.exception("unexpected end-flight failure")
+            self.flight = None
+            self.launch_pos = self.level.start
+            self.state = SETUP
+            try:
+                self._refresh_buttons()
+            except _RENDER_ERRORS:
+                pass
+        if banner is not None:
+            try:
+                title, sub = banner
+                self.banner = (title, sub, config.BANNER_DURATION)
+            except _RENDER_ERRORS as exc:
+                log.warning("banner update contained: %r", exc)
 
     # ------------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
-        self.editor.update(dt)
+        try:
+            self.editor.update(dt)
+        except _RENDER_ERRORS as exc:
+            log.warning("editor update contained: %r", exc)
+        except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
+            log.exception("unexpected editor failure")
         if self.banner:
             title, sub, left = self.banner
             self.banner = (title, sub, left - dt) if left > dt else None
 
         if self.state == FLIGHT:
-            outcome = self.flight.advance(dt)
-            self._sync_trail()
+            try:
+                outcome = self.flight.advance(dt)
+            except _PHYSICS_ERRORS as exc:
+                log.warning("flight advance (%s) -> DIVERGED: %r", type(exc).__name__, exc)
+                outcome = Outcome.DIVERGED
+                self.flight.outcome = Outcome.DIVERGED
+            except Exception:  # noqa: BLE001 - internal bug vs DIVERGED must be loud
+                log.exception("unexpected flight failure; forcing DIVERGED")
+                outcome = Outcome.DIVERGED
+                try:
+                    self.flight.outcome = Outcome.DIVERGED
+                except _RENDER_ERRORS:
+                    pass
+            try:
+                self._sync_trail()
+            except _RENDER_ERRORS as exc:
+                log.warning("trail sync contained: %r", exc)
+            except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
+                log.exception("unexpected trail-sync failure")
             if outcome is not Outcome.RUNNING:
-                self._end_flight(outcome)
+                self._safe_end_flight(outcome)
         elif self.state == ARRIVED:
             self.arrive_timer -= dt
             if self.arrive_timer <= 0:
@@ -331,7 +412,12 @@ class GameScene(Scene):
         self._draw_panel(surface)
 
     def _ship_state(self):
-        """Return (x, y, vx, vy, fx, fy) for the ship right now."""
+        """Return (x, y, vx, vy, fx, fy) for the ship right now.
+
+        Diverged force reads as (nan, nan) so callers can distinguish
+        "no valid force" from (0, 0); draw/telemetry paths sanitize it to
+        zeros / "—" for display.
+        """
         if self.flight is not None:
             f = self.flight
             fx, fy = f.force
@@ -339,7 +425,8 @@ class GameScene(Scene):
         x, y = self.launch_pos
         try:
             fx, fy = self.field.at(x, y)
-        except (ArithmeticError, ValueError, TypeError, OverflowError):
+        except (ArithmeticError, ValueError, TypeError, OverflowError,
+                RecursionError, MemoryError):
             fx = fy = float("nan")
         return x, y, 0.0, 0.0, fx, fy
 
@@ -361,44 +448,73 @@ class GameScene(Scene):
     def _draw_plot(self, surface):
         vp = self.viewport
         plot = pygame.Rect(vp.rect)
-        surface.blit(self._plot_base_surface(), plot.topleft)
+        try:
+            surface.blit(self._plot_base_surface(), plot.topleft)
+        except _RENDER_ERRORS as exc:
+            log.warning("plot base blit contained: %r", exc)
 
         prev_clip = surface.get_clip()
-        surface.set_clip(plot)
+        try:
+            surface.set_clip(plot)
+        except _RENDER_ERRORS as exc:
+            log.warning("set_clip contained: %r", exc)
 
-        hb = self.history_bounds
-        if hb.w and hb.h:
-            surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
-        if self.launch_pos != self.level.start:
-            # Faint marker at the original start ("back to start" target).
-            pygame.draw.circle(surface, config.TEXT_FAINT, vp.to_screen(*self.level.start), px(3))
-        launch = vp.to_screen(*self.launch_pos)
-        sprites.draw_start_marker(surface, launch, vp.length(START_MARKER_RADIUS_M), self.t)
+        try:
+            hb = self.history_bounds
+            if hb.w and hb.h:
+                surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
+            if self.launch_pos != self.level.start:
+                # Faint marker at the original start ("back to start" target).
+                pygame.draw.circle(surface, config.TEXT_FAINT, vp.to_screen(*self.level.start), px(3))
+            launch = vp.to_screen(*self.launch_pos)
+            sprites.draw_start_marker(surface, launch, vp.length(START_MARKER_RADIUS_M), self.t)
 
-        flash = 0.0
-        if self.state == ARRIVED:
-            flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
-        sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
-                            vp.length(self.level.target_radius), self.t, flash)
+            flash = 0.0
+            if self.state == ARRIVED:
+                flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
+            sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
+                                vp.length(self.level.target_radius), self.t, flash)
 
-        if self.flight is not None:
-            self.trail.draw(surface, plot.topleft)
+            if self.flight is not None:
+                self.trail.draw(surface, plot.topleft)
 
-        x, y, vx, vy, fx, fy = self._ship_state()
-        if math.hypot(vx, vy) > 1e-6:
-            self.heading = math.atan2(vy, vx)
-        elif math.hypot(fx, fy) > 1e-9:
-            self.heading = math.atan2(fy, fx)
-        ship_pos = vp.to_screen(x, y)
-        if self.state in (FLIGHT, ARRIVED):
-            sprites.draw_vector(surface, ship_pos, (vx, vy), config.VELOCITY_VEC)
-            sprites.draw_vector(surface, ship_pos, (fx, fy), config.FORCE_VEC)
-        sprites.draw_ship(surface, ship_pos, self.heading, vp.length(self.ship.length), self.ship)
-
-        surface.set_clip(prev_clip)
-        self._draw_plot_labels(surface, plot)
-        if self.banner:
-            self._draw_banner(surface, plot)
+            x, y, vx, vy, fx, fy = self._ship_state()
+            for v in (x, y, vx, vy, fx, fy):
+                if not isinstance(v, (int, float)) or not math.isfinite(v):
+                    vx = vy = fx = fy = 0.0
+                    break
+            if math.hypot(vx, vy) > 1e-6:
+                try:
+                    self.heading = math.atan2(vy, vx)
+                except (ValueError, OverflowError):
+                    pass
+            elif math.hypot(fx, fy) > 1e-9:
+                try:
+                    self.heading = math.atan2(fy, fx)
+                except (ValueError, OverflowError):
+                    pass
+            try:
+                ship_pos = vp.to_screen(x, y)
+            except (TypeError, ValueError, OverflowError):
+                ship_pos = None
+            if ship_pos is not None:
+                if self.state in (FLIGHT, ARRIVED):
+                    # draw_vector/draw_ship are themselves total (never raise
+                    # for bad numbers), so no try/except needed here.
+                    sprites.draw_vector(surface, ship_pos, (vx, vy), config.VELOCITY_VEC)
+                    sprites.draw_vector(surface, ship_pos, (fx, fy), config.FORCE_VEC)
+                sprites.draw_ship(surface, ship_pos, self.heading, vp.length(self.ship.length), self.ship)
+        finally:
+            try:
+                surface.set_clip(prev_clip)
+            except _RENDER_ERRORS as exc:
+                log.warning("restore clip contained: %r", exc)
+        try:
+            self._draw_plot_labels(surface, plot)
+            if self.banner:
+                self._draw_banner(surface, plot)
+        except _RENDER_ERRORS as exc:
+            log.warning("plot overlay contained: %r", exc)
 
     def _draw_plot_labels(self, surface, plot):
         x, y = plot.x + px(14), plot.y + px(12)

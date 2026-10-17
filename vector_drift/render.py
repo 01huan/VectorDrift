@@ -54,21 +54,49 @@ def draw_arrow(surface, start, end, color, width=2, head=7, head_width=None):
 
 def draw_smooth_arrow(surface, start, end, color, width=3, head=10, outline=None, k=3):
     """Anti-aliased arrow drawn through a small supersampled surface."""
+    try:
+        coords = (float(start[0]), float(start[1]), float(end[0]), float(end[1]))
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not all(math.isfinite(v) for v in coords):
+        return
+    # Cull: giant coordinates (1e12 world -> 5e13 px) would allocate a huge
+    # temp surface and crash blit/Rect with C-long overflow. Skip when the
+    # arrow is fully off-screen; clamp when partially visible.
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError, AttributeError):
+        return
+    margin = head + width + 8
+    cull = config.MAX_PX_CULL
+    if (max(coords[0], coords[2]) < -margin or min(coords[0], coords[2]) > sw + margin
+            or max(coords[1], coords[3]) < -margin or min(coords[1], coords[3]) > sh + margin):
+        return
+    start = (min(max(coords[0], -cull), sw + cull), min(max(coords[1], -cull), sh + cull))
+    end = (min(max(coords[2], -cull), sw + cull), min(max(coords[3], -cull), sh + cull))
     pad = head + width + 4
     left = math.floor(min(start[0], end[0]) - pad)
     top = math.floor(min(start[1], end[1]) - pad)
     w = math.ceil(abs(end[0] - start[0]) + 2 * pad) + 1
     h = math.ceil(abs(end[1] - start[1]) + 2 * pad) + 1
-    big = pygame.Surface((w * k, h * k), pygame.SRCALPHA)
+    if w <= 0 or h <= 0 or w > config.MAX_ARROW_PX or h > config.MAX_ARROW_PX:
+        return
+    try:
+        big = pygame.Surface((w * k, h * k), pygame.SRCALPHA)
+    except (pygame.error, ValueError, OverflowError, MemoryError):
+        return
     s0 = ((start[0] - left) * k, (start[1] - top) * k)
     s1 = ((end[0] - left) * k, (end[1] - top) * k)
-    if outline:
-        pts = arrow_polygon(s0, s1, (width + 3) * k, (head + 3) * k)
-        if pts:
-            pygame.draw.polygon(big, outline, pts)
-            pygame.draw.circle(big, outline, s0, (width + 3) * k / 2)
-    draw_arrow(big, s0, s1, color, width * k, head * k)
-    surface.blit(pygame.transform.smoothscale(big, (w, h)), (left, top))
+    try:
+        if outline:
+            pts = arrow_polygon(s0, s1, (width + 3) * k, (head + 3) * k)
+            if pts:
+                pygame.draw.polygon(big, outline, pts)
+                pygame.draw.circle(big, outline, s0, (width + 3) * k / 2)
+        draw_arrow(big, s0, s1, color, width * k, head * k)
+        surface.blit(pygame.transform.smoothscale(big, (w, h)), (left, top))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
 
 
 # --- space background -----------------------------------------------------------
@@ -232,7 +260,10 @@ def field_samples(viewport, field):
             y = (j + 0.5) * ARROW_SPACING_M
             try:
                 fx, fy = field.at(x, y)
-            except (ArithmeticError, ValueError, TypeError, OverflowError):
+            except (ArithmeticError, ValueError, TypeError, OverflowError,
+                    RecursionError, MemoryError):
+                continue
+            if not (math.isfinite(fx) and math.isfinite(fy)):
                 continue
             samples.append((x, y, fx, fy))
     return samples

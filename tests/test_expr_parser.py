@@ -414,3 +414,106 @@ def test_expression_result_is_float():
 
     assert expr.evaluate() == 8.0
     assert isinstance(expr.evaluate(), float)
+
+
+# ============================================================
+# Huge-finite / overflow guards (tan(pi/2), 10^1e9, giant literals)
+# ============================================================
+
+def test_tan_pi_over_2_diverges():
+    # math.tan(pi/2) == 1.6e16: finite, so isfinite() alone cannot stop it.
+    expr = parse_expression("tan(pi/2)")
+
+    with pytest.raises(EvaluationError):
+        expr.evaluate()
+
+
+def test_power_overflow_diverges():
+    with pytest.raises(EvaluationError):
+        parse_expression("10^1000000000").evaluate()
+
+
+def test_huge_power_result_diverges():
+    # 9^40 ~= 1e38: finite but far beyond any sane force.
+    with pytest.raises(EvaluationError):
+        parse_expression("9^40").evaluate()
+
+
+def test_giant_literal_rejected_at_parse():
+    with pytest.raises(ParseError):
+        parse_expression("99999999999999999999*x")
+
+
+def test_long_literal_rejected_at_parse():
+    with pytest.raises(ParseError):
+        parse_expression("9" * 100 + "*x")
+
+
+def test_overlong_text_rejected_at_parse():
+    with pytest.raises(ParseError):
+        parse_expression("x+" * 300)
+
+
+def test_deeply_nested_rejected_at_parse():
+    with pytest.raises(ParseError):
+        parse_expression("sin(" * 200 + "x" + ")" * 200)
+
+
+# ============================================================
+# Boundary coverage (report section 2.3)
+# ============================================================
+
+
+def test_tiny_fraction_not_miskilled_by_digit_limit():
+    # 0.00000000000000000001 is 1e-20: single significant digit, must parse.
+    expr = parse_expression("0.00000000000000000001*x")
+
+    assert expr.evaluate(2.0) == pytest.approx(2e-20)
+
+
+def test_significant_digit_boundary():
+    # 20 significant nines -> digit-count rejects; 13 nines (9e12) ->
+    # magnitude ceiling rejects; 12 nines (9.99e11) stays legal.
+    with pytest.raises(ParseError):
+        parse_expression("9" * 20 + "*x")
+    with pytest.raises(ParseError):
+        parse_expression("9" * 13 + "*x")
+    expr = parse_expression("9" * 12 + "*x")
+
+    assert expr.evaluate(1.0) == pytest.approx(float("9" * 12))
+
+
+def test_text_length_boundary():
+    from vector_drift import config
+
+    ok = "x+" * 249 + "x"  # 499 chars
+    bad = "x+" * 250 + "x"  # 501 chars
+
+    assert len(ok) == config.MAX_EXPR_TEXT_LEN - 1
+    parse_expression(ok)
+    with pytest.raises(ParseError):
+        parse_expression(bad)
+
+
+def test_negative_base_fractional_exponent_diverges():
+    with pytest.raises(EvaluationError):
+        parse_expression("(-1)^0.5").evaluate()
+
+
+def test_tiny_power_result_clamps_to_zero():
+    assert parse_expression("10^-400").evaluate() == 0.0
+
+
+def test_exp_overflow_diverges_without_materialising():
+    with pytest.raises(EvaluationError):
+        parse_expression("exp(100)").evaluate()
+    # Intermediate-guarded but still legal: final result within ceiling.
+    # (Parser has no scientific notation, so divide by a 6-digit literal.)
+    assert parse_expression("exp(10)/100000").evaluate() == pytest.approx(0.22026465794806717)
+
+
+def test_linear_backstop_rejects_huge_coefficient():
+    from vector_drift.expr_parser import parse_linear
+
+    with pytest.raises(ParseError):
+        parse_linear("1000000000000000*x")

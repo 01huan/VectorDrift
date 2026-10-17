@@ -17,9 +17,38 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from . import config
+
 
 _NUMBER_RE = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)")
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
+
+# --- safety limits (DoS / huge-finite-value guards) ---------------------------
+# Canonical values live in config.py; these aliases stay for backward compat.
+# Parser-level backstop: UI caps input at config.MAX_EXPR_LEN, but pasted text,
+# restored sessions, or direct API calls can bypass it. These limits make the
+# parser itself safe.
+MAX_TEXT_LEN = config.MAX_EXPR_TEXT_LEN
+MAX_NUMBER_DIGITS = config.MAX_NUMBER_DIGITS
+MAX_ABS_RESULT = config.MAX_EXPR_RESULT
+
+
+def _significant_digits(raw: str) -> int:
+    """Count significant digits so tiny fractions aren't mis-killed.
+
+    e.g. ``0.00000000000000000001`` has 20 chars but a single significant
+    digit (1e-20) and must be accepted; ``999...9`` (20 nines) stays rejected
+    via the magnitude check.
+    """
+    s = raw.replace(".", "").lstrip("0")
+    if not s:
+        return 1  # literal is zero
+    # Strip exponent suffix if a future _NUMBER_RE ever captures one.
+    for sep in ("e", "E"):
+        if sep in raw:
+            s = s.split(sep)[0].lstrip("0") or "1"
+            break
+    return len(s)
 
 CONSTANTS = {
     "pi": math.pi,
@@ -112,12 +141,13 @@ class Expression:
             result = float(result)
         except EvaluationError:
             raise
-        except (ArithmeticError, ValueError, TypeError, OverflowError) as exc:
+        except (ArithmeticError, ValueError, TypeError, OverflowError,
+                RecursionError, MemoryError) as exc:
             raise EvaluationError(
                 f"Cannot evaluate expression: {exc}"
             ) from exc
 
-        if not math.isfinite(result):
+        if not math.isfinite(result) or abs(result) > MAX_ABS_RESULT:
             raise EvaluationError("Expression produced a non-finite value")
 
         return result
@@ -169,7 +199,16 @@ def _tokenize(text):
             if end < n and text[end] == ".":
                 raise ParseError("Invalid number (two decimal points)", i)
 
-            tokens.append(_Token("num", float(match.group()), i))
+            raw = match.group()
+            if _significant_digits(raw) > MAX_NUMBER_DIGITS:
+                raise ParseError("Number too large", i)
+            try:
+                value = float(raw)
+            except (ValueError, OverflowError) as exc:
+                raise ParseError("Number too large", i) from exc
+            if not math.isfinite(value) or abs(value) > MAX_ABS_RESULT:
+                raise ParseError("Number too large", i)
+            tokens.append(_Token("num", value, i))
             i = end
             continue
 
@@ -414,11 +453,57 @@ def _evaluate(node, variables):
                 raise ZeroDivisionError("division by zero")
             return a / b
         if op == "^":
-            return a ** b
+            # Pre-check via log10 so 10^1e9 (OverflowError) and huge-but-finite
+            # results (tunneling REACHED + pygame crash) both become diverged.
+            try:
+                if b == 0:
+                    return 1.0
+                if a == 0:
+                    if b < 0:
+                        raise ZeroDivisionError("0.0 cannot be raised to a negative power")
+                    return 0.0
+                abs_a = abs(a)
+                if abs_a == 1.0:
+                    if a == 1.0:
+                        return 1.0
+                    # (-1)^b: only integer exponents are real-valued.
+                    if not math.isfinite(b) or b != math.floor(b):
+                        raise ValueError("Negative base with non-integer exponent")
+                    return 1.0 if int(math.fmod(abs(b), 2.0)) == 0 else -1.0
+                if not (math.isfinite(a) and math.isfinite(b)):
+                    result = a ** b
+                    if not math.isfinite(result) or abs(float(result)) > MAX_ABS_RESULT:
+                        raise OverflowError("Result too large")
+                    return result
+                log10_mag = math.log10(abs_a) * b
+            except (ValueError, OverflowError, ZeroDivisionError):
+                raise
+            if log10_mag > math.log10(MAX_ABS_RESULT):
+                raise OverflowError("Result too large")
+            if log10_mag < -308:
+                return 0.0
+            result = a ** b
+            if not math.isfinite(result):
+                raise OverflowError("Result too large")
+            if abs(float(result)) > MAX_ABS_RESULT:
+                raise OverflowError("Result too large")
+            return result
 
     if kind == "call":
         name, args = node[1], node[2]
         values = [_evaluate(arg, variables) for arg in args]
+        # Fast-path guard for exp-family: avoid materialising huge-but-finite
+        # intermediates (exp(100) ~= 2.6e43) when we will reject them anyway.
+        # Other functions rely on the final MAX_ABS_RESULT check in
+        # Expression.evaluate(), so e.g. exp(10)/1e6 stays legal.
+        if name == "exp" and len(values) == 1:
+            try:
+                v = float(values[0])
+            except (TypeError, ValueError, OverflowError):
+                pass
+            else:
+                if math.isfinite(v) and v > math.log(MAX_ABS_RESULT):
+                    raise OverflowError("Result too large")
         return FUNCTIONS[name](*values)
 
     raise EvaluationError(f"Unknown expression node: {kind}")
@@ -426,6 +511,10 @@ def _evaluate(node, variables):
 
 def parse_expression(text):
     """Parse a general expression into an Expression object."""
+    if not isinstance(text, str):
+        raise ParseError("Expression must be text", 0)
+    if len(text) > MAX_TEXT_LEN:
+        raise ParseError("Expression too long", MAX_TEXT_LEN)
     try:
         return Expression(_Parser(text).parse())
     except RecursionError as exc:
@@ -524,6 +613,10 @@ def parse_linear(text):
         raise ParseError(str(exc), 0) from exc
 
     if not all(math.isfinite(v) for v in (a, b, c)):
+        raise ParseError("Number too large", 0)
+    # Keep parser-level backstop effective downstream: linear coefficients
+    # feed ForceField directly, so clamp to the same ceiling as evaluate().
+    if any(abs(v) > MAX_ABS_RESULT for v in (a, b, c)):
         raise ParseError("Number too large", 0)
 
     return LinearExpr(a, b, c)

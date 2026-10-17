@@ -6,6 +6,17 @@ from enum import Enum
 
 from . import config
 
+# --- safety limits -----------------------------------------------------------
+# Huge-but-finite forces (e.g. tan(pi/2) ~= 1.6e16) pass every isfinite() check
+# yet tunnel through the target in one step (REACHED) and then crash pygame
+# with 1e12-scale screen coordinates. Clamp here so they become DIVERGED.
+# Canonical values live in config.py; aliases stay for backward compat.
+MAX_FORCE = config.MAX_FORCE
+# Single-step displacement guard (backstop for tunneling REACHED). Must allow
+# legit fast crossings (Fx=1e5 moves ~14 m in one step) but catch 1e12-scale
+# jumps that would fake a hit and crash the renderer.
+MAX_STEP_M = config.MAX_STEP_M
+
 
 class Outcome(Enum):
     RUNNING = "running"
@@ -87,8 +98,10 @@ class ForceField:
                 
             if not math.isfinite(value):
                 raise ArithmeticError("Force is not finite")
+            if abs(value) > MAX_FORCE:
+                raise ArithmeticError(f"Force magnitude {value:.3g} exceeds limit")
                 
-        except (ValueError, TypeError, OverflowError) as exc:
+        except (ValueError, TypeError, OverflowError, RecursionError, MemoryError) as exc:
             raise ArithmeticError(f"Invalid force expression result: {exc}")
         
         return value
@@ -105,6 +118,8 @@ class ForceField:
 
         if not (math.isfinite(fx) and math.isfinite(fy)):
             raise ArithmeticError("Force field produced a non-finite value")
+        if abs(fx) > MAX_FORCE or abs(fy) > MAX_FORCE:
+            raise ArithmeticError("Force field produced an excessive value")
 
         return float(fx), float(fy)
 
@@ -178,7 +193,8 @@ class Flight:
     def force(self):
         try:
             return self.field.at(self.x, self.y)
-        except (ArithmeticError, ValueError, TypeError, OverflowError):
+        except (ArithmeticError, ValueError, TypeError, OverflowError,
+                RecursionError, MemoryError):
             return (math.nan, math.nan)
 
     @property
@@ -199,7 +215,8 @@ class Flight:
             nx = self.x + vx * self.dt
             ny = self.y + vy * self.dt
 
-        except (ArithmeticError, ValueError, TypeError, OverflowError):
+        except (ArithmeticError, ValueError, TypeError, OverflowError,
+                RecursionError, MemoryError):
             self.steps += 1
             self.outcome = Outcome.DIVERGED
             return self.outcome
@@ -207,6 +224,12 @@ class Flight:
         self.steps += 1
 
         if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
+            self.outcome = Outcome.DIVERGED
+            return self.outcome
+
+        # Tunneling guard: a single step must not jump across the world.
+        # Huge-but-finite F (tan(pi/2)) would otherwise fake a REACHED hit.
+        if math.hypot(nx - self.x, ny - self.y) > MAX_STEP_M:
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
