@@ -88,7 +88,14 @@ def fmt_clock(seconds):
 class GameScene(Scene):
     def __init__(self, manager):
         super().__init__(manager)
-        self.level = get_level(self.session.level_id)
+        if self.session.level_id == config.RANDOM_LEVEL_ID:
+            # Same seed for the whole run: retry/replay keep one layout.
+            if self.session.random_seed is None:
+                import random as _random
+                self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
+            self.level = get_level(self.session.level_id, seed=self.session.random_seed)
+        else:
+            self.level = get_level(self.session.level_id)
         self.owned_ships = list(SHIPS)          # all ships the player may pick (shop comes later)
         ship_id = self.session.ship_id or self.level.ship_id
         self.ship_index = self.owned_ships.index(ship_id)
@@ -474,6 +481,10 @@ class GameScene(Scene):
                 flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
             sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
                                 vp.length(self.level.target_radius), self.t, flash)
+
+            for obstacle in getattr(self.level, "obstacles", ()) or ():
+                sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
+                                      vp.length(obstacle.radius), self.t)
 
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)

@@ -205,6 +205,61 @@ def draw_target(surface, center, radius, t, flash=0.0):
         surface.blit(ring, ring.get_rect(center=center))
 
 
+# --- obstacle bumper ---------------------------------------------------------------
+def _render_bumper(radius):
+    d = 2 * radius + 8
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    # Rocky body: dark base, lighter top-left cap, crater dots.
+    pygame.draw.circle(surf, (96, 104, 138), (c, c), r)
+    cap = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(cap, (150, 162, 196), (c, c), r)
+    pygame.draw.circle(cap, (0, 0, 0, 0), (c + 0.22 * r, c + 0.26 * r), r * 1.02)
+    surf.blit(cap, (0, 0))
+    for fx, fy, fr in ((-0.30, -0.20, 0.14), (0.25, 0.10, 0.11), (-0.05, 0.38, 0.09)):
+        dot = pygame.Rect(0, 0, 2 * fr * r, 2 * fr * r)
+        dot.center = (c + fx * r, c + fy * r)
+        pygame.draw.ellipse(surf, (70, 78, 108), dot)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.05 * r)))
+    # Hazard ring: short warning dashes just outside the rock.
+    for i in range(12):
+        a = i * math.pi / 6
+        p0 = (c + (r + 2 * SS) * math.cos(a), c + (r + 2 * SS) * math.sin(a))
+        p1 = (c + (r + 5 * SS) * math.cos(a), c + (r + 5 * SS) * math.sin(a))
+        pygame.draw.line(surf, (255, 190, 90), p0, p1, max(2, round(1.2 * SS)))
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def draw_obstacle(surface, center, radius, t):
+    """Draw one bumper. `center`/`radius` are in px. Never raises."""
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius = float(radius)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+        return
+    if radius <= 1:
+        return
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError):
+        return
+    cull = config.MAX_PX_CULL
+    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
+        return
+    radius = round(radius)
+    try:
+        img = _cached(("bumper", radius), lambda: _render_bumper(radius))
+        # Gentle pulse on the warning ring via alpha; rock itself is static.
+        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
+        img.set_alpha(round(215 + 40 * pulse))
+        surface.blit(img, img.get_rect(center=(cx, cy)))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
 # --- launch pad -----------------------------------------------------------------------
 def _render_pad(radius):
     size = 2 * radius + round(8 * config.UI_SCALE)

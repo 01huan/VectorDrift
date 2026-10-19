@@ -92,6 +92,34 @@ MAX_EXPR_LEN = 40
 BANNER_DURATION = 1.8               # life-lost banner (s)
 WIN_DELAY = 0.8                     # pause on target before Win screen (s)
 
+# --- Random level (Level 7) --------------------------------------------------
+# Solvable-by-construction: start/target are sampled at least
+# MIN_START_TARGET_DIST (L) apart, K hidden points are joined into a safe
+# corridor, and every obstacle disc must clear that corridor (segment, not
+# infinite line, vs circle). Tweak counts/sizes here to retune difficulty;
+# generator logic lives in random_level.py so new shapes only add constants.
+RANDOM_LEVEL_ID = 7
+RANDOM_LEVEL_NAME = "Random Drift"
+RANDOM_LEVEL_SHIP_ID = "drifter"
+RANDOM_LEVEL_TIME_LIMIT = 10.0
+RANDOM_LEVEL_LIVES = 5
+RANDOM_LEVEL_TARGET_RADIUS = 1.0
+RANDOM_LEVEL_MIN_START_TARGET_DIST = 10.0   # L: required start-target gap (m)
+RANDOM_LEVEL_NUM_HIDDEN_POINTS = 7         # K: shuffled waypoints in corridor
+RANDOM_LEVEL_NUM_OBSTACLES = 10              # n: bumper discs to place
+RANDOM_LEVEL_OBSTACLE_RADIUS_MIN = 0.5      # random bumper size range (m)
+RANDOM_LEVEL_OBSTACLE_RADIUS_MAX = 1.4
+RANDOM_LEVEL_CORRIDOR_CLEARANCE = 0.9       # free half-width kept around path
+RANDOM_LEVEL_START_CLEARANCE = 1.0          # obstacle gap around start
+RANDOM_LEVEL_TARGET_CLEARANCE = 1.0         # extra gap around target edge
+RANDOM_LEVEL_MIN_OBSTACLE_GAP = 0.3         # spacing between obstacle discs
+RANDOM_LEVEL_EDGE_MARGIN = 0.5              # keep whole discs inside world
+RANDOM_LEVEL_ENDPOINT_MARGIN = 1.0          # start/target sampling inset
+RANDOM_LEVEL_HIDDEN_MARGIN = 0.5            # hidden-point sampling inset
+RANDOM_LEVEL_MAX_ENDPOINT_ATTEMPTS = 100
+RANDOM_LEVEL_MAX_PLACE_ATTEMPTS = 500       # per-obstacle rejection samples
+RANDOM_LEVEL_MAX_LEVEL_ATTEMPTS = 10        # whole-layout retries, then empty
+
 # Field arrows: linear length, the largest |F| on screen gets ARROW_MAX_M
 ARROW_MAX_M = 0.90                  # longest arrow (m); arrows are 1 m apart
 

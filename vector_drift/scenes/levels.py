@@ -8,7 +8,7 @@ from ..data import LEVELS
 from ..ui import Button, draw_text, icon_surface
 from .base import Scene
 
-SLOTS = 6                    # cards shown; levels beyond LEVELS are locked placeholders
+SLOTS = 9                    # cards shown; levels beyond LEVELS are locked placeholders
 COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
 
@@ -35,6 +35,12 @@ class LevelSelectScene(Scene):
         self.audio.play("click")
         self.session.level_id = level_id
         self.session.fx_text = self.session.fy_text = ""
+        # Fresh solvable layout for the random level on every entry; static
+        # levels always come from get_level().
+        self.session.random_seed = None
+        if level_id == config.RANDOM_LEVEL_ID:
+            import random as _random
+            self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
         from .game import GameScene
         self.manager.switch(GameScene(self.manager))
 
@@ -93,8 +99,13 @@ class LevelSelectScene(Scene):
                          max(2, px(2)) if hover else line_w, border_radius=px(6))
         draw_text(surface, str(lid), (rect.x + px(18), rect.y + px(10)), 44, config.TEXT, kind="bold")
         draw_text(surface, level.name, (rect.x + px(18), rect.y + px(78)), 17, config.TEXT, kind="bold")
+        if lid == config.RANDOM_LEVEL_ID:
+            draw_text(surface, "New maze every visit", (rect.x + px(18), rect.y + px(100)), 13,
+                      config.ACCENT, anchor="topleft")
+            status_y = rect.y + px(124)
+        else:
+            status_y = rect.y + px(116)
         best = self.session.records.get(lid)
-        status_y = rect.y + px(116)
         if best is None:
             draw_text(surface, "Not cleared yet", (rect.x + px(18), status_y), 13, config.TEXT_DIM, anchor="midleft")
         else:

@@ -126,22 +126,52 @@ class ForceField:
 
 def segment_hits_circle(p0, p1, center, radius):
     """True if segment p0->p1 comes within radius of center."""
+    return segment_circle_first_hit(p0, p1, center, radius) is not None
+
+
+def segment_circle_first_hit(p0, p1, center, radius):
+    """Earliest t in [0, 1] where segment p0->p1 touches the circle, else None.
+
+    Solving |p0 + t*(p1-p0) - center|^2 = radius^2 keeps fast ships from
+    tunneling through small bumpers (same reason the target uses a segment
+    test instead of a point test).
+    """
     x0, y0 = p0
     dx, dy = p1[0] - x0, p1[1] - y0
     cx, cy = center[0] - x0, center[1] - y0
 
     seg_len2 = dx * dx + dy * dy
+    dist2 = cx * cx + cy * cy
+    if seg_len2 <= 0.0:
+        return 0.0 if dist2 <= radius * radius else None
 
-    if seg_len2 > 0.0:
-        t = max(
-            0.0,
-            min(1.0, (cx * dx + cy * dy) / seg_len2),
-        )
-    else:
-        t = 0.0
+    # Start inside (or exactly on) the disc: contact is right now.
+    if dist2 <= radius * radius:
+        return 0.0
 
-    px, py = dx * t - cx, dy * t - cy
-    return px * px + py * py <= radius * radius
+    a = seg_len2
+    b = -(cx * dx + cy * dy)  # = f.d with f = p0 - center (half of b term)
+    c = dist2 - radius * radius
+    disc = b * b - a * c
+    if disc < 0.0:
+        return None
+    root = math.sqrt(disc)
+    for t in ((-b - root) / a, (-b + root) / a):
+        if 0.0 <= t <= 1.0:
+            return t
+    return None
+
+
+def reflect_velocity(vx, vy, nx, ny, restitution=1.0):
+    """Reflect velocity (vx, vy) about unit normal (nx, ny)."""
+    try:
+        e = float(restitution)
+    except (TypeError, ValueError, OverflowError):
+        e = 1.0
+    if not math.isfinite(e):
+        e = 1.0
+    vn = vx * nx + vy * ny
+    return vx - (1.0 + e) * vn * nx, vy - (1.0 + e) * vn * ny
 
 
 class Flight:
@@ -168,14 +198,21 @@ class Flight:
 
         self.field = field
         self.mass = ship.mass
+        self.hull_radius = ship.hull_radius
         self.hit_radius = level.target_radius + ship.hull_radius
         self.target = level.target_center
+        # (center, radius incl. hull, restitution) — precomputed so step() stays cheap.
+        self.obstacles = tuple(
+            ((o.center[0], o.center[1]), o.radius + ship.hull_radius, o.restitution)
+            for o in getattr(level, "obstacles", ()) or ()
+        )
         self.bounds = bounds
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
 
         self.x, self.y = level.start if start is None else start
         self.vx = self.vy = 0.0
+        self.bounces = 0
         self.steps = 0
         self.outcome = Outcome.RUNNING
         self.trail = [(self.x, self.y)]
@@ -237,18 +274,58 @@ class Flight:
 
         self.vx, self.vy = vx, vy
         self.x, self.y = nx, ny
-        self.trail.append((nx, ny))
+        self._bounce_along_path(p0)
 
         if segment_hits_circle(
-            p0, (nx, ny), self.target, self.hit_radius
+            p0, (self.x, self.y), self.target, self.hit_radius
         ):
             self.outcome = Outcome.REACHED
-        elif abs(nx) > self.bounds[0] or abs(ny) > self.bounds[1]:
+        elif abs(self.x) > self.bounds[0] or abs(self.y) > self.bounds[1]:
             self.outcome = Outcome.OUT_OF_BOUNDS
         elif self.steps >= self.max_steps:
             self.outcome = Outcome.TIMEOUT
 
         return self.outcome
+
+    def _bounce_along_path(self, p0):
+        """Reflect off bumpers hit along this step's path (closest first)."""
+        if not self.obstacles:
+            self.trail.append((self.x, self.y))
+            return
+        start = p0
+        end = (self.x, self.y)
+        for _ in range(max(1, len(self.obstacles) * 2)):
+            earliest = None  # (t, center, radius, restitution)
+            for center, radius, restitution in self.obstacles:
+                t = segment_circle_first_hit(start, end, center, radius)
+                if t is not None and (earliest is None or t < earliest[0]):
+                    earliest = (t, center, radius, restitution)
+            if earliest is None:
+                break
+            t, center, radius, restitution = earliest
+            hx = start[0] + (end[0] - start[0]) * t
+            hy = start[1] + (end[1] - start[1]) * t
+            nx, ny = hx - center[0], hy - center[1]
+            dist = math.hypot(nx, ny)
+            if dist < 1e-9:
+                # Dead-center hit: fall back to incoming direction.
+                nx, ny = -self.vx, -self.vy
+                dist = math.hypot(nx, ny)
+                if dist < 1e-9:
+                    nx, ny, dist = 1.0, 0.0, 1.0
+            nx, ny = nx / dist, ny / dist
+            self.vx, self.vy = reflect_velocity(self.vx, self.vy, nx, ny,
+                                                restitution)
+            # Nudge off the surface so the next test starts outside.
+            hx, hy = hx + nx * 1e-6, hy + ny * 1e-6
+            # Remaining leg re-emitted from the contact point.
+            frac = 1.0 - t
+            end = (hx + self.vx * self.dt * frac, hy + self.vy * self.dt * frac)
+            start = (hx, hy)
+            self.bounces += 1
+            self.trail.append((hx, hy))
+        self.x, self.y = end
+        self.trail.append((self.x, self.y))
 
     def advance(self, frame_dt):
         """Run fixed simulation steps fitting into elapsed frame time."""
