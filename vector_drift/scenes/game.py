@@ -88,7 +88,8 @@ def fmt_clock(seconds):
 class GameScene(Scene):
     def __init__(self, manager):
         super().__init__(manager)
-        if self.session.level_id == config.RANDOM_LEVEL_ID:
+        from ..level_presets import is_dynamic_level
+        if is_dynamic_level(self.session.level_id):
             # Same seed for the whole run: retry/replay keep one layout.
             if self.session.random_seed is None:
                 import random as _random
@@ -484,7 +485,8 @@ class GameScene(Scene):
 
             for obstacle in getattr(self.level, "obstacles", ()) or ():
                 sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
-                                      vp.length(obstacle.radius), self.t)
+                                      vp.length(obstacle.radius), self.t,
+                                      kind=getattr(obstacle, "kind", "bumper"))
 
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)

@@ -1,13 +1,16 @@
 """Static game data: ships and hand-designed levels.
 
-Level 7 ("Random Drift") is dynamic: see random_level.py. get_level(7)
-generates a fresh solvable layout on every call, so gameplay always uses
-get_level() instead of reading LEVELS directly.
+Dynamic levels (e.g. 7, 8) are NOT hard-coded here: their tunables live in
+level_presets.py and their layouts are generated fresh by random_level.py.
+get_level() routes any id in level_presets.dynamic_ids() to the generator,
+so gameplay always uses get_level() instead of reading LEVELS directly.
+To add Level 9: register_preset(RandomPreset(level_id=9, ...)) -- no edits
+to this file, config.py, or scenes are needed.
 """
 
 from dataclasses import dataclass
 
-from . import config
+from .level_presets import dynamic_ids, get_preset, is_dynamic_level
 
 
 @dataclass(frozen=True)
@@ -28,11 +31,15 @@ class ObstacleSpec:
 
     center: (x, y) in m. radius: m (ship hull_radius is added at runtime).
     restitution: 1.0 = perfectly elastic; kept per-obstacle for future tuning.
+    kind: selects the renderer in sprites.OBSTACLE_RENDERERS; "bumper" is
+    the classic rock. New kinds only add a renderer (+ optional rule), they
+    never touch physics or the placement loop.
     """
 
     center: tuple
     radius: float
     restitution: float = 1.0
+    kind: str = "bumper"
 
 
 @dataclass(frozen=True)
@@ -77,31 +84,41 @@ LEVELS = [
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
         ),
     ),
-    LevelSpec(
-        id=config.RANDOM_LEVEL_ID,
-        name=config.RANDOM_LEVEL_NAME,
-        # Placeholder so the level-select card shows up; the real layout
-        # is generated fresh by get_level() (see random_level.py).
-        start=(0.0, 0.0),
-        target_center=(0.0, 0.0),
-        target_radius=config.RANDOM_LEVEL_TARGET_RADIUS,
-        ship_id=config.RANDOM_LEVEL_SHIP_ID,
-    ),
 ]
+
+
+def _placeholder(preset):
+    """Level-select card for a dynamic level (real layout via get_level)."""
+    return LevelSpec(
+        id=preset.level_id, name=preset.name, start=(0.0, 0.0),
+        target_center=(0.0, 0.0), target_radius=preset.target_radius,
+        ship_id=preset.ship_id,
+    )
+
+
+def all_levels():
+    """Static levels + one placeholder per registered dynamic preset."""
+    seen = {lv.id for lv in LEVELS}
+    cards = list(LEVELS)
+    for lid in dynamic_ids():
+        if lid not in seen:
+            cards.append(_placeholder(get_preset(lid)))
+    return cards
 
 
 def get_level(level_id, seed=None):
     """Return the spec for ``level_id``.
 
-    Level 7 is dynamic: a fresh solvable layout is generated on every call
-    unless ``seed`` is given (same seed -> same layout, used to keep
-    retry/replay on one layout while level-select entries get new ones).
+    Dynamic ids (see level_presets.dynamic_ids()) generate a fresh solvable
+    layout on every call unless ``seed`` is given (same seed -> same layout,
+    used to keep retry/replay on one layout while level-select entries get
+    new ones).
     """
-    if level_id == config.RANDOM_LEVEL_ID:
+    if is_dynamic_level(level_id):
         # Dynamic level: fresh solvable layout on every call (lazy import
         # avoids a data <-> random_level import cycle).
         from .random_level import generate_random_level
-        return generate_random_level(seed=seed)
+        return generate_random_level(level_id, seed=seed)
     for level in LEVELS:
         if level.id == level_id:
             return level

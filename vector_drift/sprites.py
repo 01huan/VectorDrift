@@ -231,8 +231,20 @@ def _render_bumper(radius):
     return pygame.transform.smoothscale(surf, (d, d))
 
 
-def draw_obstacle(surface, center, radius, t):
-    """Draw one bumper. `center`/`radius` are in px. Never raises."""
+def draw_obstacle(surface, center, radius, t, kind="bumper"):
+    """Draw one bumper. `center`/`radius` are in px. Never raises.
+
+    `kind` selects the painter from OBSTACLE_RENDERERS: "bumper" is the
+    classic rock. New kinds add one entry -- callers never branch.
+    """
+    painter = OBSTACLE_RENDERERS.get(kind, _paint_bumper)
+    try:
+        painter(surface, center, radius, t)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
+def _paint_bumper(surface, center, radius, t):
     try:
         cx, cy = float(center[0]), float(center[1])
         radius = float(radius)
@@ -258,6 +270,11 @@ def draw_obstacle(surface, center, radius, t):
         surface.blit(img, img.get_rect(center=(cx, cy)))
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
         return
+
+
+OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
+"""kind -> painter(surface, center_px, radius_px, t). New obstacle flavours
+add one entry here; draw_obstacle() dispatches, so game.py never branches."""
 
 
 # --- launch pad -----------------------------------------------------------------------

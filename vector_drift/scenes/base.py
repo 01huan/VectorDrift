@@ -17,7 +17,7 @@ class Session:
     ship_id: str | None = None                      # None = the level's default ship
     fx_text: str = ""
     fy_text: str = ""
-    random_seed: int | None = None  # fixed layout for one Level 7 run (replay/retry)
+    random_seed: int | None = None  # fixed layout for one dynamic-level run (retry/replay)
     stats: dict = field(default_factory=dict)       # last win/fail details
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
 

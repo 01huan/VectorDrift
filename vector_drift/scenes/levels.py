@@ -4,7 +4,8 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..data import LEVELS
+from ..data import LEVELS, all_levels
+from ..level_presets import get_preset, is_dynamic_level
 from ..ui import Button, draw_text, icon_surface
 from .base import Scene
 
@@ -18,11 +19,11 @@ class LevelSelectScene(Scene):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,
                                                        star_count=260)
-        self.levels = {lv.id: lv for lv in LEVELS}
+        self.levels = {lv.id: lv for lv in all_levels()}
         grid_w = COLS * CARD_W + (COLS - 1) * GAP
         left, top = (1280 - grid_w) // 2, 200
         self.cards = []
-        for i in range(max(SLOTS, len(LEVELS))):
+        for i in range(max(SLOTS, len(self.levels))):
             col, row = i % COLS, i // COLS
             rect = pygame.Rect(px(left + col * (CARD_W + GAP)), px(top + row * (CARD_H + GAP)),
                                px(CARD_W), px(CARD_H))
@@ -35,10 +36,10 @@ class LevelSelectScene(Scene):
         self.audio.play("click")
         self.session.level_id = level_id
         self.session.fx_text = self.session.fy_text = ""
-        # Fresh solvable layout for the random level on every entry; static
+        # Fresh solvable layout for dynamic levels on every entry; static
         # levels always come from get_level().
         self.session.random_seed = None
-        if level_id == config.RANDOM_LEVEL_ID:
+        if is_dynamic_level(level_id):
             import random as _random
             self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
         from .game import GameScene
@@ -65,7 +66,8 @@ class LevelSelectScene(Scene):
                 self._to_menu()
                 return
             if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                self._start(self.session.level_id if self.session.level_id in self.levels else LEVELS[0].id)
+                fallback = next(iter(self.levels))
+                self._start(self.session.level_id if self.session.level_id in self.levels else fallback)
                 return
         if self.menu_button.handle_event(event) == "click":
             self._to_menu()
@@ -99,8 +101,12 @@ class LevelSelectScene(Scene):
                          max(2, px(2)) if hover else line_w, border_radius=px(6))
         draw_text(surface, str(lid), (rect.x + px(18), rect.y + px(10)), 44, config.TEXT, kind="bold")
         draw_text(surface, level.name, (rect.x + px(18), rect.y + px(78)), 17, config.TEXT, kind="bold")
-        if lid == config.RANDOM_LEVEL_ID:
-            draw_text(surface, "New maze every visit", (rect.x + px(18), rect.y + px(100)), 13,
+        if is_dynamic_level(lid):
+            try:
+                blurb = get_preset(lid).card_blurb
+            except KeyError:
+                blurb = "New maze every visit"
+            draw_text(surface, blurb, (rect.x + px(18), rect.y + px(100)), 13,
                       config.ACCENT, anchor="topleft")
             status_y = rect.y + px(124)
         else:
