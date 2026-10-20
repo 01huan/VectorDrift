@@ -8,6 +8,10 @@ Strategy (guaranteed solvable by construction):
    is the hidden safe corridor: a path always exists by construction.
 3. Sample n circular obstacles with random radii, rejecting any disc
    that violates a rule (see RULES below).
+4. Sample m pickups ON the corridor (same center+radius shape as
+   obstacles), rejecting any that stacks on an obstacle, peer pickup
+   or endpoint. Tunables: RandomPreset.num_pickups / pickup_radius /
+   pickup_corridor_max.
 
 How to extend (no core edits needed):
 
@@ -44,9 +48,10 @@ class PlaceContext:
     segments: tuple  # hidden safe corridor
     start: tuple
     target: tuple
-    placed: tuple  # previously accepted (center, radius) pairs
+    placed: tuple  # previously accepted (center, radius) pairs (both kinds)
     preset: object  # RandomPreset
     index: int  # len(placed): 0-based position of this candidate
+    for_pickup: bool = False  # True: skip obstacle-only rules (block/corridor)
 
 
 def _rand_point(rng, margin):
@@ -99,6 +104,8 @@ def rule_clear_of_endpoints(ctx):
 
 def rule_direct_blockers(ctx):
     """First N discs must block the start->target shortcut (no free shot)."""
+    if ctx.for_pickup:
+        return True
     if ctx.index < ctx.preset.num_direct_blockers:
         return segment_hits_circle(ctx.start, ctx.target, ctx.center, ctx.radius)
     return True
@@ -106,21 +113,37 @@ def rule_direct_blockers(ctx):
 
 def rule_clear_of_corridor(ctx):
     """Every disc must clear the hidden safe corridor (segment, not line)."""
+    if ctx.for_pickup:
+        return True
     clearance = ctx.radius + ctx.preset.corridor_clearance
     return not any(segment_hits_circle(a, b, ctx.center, clearance) for a, b in ctx.segments)
 
 
 def rule_spaced_from_peers(ctx):
-    """Discs must not overlap each other (plus gap)."""
+    """Discs must not overlap each other (plus gap) -- any kind mix."""
     gap = ctx.preset.min_obstacle_gap
+    from .pickups import discs_overlap  # lazy: avoids import cycle
     return not any(
-        math.dist(ctx.center, c) <= ctx.radius + r + gap for c, r in ctx.placed
+        discs_overlap(ctx.center, ctx.radius, c, r, gap) for c, r in ctx.placed
     )
+
+
+def rule_pickup_on_corridor(ctx):
+    """Pickups must sit ON the route so the ship can actually reach them."""
+    if not ctx.for_pickup:
+        return True
+    limit = ctx.radius + float(getattr(ctx.preset, "pickup_corridor_max", 0.6))
+    return any(segment_hits_circle(a, b, ctx.center, limit) for a, b in ctx.segments)
 
 
 # Global pipeline: every candidate must pass all of these AND the preset's
 # own extra_rules. Reorder/append here for game-wide changes; per-level
 # tweaks go to RandomPreset.extra_rules instead.
+# rule_spaced_from_peers now also separates from already-placed pickups:
+# PlaceContext.placed may hold (center, radius) pairs of BOTH kinds, so
+# obstacle<->obstacle, pickup<->pickup and pickup<->obstacle all share one
+# overlap rule (pickups.discs_overlap). Obstacle-specific rules (corridor /
+# direct-blocker) are skipped for pickups via ctx.for_pickup.
 RULES = (
     rule_clear_of_endpoints,
     rule_direct_blockers,
@@ -165,7 +188,54 @@ def place_obstacles(rng, segments, start, target, count=None, preset=None):
     )
 
 
-def _make_spec(start, target, obstacles, preset=None):
+def _pickup_ok(center, radius, segments, start, target, placed, preset=None):
+    """Check one pickup candidate: endpoints + peers (any kind) + on-route."""
+    preset = _preset_or_default(preset)
+    ctx = PlaceContext(
+        center=center, radius=radius, segments=tuple(segments),
+        start=start, target=target, placed=tuple(placed),
+        preset=preset, index=len(placed), for_pickup=True,
+    )
+    # RULES stays the 4 obstacle rules (compat); on-route is pickup-only.
+    return all(rule(ctx) for rule in (*RULES, rule_pickup_on_corridor,
+                                      *preset.extra_rules))
+
+
+def place_pickups(rng, segments, start, target, placed=(), groups=None, preset=None):
+    """Sample pickups ON the corridor, clear of discs and endpoints.
+
+    Same shape as obstacles: just center + size (+ kind). ``groups`` is an
+    iterable of (kind, count, radius); default = preset.pickup_groups, so
+    random levels are fully driven by level_presets.py. ``placed`` seeds
+    the peer list with obstacle (center, radius) pairs so pickup<->obstacle
+    and pickup<->pickup never stack. Returns () instead of raising when
+    the route is too crowded (pickups are bonus, not required).
+    """
+    from .data import PickupSpec  # lazy: avoids data <-> random_level cycle
+
+    preset = _preset_or_default(preset)
+    if groups is None:
+        groups = getattr(preset, "pickup_groups", ())
+    peers = list(placed)
+    out = []
+    for kind, count, radius in groups or ():
+        radius = float(radius)
+        for _ in range(int(count)):
+            for _ in range(preset.max_place_attempts):
+                margin = radius + preset.edge_margin
+                if margin >= config.WORLD_HALF_W or margin >= config.WORLD_HALF_H:
+                    break
+                center = _rand_point(rng, margin)
+                if _pickup_ok(center, radius, segments, start, target, peers, preset):
+                    peers.append((center, radius))
+                    out.append(PickupSpec(center=center, radius=radius, kind=kind))
+                    break
+            else:
+                break  # too crowded: fewer (or zero) pickups is fine
+    return tuple(out)
+
+
+def _make_spec(start, target, obstacles, preset=None, pickups=()):
     preset = _preset_or_default(preset)
     return LevelSpec(
         id=preset.level_id,
@@ -177,6 +247,7 @@ def _make_spec(start, target, obstacles, preset=None):
         time_limit=preset.time_limit,
         lives=preset.lives,
         obstacles=obstacles,
+        pickups=pickups,
     )
 
 
@@ -195,7 +266,10 @@ def generate_with_corridor(seed=None, level_id=7, preset=None):
                 start, sample_hidden_points(rng, preset=preset), target, rng
             )
             obstacles = place_obstacles(rng, segments, start, target, preset=preset)
-            return _make_spec(start, target, obstacles, preset), ordered, segments
+            peers = [(o.center, o.radius) for o in obstacles]
+            pickups = place_pickups(rng, segments, start, target, placed=peers,
+                                    preset=preset)
+            return _make_spec(start, target, obstacles, preset, pickups), ordered, segments
         except RuntimeError:
             continue
     start, target = sample_endpoints(random.Random(rng.random()), preset)

@@ -119,6 +119,12 @@ class GameScene(Scene):
         self.total_time = 0.0
         self.state = SETUP
         self.flight = None
+        # One PickupState per spec for the WHOLE run (all lives): consumed
+        # pickups and bomb-cleared obstacles persist like level state until
+        # all lives are spent. No config = no pickups (data.py decides).
+        from ..pickups import PickupState
+        specs = getattr(self.level, "pickups", ()) or ()
+        self.pickups = [PickupState.from_spec(s) for s in specs]
         self.launch_pos = self.level.start
         self.banner = None              # (title, subtitle, time_left)
         self.arrive_timer = 0.0
@@ -251,7 +257,8 @@ class GameScene(Scene):
             self.audio.play("error")
             return
         self.attempts += 1
-        self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos)
+        self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
+                             pickups=self.pickups)
         self.trail.clear()
         self._trail_count = 0
         self.state = FLIGHT
@@ -335,6 +342,36 @@ class GameScene(Scene):
             log.warning("trail extend contained: %r", exc)
         self._trail_count = len(pts)
 
+    def _drain_pickup_events(self):
+        """Apply Flight pickup effects to scene state (once per event).
+
+        Bomb destroys obstacles: mirror flight.obstacle_specs back into the
+        frozen level (dataclasses.replace -> new tuple) so rendering and the
+        next launch both see the survivors. Any pickup kind just flows
+        through here -- no per-kind branches.
+        """
+        from dataclasses import replace
+
+        events = self.flight.pickup_events
+        if not events:
+            return
+        for event in events:
+            if event.get("kind") == "bomb":
+                destroyed = event.get("destroyed") or ()
+                if destroyed:
+                    doomed = {id(o) for o in destroyed}
+                    kept = tuple(o for o in self.flight.obstacle_specs if id(o) not in doomed)
+                    self.flight.obstacle_specs = kept
+                    self.level = replace(self.level, obstacles=kept)
+                try:
+                    self.audio.play("life_lost")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("bomb sfx skipped", exc_info=True)
+        self.flight.pickup_events = []
+        # self.pickups holds the SAME PickupState objects the Flight just
+        # consumed (passed by reference), so no re-sync is needed: used
+        # pickups stay gone for the rest of this run's lives.
+
     def _safe_end_flight(self, outcome, banner=None):
         """End-of-flight bookkeeping that never raises out of update()."""
         try:
@@ -356,6 +393,7 @@ class GameScene(Scene):
                 self._refresh_buttons()
             except _RENDER_ERRORS:
                 pass
+
         if banner is not None:
             try:
                 title, sub = banner
@@ -396,6 +434,12 @@ class GameScene(Scene):
                 log.warning("trail sync contained: %r", exc)
             except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
                 log.exception("unexpected trail-sync failure")
+            try:
+                self._drain_pickup_events()
+            except _RENDER_ERRORS as exc:
+                log.warning("pickup sync contained: %r", exc)
+            except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
+                log.exception("unexpected pickup-sync failure")
             if outcome is not Outcome.RUNNING:
                 self._safe_end_flight(outcome)
         elif self.state == ARRIVED:
@@ -487,6 +531,12 @@ class GameScene(Scene):
                 sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
                                       vp.length(obstacle.radius), self.t,
                                       kind=getattr(obstacle, "kind", "bumper"))
+
+            for pickup in getattr(self, "pickups", ()) or ():
+                if pickup.consumed:
+                    continue
+                sprites.draw_pickup(surface, vp.to_screen(*pickup.center),
+                                    vp.length(pickup.radius), self.t, kind=pickup.kind)
 
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)

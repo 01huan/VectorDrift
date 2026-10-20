@@ -43,6 +43,25 @@ class ObstacleSpec:
 
 
 @dataclass(frozen=True)
+class PickupSpec:
+    """Collectible prop. Ship triggers it on contact (segment test).
+
+    Declared exactly like ObstacleSpec: fixed levels just set center +
+    radius (+ optional kind), e.g.
+    ``pickups=(PickupSpec(center=(0.0, 0.0), radius=0.45),)``.
+    center: (x, y) in m. radius: m (ship hull_radius added at runtime).
+    kind: selects the effect in pickups.EFFECTS + painter in
+    sprites.PICKUP_RENDERERS. New pickups add a kind + effect + painter.
+    Placement rule (fixed + random): must not overlap any obstacle,
+    peer pickup, start pad, or target -- see pickups.discs_overlap.
+    """
+
+    center: tuple
+    radius: float = 0.45
+    kind: str = "bomb"
+
+
+@dataclass(frozen=True)
 class LevelSpec:
     id: int
     name: str
@@ -53,6 +72,8 @@ class LevelSpec:
     time_limit: float = 10.0    # s of simulated flight per launch
     lives: int = 5
     obstacles: tuple = ()       # tuple[ObstacleSpec, ...]; empty = no bumpers
+    pickups: tuple = ()         # tuple[PickupSpec, ...]; FIXED levels own this
+                              # fully: no entry = no pickups (mutual no-stack)
 
 
 SHIPS = {
@@ -82,6 +103,9 @@ LEVELS = [
         ship_id="drifter",
         obstacles=(
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
+        ),
+        pickups=(
+            PickupSpec(center=(0.0, 2.5), radius=0.45, kind="bomb"),
         ),
     ),
 ]

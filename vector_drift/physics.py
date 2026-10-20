@@ -189,6 +189,7 @@ class Flight:
         start=None,
         bounds=(config.WORLD_HALF_W, config.WORLD_HALF_H),
         dt=config.DT,
+        pickups=None,
     ):
         if not math.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be a finite positive number")
@@ -202,10 +203,24 @@ class Flight:
         self.hit_radius = level.target_radius + ship.hull_radius
         self.target = level.target_center
         # (center, radius incl. hull, restitution) — precomputed so step() stays cheap.
+        # obstacle_specs is kept (mutable list) so pickup effects (bomb) can
+        # remove obstacles mid-flight; obstacles is rebuilt alongside it.
+        self.obstacle_specs = list(getattr(level, "obstacles", ()) or ())
         self.obstacles = tuple(
             ((o.center[0], o.center[1]), o.radius + ship.hull_radius, o.restitution)
-            for o in getattr(level, "obstacles", ()) or ()
+            for o in self.obstacle_specs
         )
+        # Runtime pickups (consumed flag lives on PickupState, never on spec).
+        # Shared by reference when the caller passes them (GameScene passes
+        # its run-level list so consumed pickups persist across lives);
+        # otherwise built fresh from level.pickups. No config = no pickups.
+        from .pickups import PickupState
+        if pickups is None:
+            specs = getattr(level, "pickups", ()) or ()
+            self.pickups = tuple(PickupState.from_spec(s) for s in specs)
+        else:
+            self.pickups = tuple(pickups)
+        self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
         self.bounds = bounds
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
@@ -275,6 +290,13 @@ class Flight:
         self.vx, self.vy = vx, vy
         self.x, self.y = nx, ny
         self._bounce_along_path(p0)
+        # Pickups use the same segment test (no tunneling); one shared call
+        # handles every kind — no per-kind branches in the loop.
+        from .pickups import check_pickups_segment
+        self.pickup_events.extend(
+            check_pickups_segment(self.pickups, p0, (self.x, self.y),
+                                  self.hull_radius, ctx=self)
+        )
 
         if segment_hits_circle(
             p0, (self.x, self.y), self.target, self.hit_radius

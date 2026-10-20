@@ -277,6 +277,75 @@ OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
 add one entry here; draw_obstacle() dispatches, so game.py never branches."""
 
 
+# --- pickup props (extensible; bomb is the first kind) -----------------------
+def _render_bomb(radius):
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    # Round black body with top highlight.
+    pygame.draw.circle(surf, (38, 42, 58), (c, c), r)
+    cap = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(cap, (92, 100, 130), (c, c), r)
+    pygame.draw.circle(cap, (0, 0, 0, 0), (c + 0.22 * r, c + 0.30 * r), r * 1.02)
+    surf.blit(cap, (0, 0))
+    shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
+    shine.center = (c - 0.30 * r, c - 0.38 * r)
+    pygame.draw.ellipse(surf, (210, 220, 240), shine)
+    # Cap + fuse sparking up-right.
+    cap_w, cap_h = 0.34 * r, 0.20 * r
+    cap_rect = pygame.Rect(0, 0, cap_w, cap_h)
+    cap_rect.center = (c + 0.10 * r, c - 0.98 * r)
+    pygame.draw.rect(surf, (120, 128, 150), cap_rect, border_radius=round(0.06 * r))
+    fuse_end = (c + 0.34 * r, c - 1.30 * r)
+    pygame.draw.line(surf, (150, 120, 80), cap_rect.midtop, fuse_end, max(2, round(0.07 * r)))
+    pygame.draw.circle(surf, (255, 190, 90), fuse_end, 0.16 * r)
+    pygame.draw.circle(surf, (255, 240, 200), fuse_end, 0.08 * r)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def _paint_bomb(surface, center, radius, t):
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius = float(radius)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+        return
+    if radius <= 1:
+        return
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError):
+        return
+    cull = config.MAX_PX_CULL
+    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
+        return
+    radius = round(radius)
+    try:
+        img = _cached(("bomb", radius), lambda: _render_bomb(radius))
+        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
+        img.set_alpha(round(215 + 40 * pulse))
+        surface.blit(img, img.get_rect(center=(cx, cy)))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
+PICKUP_RENDERERS = {"bomb": _paint_bomb}
+"""kind -> painter(surface, center_px, radius_px, t). New pickups add one
+entry here; draw_pickup() dispatches, so game.py never branches."""
+
+
+def draw_pickup(surface, center, radius, t, kind="bomb"):
+    """Draw one pickup prop. `center`/`radius` are in px. Never raises."""
+    painter = PICKUP_RENDERERS.get(kind, _paint_bomb)
+    try:
+        painter(surface, center, radius, t)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
 # --- launch pad -----------------------------------------------------------------------
 def _render_pad(radius):
     size = 2 * radius + round(8 * config.UI_SCALE)

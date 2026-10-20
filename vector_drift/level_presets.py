@@ -33,6 +33,11 @@ class RandomPreset:
     num_direct_blockers: int = 1
     obstacle_kind: str = "bumper"
     restitution: float = 1.0
+    # Random pickups live HERE (not in code): one (kind, count, radius)
+    # group per pickup type. () = no pickups at all. Adding a new pickup
+    # to random levels = appending one tuple here.
+    pickup_groups: tuple = (("bomb", 1, 0.45),)
+    pickup_corridor_max: float = 0.6  # must sit ON the route (m from corridor)
     card_blurb: str = "New maze every visit"
     extra_rules: tuple = field(default=(), compare=False, repr=False)
 
@@ -60,6 +65,8 @@ PRESET_7 = RandomPreset(
     max_place_attempts=500,
     max_level_attempts=10,
     num_direct_blockers=1,
+    pickup_groups=(),
+
     card_blurb="New maze every visit",
 )
 
@@ -80,7 +87,8 @@ PRESET_8 = RandomPreset(
     target_clearance=1.2,
     min_obstacle_gap=0.4,
     num_direct_blockers=2,
-    card_blurb="Denser maze, smaller target",
+    pickup_groups=(("bomb", 2, 0.3),),
+    card_blurb="Denser maze, smaller target, more bombs",
 )
 
 
