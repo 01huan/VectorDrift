@@ -45,11 +45,12 @@ def test_pickup_misses_when_far():
 def test_blast_destroys_inside_and_spares_outside():
     center = (0.0, 0.0)
     inside = ObstacleSpec(center=(1.0, 0.0), radius=0.5)     # edge at 1.5 < 3.0
-    edge = ObstacleSpec(center=(3.4, 0.0), radius=0.5)       # edge at 3.9 > 3.5? no: 3.4<=3.5 yes
+    edge = ObstacleSpec(center=(4.0, 0.0), radius=0.5)       # near edge 3.5 > 3.0 -> survives
     outside = ObstacleSpec(center=(10.0, 0.0), radius=0.5)   # far away
     survivors, destroyed = obstacles_hit_by_blast(center, BOMB_BLAST_RADIUS,
                                                   [inside, edge, outside])
     assert inside in destroyed and outside not in destroyed
+    assert edge in survivors           # edge beyond blast disc
     assert outside in survivors and inside not in survivors
 
 
@@ -111,7 +112,8 @@ def test_discs_overlap_shared_rule():
 
 def test_fixed_levels_declare_pickups_like_obstacles():
     lv1, lv2 = get_level(1), get_level(2)
-    assert len(lv1.pickups) == 1 and len(lv2.pickups) == 1
+    assert len(lv1.pickups) == 0       # LV1 declares no pickups
+    assert len(lv2.pickups) == 1       # LV2 declares one bomb
     discs = [(o.center, o.radius) for o in lv2.obstacles]
     discs += [(lv2.start, 0.0), (lv2.target_center, lv2.target_radius)]
     for p in lv2.pickups:
@@ -119,9 +121,9 @@ def test_fixed_levels_declare_pickups_like_obstacles():
 
 
 def test_fixed_levels_owned_by_data():
-    # LV1 declares one bomb; deleting it in data.py means zero pickups --
+    # LV1 declares no pickups; deleting it in data.py means zero pickups --
     # nothing is injected behind the author's back.
-    assert len(get_level(1).pickups) == 1
+    assert len(get_level(1).pickups) == 0
     bare = LevelSpec(id=901, name="Bare", start=(-7.0, 0.0),
                      target_center=(7.0, 0.0), target_radius=1.0,
                      ship_id="drifter")
@@ -130,14 +132,20 @@ def test_fixed_levels_owned_by_data():
 
 
 def test_random_pickups_on_route_and_unstacked():
-    from vector_drift.level_presets import get_preset
+    from vector_drift.level_presets import get_preset, RandomPreset
     from vector_drift.physics import segment_hits_circle
     from vector_drift.random_level import generate_with_corridor, place_pickups
     import random as _random
 
+    # PRESET_8 has pickup_groups; PRESET_7 is () so use a custom preset with
+    # bombs to actually exercise on-route + unstacked placement.
+    preset = RandomPreset(
+        level_id=99, name="PickupTest",
+        pickup_groups=(("bomb", 2, 0.45),),
+        num_obstacles=6, num_direct_blockers=0,
+    )
     for seed in range(10):
-        level, _, segments = generate_with_corridor(seed=seed)
-        preset = get_preset(level.id)
+        level, _, segments = generate_with_corridor(seed=seed, preset=preset)
         expected = sum(n for _, n, _ in (preset.pickup_groups or ()))
         assert len(level.pickups) == expected
         kinds = sorted(p.kind for p in level.pickups)
@@ -153,7 +161,7 @@ def test_random_pickups_on_route_and_unstacked():
             assert not any(discs_overlap(p.center, p.radius, c, r,
                                          preset.min_obstacle_gap) for c, r in peers)
         # Same seed -> same layout (deterministic, incl. pickups).
-        again = generate_with_corridor(seed=seed)[0]
+        again = generate_with_corridor(seed=seed, preset=preset)[0]
         assert [(p.center, p.radius) for p in again.pickups] == [
             (p.center, p.radius) for p in level.pickups]
 

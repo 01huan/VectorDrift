@@ -36,7 +36,7 @@ class RandomPreset:
     # Random pickups live HERE (not in code): one (kind, count, radius)
     # group per pickup type. () = no pickups at all. Adding a new pickup
     # to random levels = appending one tuple here.
-    pickup_groups: tuple = (("bomb", 1, 0.45),)
+    pickup_groups: tuple = ()
     pickup_corridor_max: float = 0.6  # must sit ON the route (m from corridor)
     card_blurb: str = "New maze every visit"
     extra_rules: tuple = field(default=(), compare=False, repr=False)

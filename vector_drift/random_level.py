@@ -10,7 +10,7 @@ Strategy (guaranteed solvable by construction):
    that violates a rule (see RULES below).
 4. Sample m pickups ON the corridor (same center+radius shape as
    obstacles), rejecting any that stacks on an obstacle, peer pickup
-   or endpoint. Tunables: RandomPreset.num_pickups / pickup_radius /
+   or endpoint. Tunables: RandomPreset.pickup_groups /
    pickup_corridor_max.
 
 How to extend (no core edits needed):
@@ -21,7 +21,8 @@ How to extend (no core edits needed):
   ``sprites.OBSTACLE_RENDERERS`` and, only if placement must change,
   append a rule function to ``extra_rules`` of that preset.
 * New placement constraint: write ``def my_rule(ctx) -> bool`` and either
-  append to RULES (global) or to one preset's ``extra_rules``.
+  append to ``COMMON_RULES`` / ``OBSTACLE_ONLY_RULES`` (global) or to one
+  preset's ``extra_rules``.
 
 Pure logic (no pygame); tunables live in level_presets.py.
 Pass ``seed`` for deterministic output in tests.
@@ -136,20 +137,23 @@ def rule_pickup_on_corridor(ctx):
     return any(segment_hits_circle(a, b, ctx.center, limit) for a, b in ctx.segments)
 
 
-# Global pipeline: every candidate must pass all of these AND the preset's
-# own extra_rules. Reorder/append here for game-wide changes; per-level
-# tweaks go to RandomPreset.extra_rules instead.
-# rule_spaced_from_peers now also separates from already-placed pickups:
-# PlaceContext.placed may hold (center, radius) pairs of BOTH kinds, so
-# obstacle<->obstacle, pickup<->pickup and pickup<->obstacle all share one
-# overlap rule (pickups.discs_overlap). Obstacle-specific rules (corridor /
-# direct-blocker) are skipped for pickups via ctx.for_pickup.
-RULES = (
+# Rules shared by obstacles AND pickups (endpoint clearance, peer spacing).
+COMMON_RULES = (
     rule_clear_of_endpoints,
-    rule_direct_blockers,
-    rule_clear_of_corridor,
     rule_spaced_from_peers,
 )
+
+# Rules that apply ONLY to obstacles (pickups intentionally ignore them).
+OBSTACLE_ONLY_RULES = (
+    rule_direct_blockers,
+    rule_clear_of_corridor,
+)
+
+# Full obstacle pipeline: common + obstacle-only + preset extras.
+OBSTACLE_RULES = (*COMMON_RULES, *OBSTACLE_ONLY_RULES)
+
+# Backward-compat alias: existing tests / callers reference RULES.
+RULES = OBSTACLE_RULES
 
 
 def _obstacle_ok(center, radius, segments, start, target, placed, preset=None):
@@ -160,7 +164,7 @@ def _obstacle_ok(center, radius, segments, start, target, placed, preset=None):
         start=start, target=target, placed=tuple(placed),
         preset=preset, index=len(placed),
     )
-    return all(rule(ctx) for rule in (*RULES, *preset.extra_rules))
+    return all(rule(ctx) for rule in (*OBSTACLE_RULES, *preset.extra_rules))
 
 
 
@@ -196,8 +200,8 @@ def _pickup_ok(center, radius, segments, start, target, placed, preset=None):
         start=start, target=target, placed=tuple(placed),
         preset=preset, index=len(placed), for_pickup=True,
     )
-    # RULES stays the 4 obstacle rules (compat); on-route is pickup-only.
-    return all(rule(ctx) for rule in (*RULES, rule_pickup_on_corridor,
+    # Common rules (endpoints, peer spacing) + pickup-only on-route rule.
+    return all(rule(ctx) for rule in (*COMMON_RULES, rule_pickup_on_corridor,
                                       *preset.extra_rules))
 
 
@@ -219,18 +223,23 @@ def place_pickups(rng, segments, start, target, placed=(), groups=None, preset=N
     peers = list(placed)
     out = []
     for kind, count, radius in groups or ():
-        radius = float(radius)
+        try:
+            radius = float(radius)
+        except (TypeError, ValueError):
+            continue  # malformed group spec: skip, never crash placement
+        margin = radius + preset.edge_margin
+        if margin >= config.WORLD_HALF_W or margin >= config.WORLD_HALF_H:
+            continue  # cannot fit a disc of this size in the world
         for _ in range(int(count)):
+            placed_one = False
             for _ in range(preset.max_place_attempts):
-                margin = radius + preset.edge_margin
-                if margin >= config.WORLD_HALF_W or margin >= config.WORLD_HALF_H:
-                    break
                 center = _rand_point(rng, margin)
                 if _pickup_ok(center, radius, segments, start, target, peers, preset):
                     peers.append((center, radius))
                     out.append(PickupSpec(center=center, radius=radius, kind=kind))
+                    placed_one = True
                     break
-            else:
+            if not placed_one:
                 break  # too crowded: fewer (or zero) pickups is fine
     return tuple(out)
 

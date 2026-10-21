@@ -18,7 +18,10 @@ Adding a new pickup (only 3 steps):
 No changes to collision loop, game loop, Flight, or GameScene.
 """
 
+import logging
 import math
+
+log = logging.getLogger(__name__)
 
 # --- tunable constants (single place to adjust) ---------------------------
 BOMB_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
@@ -78,6 +81,14 @@ def register_effect(kind):
     return deco
 
 
+def _obstacle_center_radius(ob):
+    """Return (center, radius) for either an ObstacleSpec object or a
+    (center, radius) tuple spec."""
+    if isinstance(ob, tuple) and len(ob) == 2 and isinstance(ob[1], (int, float)):
+        return ob[0], float(ob[1])
+    return (ob.center[0], ob.center[1]), float(ob.radius)
+
+
 def obstacles_hit_by_blast(center, blast_radius, obstacles):
     """Split obstacles into (survivors, destroyed) by the blast.
 
@@ -88,13 +99,9 @@ def obstacles_hit_by_blast(center, blast_radius, obstacles):
     """
     survivors, destroyed = [], []
     for ob in obstacles:
-        if isinstance(ob, tuple) and len(ob) == 2 and isinstance(ob[1], (int, float)):
-            ob_center, ob_radius = ob
-        else:
-            ob_center = ob.center
-            ob_radius = ob.radius
+        ob_center, ob_radius = _obstacle_center_radius(ob)
         dist = math.dist(center, (ob_center[0], ob_center[1]))
-        if dist <= blast_radius + float(ob_radius):
+        if dist <= blast_radius + ob_radius:
             destroyed.append(ob)
         else:
             survivors.append(ob)
@@ -114,11 +121,21 @@ def bomb_effect(pickup, ctx, blast_radius=BOMB_BLAST_RADIUS):
     ctx.obstacle_specs = survivors
     hull = float(getattr(ctx, "hull_radius", 0.0))
     ctx.obstacles = tuple(
-        ((o.center[0], o.center[1]), o.radius + hull, o.restitution)
-        for o in survivors
+        ((c[0], c[1]), r + hull, getattr(ob, "restitution", 1.0))
+        for ob in survivors
+        for c, r in [_obstacle_center_radius(ob)]
     )
     return {"kind": "bomb", "center": pickup.center,
             "blast_radius": blast_radius, "destroyed": list(destroyed)}
+
+
+class _NullCtx:
+    """Fallback ctx when no Flight is given (keeps bomb testable)."""
+
+    def __init__(self, hull_radius=0.0):
+        self.hull_radius = float(hull_radius)
+        self.obstacle_specs = []
+        self.obstacles = ()
 
 
 def check_pickups_segment(pickups, p0, p1, hull_radius, ctx=None):
@@ -148,21 +165,13 @@ def check_pickups_segment(pickups, p0, p1, hull_radius, ctx=None):
         try:
             event = effect(pickup, ctx) if ctx is not None else effect(pickup, _NullCtx(hull_radius))
         except Exception:
+            log.warning("pickup effect %r raised; consumed with no effect", pickup.kind, exc_info=True)
             events.append({"kind": pickup.kind, "center": pickup.center, "destroyed": []})
             continue
         if event is None:
             event = {"kind": pickup.kind, "center": pickup.center, "destroyed": []}
         events.append(event)
     return events
-
-
-class _NullCtx:
-    """Fallback ctx when no Flight is given (keeps bomb testable)."""
-
-    def __init__(self, hull_radius=0.0):
-        self.hull_radius = float(hull_radius)
-        self.obstacle_specs = []
-        self.obstacles = ()
 
 
 def active_pickups(pickups):

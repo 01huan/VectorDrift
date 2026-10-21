@@ -359,12 +359,18 @@ class GameScene(Scene):
             if event.get("kind") == "bomb":
                 destroyed = event.get("destroyed") or ()
                 if destroyed:
-                    doomed = {id(o) for o in destroyed}
-                    kept = tuple(o for o in self.flight.obstacle_specs if id(o) not in doomed)
-                    self.flight.obstacle_specs = kept
-                    self.level = replace(self.level, obstacles=kept)
+                    # bomb_effect already rewrote flight.obstacle_specs to
+                    # survivors; just mirror the same list into the frozen
+                    # level so rendering / next launch see the survivors.
+                    self.flight.obstacle_specs = tuple(
+                        o for o in self.flight.obstacle_specs
+                        if o not in destroyed
+                    )
+                    self.level = replace(
+                        self.level, obstacles=self.flight.obstacle_specs
+                    )
                 try:
-                    self.audio.play("life_lost")
+                    self.audio.play("bomb")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
         self.flight.pickup_events = []

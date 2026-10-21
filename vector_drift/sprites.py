@@ -5,12 +5,15 @@ smoothscaled down and cached, so edges stay smooth. Swapping in image
 sprites later only touches this file.
 """
 
+import logging
 import math
 
 import pygame
 
 from . import config
 from .render import draw_smooth_arrow, soft_glow
+
+log = logging.getLogger(__name__)
 
 SS = 4                      # supersampling factor for cached art
 OUTLINE = config.OUTLINE
@@ -244,7 +247,13 @@ def draw_obstacle(surface, center, radius, t, kind="bumper"):
         return
 
 
-def _paint_bumper(surface, center, radius, t):
+def _paint_cached_prop(surface, center, radius, t, cache_key, render_fn,
+                       alpha_base=215, alpha_range=40, pulse_freq=3.0):
+    """Shared boilerplate for cached prop painters (bumper, bomb, ...).
+
+    Parses/validates inputs, culls off-screen, fetches a cached rendered
+    surface, applies a gentle alpha pulse, and blits. Never raises.
+    """
     try:
         cx, cy = float(center[0]), float(center[1])
         radius = float(radius)
@@ -263,13 +272,19 @@ def _paint_bumper(surface, center, radius, t):
         return
     radius = round(radius)
     try:
-        img = _cached(("bumper", radius), lambda: _render_bumper(radius))
-        # Gentle pulse on the warning ring via alpha; rock itself is static.
-        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
-        img.set_alpha(round(215 + 40 * pulse))
+        # Copy before set_alpha so the shared cache surface isn't mutated
+        # (all same-radius props would otherwise be forced to one alpha).
+        img = _cached((cache_key, radius), lambda: render_fn(radius))
+        pulse = 0.5 + 0.5 * math.sin(t * pulse_freq)
+        img = img.copy()
+        img.set_alpha(round(alpha_base + alpha_range * pulse))
         surface.blit(img, img.get_rect(center=(cx, cy)))
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
         return
+
+
+def _paint_bumper(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "bumper", _render_bumper)
 
 
 OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
@@ -306,30 +321,7 @@ def _render_bomb(radius):
 
 
 def _paint_bomb(surface, center, radius, t):
-    try:
-        cx, cy = float(center[0]), float(center[1])
-        radius = float(radius)
-    except (TypeError, ValueError, OverflowError):
-        return
-    if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
-        return
-    if radius <= 1:
-        return
-    try:
-        sw, sh = surface.get_size()
-    except (pygame.error, TypeError, ValueError):
-        return
-    cull = config.MAX_PX_CULL
-    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
-        return
-    radius = round(radius)
-    try:
-        img = _cached(("bomb", radius), lambda: _render_bomb(radius))
-        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
-        img.set_alpha(round(215 + 40 * pulse))
-        surface.blit(img, img.get_rect(center=(cx, cy)))
-    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
-        return
+    _paint_cached_prop(surface, center, radius, t, "bomb", _render_bomb)
 
 
 PICKUP_RENDERERS = {"bomb": _paint_bomb}
@@ -339,7 +331,10 @@ entry here; draw_pickup() dispatches, so game.py never branches."""
 
 def draw_pickup(surface, center, radius, t, kind="bomb"):
     """Draw one pickup prop. `center`/`radius` are in px. Never raises."""
-    painter = PICKUP_RENDERERS.get(kind, _paint_bomb)
+    painter = PICKUP_RENDERERS.get(kind)
+    if painter is None:
+        log.warning("no pickup renderer for kind %r; drawing nothing", kind)
+        return
     try:
         painter(surface, center, radius, t)
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
