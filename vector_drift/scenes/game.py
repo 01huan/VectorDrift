@@ -175,8 +175,13 @@ class GameScene(Scene):
 
     # ------------------------------------------------------------------ input
     def _on_text_change(self, editor):
+        self.session.fx_text, self.session.fy_text = editor.lines
+        self._validate()
+
+    def _validate(self):
+        """Re-check both formulas against the current launch point."""
+        editor = self.editor
         fx_text, fy_text = editor.lines
-        self.session.fx_text, self.session.fy_text = fx_text, fy_text
 
         fx, fx_err, fx_pos = diagnose_expression(fx_text)
         fy, fy_err, fy_pos = diagnose_expression(fy_text)
@@ -209,7 +214,25 @@ class GameScene(Scene):
                     self.max_force = max_force
                     self._field_version += 1
 
+        if self.valid:
+            self._check_launch_point()
         self._refresh_buttons()
+
+    def _check_launch_point(self):
+        """Block a launch whose force is undefined where the ship sits.
+
+        A formula can be valid yet undefined at the launch point (log(x) at
+        x = -7): the flight would diverge on its first step and cost a life,
+        so flag the offending line in PROBLEMS instead.
+        """
+        x, y = self.launch_pos
+        bad = self.field.invalid_components(x, y)
+        if not bad:
+            return
+        msg = f"Undefined at launch point ({x:.2f}, {y:.2f})"
+        self.editor.set_errors([(msg, 0) if i in bad else None
+                                for i in range(self.editor.n)])
+        self.valid = False
 
     def _refresh_buttons(self):
         if self.state == FLIGHT:
@@ -351,7 +374,7 @@ class GameScene(Scene):
         self.flight = None
         self.heading = self._heading_to_target()
         self.state = SETUP
-        self._refresh_buttons()
+        self._validate()                # launch point moved: re-check the formulas there
 
     def _snapshot(self):
         screen = self.manager.screen or pygame.display.get_surface()
