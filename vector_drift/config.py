@@ -79,8 +79,8 @@ MAX_FRAME_DT = 0.25                 # clamp for long frames (s)
 # Parser(1e12) -> Physics(1e6) -> Render(10000px / 4000px) -> Scene(swallow).
 # UI caps typed input at MAX_EXPR_LEN, but pasted text / restored sessions /
 # direct API calls can bypass it, so the parser enforces its own backstops.
-MAX_EXPR_TEXT_LEN = 500   # reject any expression text longer than this
-MAX_NUMBER_DIGITS = 20    # max significant digits per numeric literal
+MAX_EXPR_TEXT_LEN = 5000   # reject any expression text longer than this
+MAX_NUMBER_DIGITS = 1000    # max significant digits per numeric literal
 MAX_EXPR_RESULT = 1e12    # finite results larger than this are treated as diverged
 MAX_FORCE = 1e6           # |F| above this is treated as diverged (physics)
 MAX_STEP_M = 50.0         # single-step displacement above this is diverged
@@ -88,7 +88,7 @@ MAX_PX_CULL = 10000       # screen-space cull margin for huge-finite coords
 MAX_ARROW_PX = 4000       # refuse to allocate arrow temp surfaces larger than this
 
 # --- Gameplay ------------------------------------------------------------
-MAX_EXPR_LEN = 40
+MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)
 WIN_DELAY = 0.8                     # pause on target before Win screen (s)
 
