@@ -6,7 +6,7 @@ from .. import config, render
 from ..config import px
 from ..data import LEVELS, all_levels
 from ..level_presets import get_preset, is_dynamic_level
-from ..ui import Button, draw_text, icon_surface
+from ..ui import Button, draw_text, icon_surface, wrap_text
 from .base import Scene
 
 SLOTS = 9                    # cards shown; levels beyond LEVELS are locked placeholders
@@ -100,17 +100,26 @@ class LevelSelectScene(Scene):
         pygame.draw.rect(surface, config.ACCENT if hover else config.EDITOR_BORDER, rect,
                          max(2, px(2)) if hover else line_w, border_radius=px(6))
         draw_text(surface, str(lid), (rect.x + px(18), rect.y + px(10)), 44, config.TEXT, kind="bold")
-        draw_text(surface, level.name, (rect.x + px(18), rect.y + px(78)), 17, config.TEXT, kind="bold")
+        name_y, status_y = rect.y + px(78), rect.y + px(116)
+        lines, size = [], 13
         if is_dynamic_level(lid):
             try:
                 blurb = get_preset(lid).card_blurb
             except KeyError:
                 blurb = "New maze every visit"
-            draw_text(surface, blurb, (rect.x + px(18), rect.y + px(100)), 13,
-                      config.ACCENT, anchor="topleft")
-            status_y = rect.y + px(124)
-        else:
-            status_y = rect.y + px(116)
+            # Wrap to the card (two lines at most, shrinking the font if needed);
+            # a second line lifts the name and pushes the status down.
+            width = rect.w - px(36)
+            while size > 10 and len(wrap_text(blurb, size, width)) > 2:
+                size -= 1
+            lines = wrap_text(blurb, size, width)[:2]
+            extra = (len(lines) - 1) * (size + 2)
+            name_y -= px(extra // 2)
+            status_y = name_y + px(46 + extra)
+        draw_text(surface, level.name, (rect.x + px(18), name_y), 17, config.TEXT, kind="bold")
+        for k, line in enumerate(lines):
+            draw_text(surface, line, (rect.x + px(18), name_y + px(22 + k * (size + 2))), size,
+                      config.ACCENT)
         best = self.session.records.get(lid)
         if best is None:
             draw_text(surface, "Not cleared yet", (rect.x + px(18), status_y), 13, config.TEXT_DIM, anchor="midleft")

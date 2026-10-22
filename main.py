@@ -1,5 +1,7 @@
 """Vector Drift - entry point.  Run:  python main.py"""
 
+import os
+
 import pygame
 
 from vector_drift import config
@@ -15,8 +17,12 @@ def open_display():
     """Return (display, canvas, offset). The game draws on `canvas`, a
     WINDOW_W x WINDOW_H area centered on the display."""
     if config.FULLSCREEN:
-        display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)   # desktop resolution
-        dw, dh = display.get_size()
+        # A borderless window covering the desktop, not SDL's exclusive
+        # fullscreen: the exclusive window gets special focus handling that
+        # kept the Win+Shift+S snipping overlay from capturing the game.
+        os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "0,0")
+        dw, dh = pygame.display.get_desktop_sizes()[0]                  # desktop resolution
+        display = pygame.display.set_mode((dw, dh), pygame.NOFRAME)
         w, h = min(config.WINDOW_W, dw), min(config.WINDOW_H, dh)
         offset = ((dw - w) // 2, (dh - h) // 2)
         display.fill(config.BG)

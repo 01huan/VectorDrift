@@ -39,6 +39,25 @@ def draw_text(surface, text, pos, size=16, color=config.TEXT, kind="ui", anchor=
     return rect
 
 
+def wrap_text(text, size, max_width, kind="ui"):
+    """Split `text` into lines no wider than `max_width` real pixels (word wrap).
+
+    A single word wider than `max_width` keeps a line of its own.
+    """
+    font = get_font(size, kind)
+    lines, line = [], ""
+    for word in text.split():
+        trial = f"{line} {word}" if line else word
+        if line and font.size(trial)[0] > max_width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    if line:
+        lines.append(line)
+    return lines
+
+
 def draw_panel_box(surface, rect, fill=config.PANEL_BG, edge=config.PANEL_EDGE, radius=4):
     pygame.draw.rect(surface, fill, rect, border_radius=px(radius))
     pygame.draw.rect(surface, edge, rect, width=max(1, px(1)), border_radius=px(radius))

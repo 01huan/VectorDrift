@@ -1,25 +1,13 @@
 """Pre-launch check: a formula undefined at the launch point blocks the launch."""
 from types import SimpleNamespace
 
-import pygame
 import pytest
 
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import ForceField
 from vector_drift.scenes.base import SceneManager
 
-
-@pytest.fixture(scope="module", autouse=True)
-def _pygame():
-    from vector_drift import ui
-    # Fonts cached during another module's pygame session die with its
-    # pygame.quit(); using them again is an access violation.
-    ui._font_cache.clear()
-    pygame.init()
-    pygame.display.set_mode((1, 1))
-    yield
-    ui._font_cache.clear()
-    pygame.quit()
+pytestmark = pytest.mark.usefixtures("pygame_display")
 
 
 def field(fx, fy):
