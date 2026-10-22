@@ -12,7 +12,9 @@ from ..coords import Viewport
 from ..data import SHIPS, get_level
 from ..expr_parser import diagnose_expression
 from ..physics import Flight, ForceField, Outcome
-from ..ui import CodeEditor, IconButton, draw_panel_box, draw_text
+from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text
+from ..solver import PSOSolver, Solver, run_solver_async
+from ..solver.interface import SolveResult
 from .base import Scene
 
 log = logging.getLogger(__name__)
@@ -149,6 +151,23 @@ class GameScene(Scene):
         self.valid = True
         self.editor.set_lines([self.session.fx_text, self.session.fy_text])
 
+        # --- AI assistant (offline solver) ----------------------------------
+        # Depends on the Solver interface, not a concrete model.  Swapping the
+        # backend (PSO -> regression -> NN -> GP -> RL) only requires replacing
+        # self.ai_solver; no UI or event code changes needed.
+        self.ai_solver: Solver = PSOSolver()
+        self.ai_job = None
+        self.ai_result: SolveResult | None = None
+        self.ai_status = "idle"        # idle | solving | ready | error
+        self.ai_message = ""
+        self.ai_popup = False
+        self.ai_button = Button((px(PAD), px(690), px(CONTENT_W), px(28)),
+                                "AI Solver", style="plain", font_size=15)
+        self.ai_apply_button = Button((0, 0, px(100), px(40)), "Apply",
+                                      style="primary", font_size=15)
+        self.ai_close_button = Button((0, 0, px(100), px(40)), "Close",
+                                      style="plain", font_size=15)
+
     def _heading_to_target(self):
         tx = self.level.target_center[0] - self.launch_pos[0]
         ty = self.level.target_center[1] - self.launch_pos[1]
@@ -250,6 +269,22 @@ class GameScene(Scene):
             self._switch_ship(-1)
         if self.next_ship.handle_event(event) == "click":
             self._switch_ship(1)
+
+        if self.ai_popup:
+            self._position_ai_popup_buttons()
+            if self.ai_apply_button.handle_event(event) == "click":
+                self.audio.play("click")
+                self._apply_ai_suggestion()
+                return
+            if self.ai_close_button.handle_event(event) == "click":
+                self.audio.play("click")
+                self.ai_popup = False
+                return
+            return  # Modal: swallow other input while the popup is open.
+
+        if self.ai_button.handle_event(event) == "click":
+            self._on_ai_click()
+            return
 
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
@@ -410,6 +445,17 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
+        # Poll the offline solver job on the main thread (never blocks PyGame).
+        if self.ai_job is not None and not self.ai_job.running:
+            if self.ai_job.error is not None:
+                self.ai_status = "error"
+                self.ai_message = f"Solver Error: {self.ai_job.error}"
+            else:
+                self.ai_result = self.ai_job.result
+                self.ai_status = "ready"
+                self.ai_message = (self.ai_job.result.message
+                                   if self.ai_job.result is not None else "")
+            self.ai_job = None
         try:
             self.editor.update(dt)
         except _RENDER_ERRORS as exc:
@@ -468,6 +514,100 @@ class GameScene(Scene):
         surface.fill(config.BG)
         self._draw_plot(surface)
         self._draw_panel(surface)
+        if self.ai_popup:
+            self._draw_ai_popup(surface)
+
+    # ------------------------------------------------------------------ AI assistant
+    def _position_ai_popup_buttons(self):
+        """Center the Apply/Close buttons under the standard popup card."""
+        card = pygame.Rect(0, 0, px(560), px(320))
+        card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+        bw, bh, gap = px(110), px(40), px(14)
+        total = bw * 2 + gap
+        x0 = card.centerx - total // 2
+        by = card.bottom - px(56)
+        self.ai_apply_button.rect = pygame.Rect(x0, by, bw, bh)
+        self.ai_close_button.rect = pygame.Rect(x0 + bw + gap, by, bw, bh)
+
+    def _on_ai_click(self):
+        """User tapped the AI button: open result popup or start a new solve."""
+        if self.ai_status == "solving":
+            return
+        if self.ai_status == "ready" and self.ai_result is not None:
+            self.ai_popup = True
+            self._position_ai_popup_buttons()
+            return
+        # Kick off an offline solve on the current level (background thread).
+        # Deeper search: keep going until a solution is found or the simulation
+        # cap (100000) / time cap (120s) is reached.
+        self.ai_status = "solving"
+        self.ai_message = "Solving… (offline PSO, no network needed)"
+        self.ai_result = None
+        self.ai_popup = False
+        seed = self.session.random_seed
+        self.ai_job = run_solver_async(
+            self.ai_solver,
+            self.level,
+            time_budget_s=120.0,
+            simulation_budget=100000,
+            rng_seed=seed,
+        )
+
+    def _apply_ai_suggestion(self):
+        """Write the best candidate formula into the Fx/Fy editor."""
+        if self.ai_result is None or self.ai_result.best is None:
+            return
+        best = self.ai_result.best
+        self.editor.set_lines([best.fx_text, best.fy_text])
+        self._on_text_change(self.editor)
+        self.ai_popup = False
+        self.ai_status = "idle"
+        try:
+            self.audio.play("click")
+        except Exception:  # noqa: BLE001 - audio is optional
+            pass
+
+    def _draw_ai_popup(self, surface):
+        """Dimmed snapshot + centered result card with Apply/Close buttons."""
+        # Dimmed snapshot of the current frame.
+        shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        shade.fill((5, 8, 18, 200))
+        surface.blit(shade, (0, 0))
+
+        card = pygame.Rect(0, 0, px(560), px(320))
+        card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+        pygame.draw.rect(surface, config.PANEL_BG, card, border_radius=px(6))
+        pygame.draw.rect(surface, config.ACCENT, card,
+                         width=max(1, px(1)), border_radius=px(6))
+        draw_text(surface, "AI Assistant", (card.centerx, card.y + px(22)), 30,
+                  config.TEXT, kind="bold", anchor="center")
+
+        best = self.ai_result.best if self.ai_result else None
+        y = card.y + px(74)
+        rows = []
+        if self.ai_status == "solving":
+            rows.append(("S", "Solving… (offline PSO, no network needed)"))
+        elif best is not None:
+            rows.append(("Status", "Solution found" if self.ai_result.success
+                         else "No feasible solution found"))
+            rows.append(("Template", best.template))
+            rows.append(("Fx", best.fx_text))
+            rows.append(("Fy", best.fy_text))
+            rows.append(("Score", f"{self.ai_result.best_score:.3f}"))
+        else:
+            rows.append(("Status", self.ai_message or "Ready"))
+
+        for label, value in rows:
+            draw_text(surface, label, (card.x + px(24), y), 15,
+                      config.TEXT_DIM, anchor="topleft")
+            draw_text(surface, value, (card.right - px(24), y), 15,
+                      config.TEXT, kind="mono", anchor="topright")
+            y += px(30)
+
+        self._position_ai_popup_buttons()
+        self.ai_apply_button.enabled = best is not None
+        self.ai_apply_button.draw(surface)
+        self.ai_close_button.draw(surface)
 
     def _ship_state(self):
         """Return (x, y, vx, vy, fx, fy) for the ship right now.
@@ -652,6 +792,13 @@ class GameScene(Scene):
         # Longest arrow legend
         draw_text(surface, "Longest arrow", (cx, px(LEGEND_LABEL_Y)), 14, config.TEXT_DIM, anchor="center")
         render.draw_legend(surface, (cx, px(LEGEND_Y)), self.max_force)
+
+        # AI assistant button (offline solver).  Disabled while a job runs.
+        self.ai_button.enabled = self.ai_status != "solving"
+        self.ai_button.label = ("Solving…" if self.ai_status == "solving"
+                                else ("AI Solver" if self.ai_status != "error"
+                                      else "AI Solver (Failed)"))
+        self.ai_button.draw(surface)
 
     def _draw_telemetry(self, surface, area):
         in_flight = self.flight is not None
