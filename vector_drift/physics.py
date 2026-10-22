@@ -123,6 +123,25 @@ class ForceField:
 
         return float(fx), float(fy)
 
+    def invalid_components(self, x, y):
+        """Indices (0 = Fx, 1 = Fy) of components with no valid force at (x, y).
+
+        Same rules as at(), so an empty tuple means a flight starting at
+        (x, y) gets past its first force evaluation.
+        """
+        if self.fx_expr is None and self.fy_expr is None:
+            values = (self.a * x + self.b * y + self.c,
+                      self.d * x + self.e * y + self.f)
+            return tuple(i for i, v in enumerate(values)
+                         if not math.isfinite(v) or abs(v) > MAX_FORCE)
+        bad = []
+        for i, expr in enumerate((self.fx_expr, self.fy_expr)):
+            try:
+                self._evaluate(expr, x, y)
+            except ArithmeticError:
+                bad.append(i)
+        return tuple(bad)
+
 
 def segment_hits_circle(p0, p1, center, radius):
     """True if segment p0->p1 comes within radius of center."""
