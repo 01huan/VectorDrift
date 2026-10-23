@@ -478,6 +478,10 @@ class GameScene(Scene):
                 self.ai_status = "ready"
                 self.ai_message = (self.ai_job.result.message
                                    if self.ai_job.result is not None else "")
+                # Solution is ready: show the answer popup immediately so the
+                # user does not have to press the AI button a second time.
+                self.ai_popup = True
+                self._position_ai_popup_buttons()
             self.ai_job = None
         try:
             self.editor.update(dt)
