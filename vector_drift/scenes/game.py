@@ -431,6 +431,19 @@ class GameScene(Scene):
                     self.audio.play("bomb")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
+            elif event.get("kind") == "add_time":
+                duration = float(event.get("duration", 5.0))
+                # Extend the deadline instead of rewinding elapsed steps, so
+                # flight time / scoring remain accurate.
+                if self.flight.dt > 0:
+                    self.flight.max_steps += int(round(duration / self.flight.dt))
+                    if self.flight.max_steps < self.flight.steps:
+                        self.flight.max_steps = self.flight.steps
+                try:
+                    self.audio.play("add_time")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("add_time sfx skipped", exc_info=True)
+            
         self.flight.pickup_events = []
         # self.pickups holds the SAME PickupState objects the Flight just
         # consumed (passed by reference), so no re-sync is needed: used

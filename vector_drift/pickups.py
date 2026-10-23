@@ -46,13 +46,14 @@ class PickupState:
     participates in collision or effects again.
     """
 
-    __slots__ = ("center", "radius", "kind", "consumed")
+    __slots__ = ("center", "radius", "kind", "consumed", "duration")
 
     def __init__(self, center, radius, kind="bomb"):
         self.center = (float(center[0]), float(center[1]))
         self.radius = float(radius)
         self.kind = kind
         self.consumed = False
+        self.duration = 5.0  # for add_time effect; ignored by other kinds
 
     @classmethod
     def from_spec(cls, spec):
@@ -127,6 +128,15 @@ def bomb_effect(pickup, ctx, blast_radius=BOMB_BLAST_RADIUS):
     )
     return {"kind": "bomb", "center": pickup.center,
             "blast_radius": blast_radius, "destroyed": list(destroyed)}
+
+@register_effect("add_time")
+def add_time_effect(pickup, ctx):
+    """Add time: increase the game time.
+
+    Rewrites ``ctx.time``. Returns an event dict for scene sync.
+    Never touches unrelated game data.
+    """
+    return {"kind": "add_time", "center": pickup.center, "duration": pickup.duration}
 
 
 class _NullCtx:

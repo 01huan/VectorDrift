@@ -377,8 +377,33 @@ def _render_bomb(radius):
 def _paint_bomb(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "bomb", _render_bomb)
 
+def _render_add_time(radius):
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    # Round green body with top highlight.
+    pygame.draw.circle(surf, (38, 58, 42), (c, c), r)
+    cap = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(cap, (92, 130, 100), (c, c), r)
+    pygame.draw.circle(cap, (0, 0, 0, 0), (c + 0.22 * r, c + 0.30 * r), r * 1.02)
+    surf.blit(cap, (0, 0))
+    shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
+    shine.center = (c - 0.30 * r, c - 0.38 * r)
+    pygame.draw.ellipse(surf, (210, 240, 220), shine)
+    # Plus sign in the center
+    plus_size = round(0.5 * r)
+    plus_thickness = max(2, round(0.1 * r))
+    pygame.draw.line(surf, (255, 255, 255), (c - plus_size // 2, c), (c + plus_size // 2, c), plus_thickness)
+    pygame.draw.line(surf, (255, 255, 255), (c, c - plus_size // 2), (c, c + plus_size // 2), plus_thickness)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
 
-PICKUP_RENDERERS = {"bomb": _paint_bomb}
+def _paint_add_time(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "add_time", _render_add_time)
+
+
+PICKUP_RENDERERS = {"bomb": _paint_bomb, "add_time": _paint_add_time}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 
