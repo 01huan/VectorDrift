@@ -11,6 +11,7 @@ import math
 import pygame
 
 from . import config
+from .image_assets import load_image
 from .render import draw_smooth_arrow, soft_glow
 
 log = logging.getLogger(__name__)
@@ -122,6 +123,18 @@ def draw_ship(surface, center, heading, size, ship):
     center = (cx, cy)
     size = max(6, round(size))
     deg = math.degrees(heading)
+
+    # --- image path ---------------------------------------------------------
+    img = load_image(f"ship.{ship.id}", size_px=(size, size))
+    if img is not None:
+        try:
+            rotated = pygame.transform.rotozoom(img, deg, 1.0)
+            surface.blit(rotated, rotated.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
+        return
+
+    # --- fallback: code-drawn art ------------------------------------------
     img = _cached(("ship", ship.id, size),
                   lambda: _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color))
     try:
@@ -133,6 +146,16 @@ def draw_ship(surface, center, heading, size, ship):
 
 def draw_ship_icon(surface, center, size, ship, alive=True):
     """Small upright ship (for the lives counter); grey when the life is used up."""
+    if alive:
+        img = load_image(f"ship.{ship.id}", size_px=(size, size))
+        if img is not None:
+            try:
+                icon = pygame.transform.rotozoom(img, 90, 1.0)
+                surface.blit(icon, icon.get_rect(center=center))
+            except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+                return
+            return
+
     def build():
         if alive:
             img = _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color)
@@ -194,18 +217,39 @@ def _render_glow(radius):
 
 def draw_target(surface, center, radius, t, flash=0.0):
     radius = round(radius)
-    planet = _cached(("planet", radius), lambda: _render_planet(radius))
+
+    # --- image path ---------------------------------------------------------
+    img = load_image("target.planet", size_px=(radius * 2, radius * 2))
+    if img is not None:
+        try:
+            surface.blit(img, img.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            pass
+    else:
+        # --- fallback: code-drawn planet -----------------------------------
+        planet = _cached(("planet", radius), lambda: _render_planet(radius))
+        try:
+            surface.blit(planet, planet.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            pass
+
+    # Glow remains code-drawn (dynamic pulse, not suitable for a static PNG).
     glow = _cached(("glow", radius), lambda: _render_glow(radius))
     pulse = 0.5 + 0.5 * math.sin(t * 2.2)
     glow.set_alpha(round(140 + 115 * pulse))
-    surface.blit(glow, glow.get_rect(center=center))
-    surface.blit(planet, planet.get_rect(center=center))
+    try:
+        surface.blit(glow, glow.get_rect(center=center))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
     if flash > 0:
         ring = pygame.Surface((radius * 6, radius * 6), pygame.SRCALPHA)
         rc = radius * 3
         pygame.draw.circle(ring, (255, 255, 255, round(150 * flash)), (rc, rc),
                            radius * (1 + 1.5 * (1 - flash)), max(2, radius // 6))
-        surface.blit(ring, ring.get_rect(center=center))
+        try:
+            surface.blit(ring, ring.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
 
 
 # --- obstacle bumper ---------------------------------------------------------------
@@ -240,6 +284,16 @@ def draw_obstacle(surface, center, radius, t, kind="bumper"):
     `kind` selects the painter from OBSTACLE_RENDERERS: "bumper" is the
     classic rock. New kinds add one entry -- callers never branch.
     """
+    # --- image path ---------------------------------------------------------
+    img = load_image(f"obstacle.{kind}", size_px=(radius * 2, radius * 2))
+    if img is not None:
+        try:
+            surface.blit(img, img.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
+        return
+
+    # --- fallback: code-drawn prop -----------------------------------------
     painter = OBSTACLE_RENDERERS.get(kind, _paint_bumper)
     try:
         painter(surface, center, radius, t)
@@ -331,6 +385,16 @@ entry here; draw_pickup() dispatches, so game.py never branches."""
 
 def draw_pickup(surface, center, radius, t, kind="bomb"):
     """Draw one pickup prop. `center`/`radius` are in px. Never raises."""
+    # --- image path ---------------------------------------------------------
+    img = load_image(f"pickup.{kind}", size_px=(radius * 2, radius * 2))
+    if img is not None:
+        try:
+            surface.blit(img, img.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
+        return
+
+    # --- fallback: code-drawn prop -----------------------------------------
     painter = PICKUP_RENDERERS.get(kind)
     if painter is None:
         log.warning("no pickup renderer for kind %r; drawing nothing", kind)
@@ -359,9 +423,23 @@ def _render_pad(radius):
 
 def draw_start_marker(surface, center, radius, t):
     """Dashed circle slowly rotating around the launch point."""
+    # --- image path ---------------------------------------------------------
+    img = load_image("ui.start_marker", size_px=(radius * 2, radius * 2))
+    if img is not None:
+        try:
+            rotated = pygame.transform.rotozoom(img, -math.degrees(t * 0.4), 1.0)
+            surface.blit(rotated, rotated.get_rect(center=center))
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            return
+        return
+
+    # --- fallback: code-drawn pad ------------------------------------------
     pad = _cached(("pad", round(radius)), lambda: _render_pad(round(radius)))
-    rotated = pygame.transform.rotozoom(pad, -math.degrees(t * 0.4), 1.0)
-    surface.blit(rotated, rotated.get_rect(center=center))
+    try:
+        rotated = pygame.transform.rotozoom(pad, -math.degrees(t * 0.4), 1.0)
+        surface.blit(rotated, rotated.get_rect(center=center))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
 
 
 # --- trail & vectors -----------------------------------------------------------------------
