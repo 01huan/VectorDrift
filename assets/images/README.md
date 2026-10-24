@@ -18,12 +18,17 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 ## Sizing
 
 Each slot declares a default logical-pixel display size in
-`vector_drift/image_assets.py` (`AssetSpec.display_w` / `display_h`).  The
-image is scaled once with `config.UI_SCALE` and cached; it is never re-scaled
-per frame.
+`vector_drift/image_assets.py` (`AssetSpec.display_w` / `display_h`), turned
+into real pixels with `config.UI_SCALE`.
 
-Callers may override the size at draw time (e.g. `draw_ship` passes the
-per-frame `size`), which takes precedence over the spec.
+Callers may ask for another real-pixel size at draw time, which takes
+precedence over the spec: the same ship image is drawn at one size in the
+panel preview, another for the lives icons and another in flight.
+
+The PNG is read from disk once per key.  Each distinct size is scaled once
+and cached under `(key, width, height)`, so it is never re-scaled per frame.
+A missing or unreadable file is remembered as missing (not retried every
+frame) and the code-drawn art is used instead.
 
 ## Collision
 

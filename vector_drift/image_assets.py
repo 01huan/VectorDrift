@@ -84,56 +84,78 @@ register(AssetSpec("background.space", Path("background/space.png"), scale_mode=
 # Lazy loading + cache
 # ---------------------------------------------------------------------------
 
-_cache: dict[str, pygame.Surface | None] = {}
+# key -> the PNG as read from disk; None = missing or unreadable (never retried).
+_sources: dict[str, pygame.Surface | None] = {}
+# (key, width, height) -> that image scaled once to exactly that real-pixel size.
+_cache: dict[tuple[str, int, int], pygame.Surface] = {}
 
 
-def load_image(key: str, size_px: tuple[int, int] | None = None) -> pygame.Surface | None:
-    """Load and cache an image for ``key``.
+def clear_cache() -> None:
+    """Forget every loaded and scaled image (e.g. between tests)."""
+    _sources.clear()
+    _cache.clear()
 
-    ``size_px`` is the desired *real* pixel size (already scaled by UI_SCALE).
-    If omitted, the spec's logical display size is converted via
-    :func:`config.px`.  Returns ``None`` when the file is missing or cannot be
-    loaded, so callers can fall back to code-drawn art.
-    """
-    if key in _cache:
-        return _cache[key]
 
+def _load_source(key: str) -> pygame.Surface | None:
+    """The image for ``key`` as read from disk, or ``None``; read at most once."""
+    if key in _sources:
+        return _sources[key]
+    surf = None
     spec = get_spec(key)
     if spec is None:
         log.warning("no image spec for key %r", key)
-        _cache[key] = None
-        return None
+    else:
+        path = IMAGES_DIR / spec.path
+        if not path.exists():
+            log.debug("image missing: %s", path)
+        else:
+            try:
+                surf = pygame.image.load(str(path)).convert_alpha()
+            except (pygame.error, FileNotFoundError, OSError, ValueError) as exc:
+                log.warning("failed to load image %s: %r", path, exc)
+    _sources[key] = surf
+    return surf
 
-    path = IMAGES_DIR / spec.path
-    if not path.exists():
-        log.debug("image missing: %s", path)
-        _cache[key] = None
-        return None
 
-    try:
-        surf = pygame.image.load(str(path)).convert_alpha()
-    except (pygame.error, FileNotFoundError, OSError, ValueError) as exc:
-        log.warning("failed to load image %s: %r", path, exc)
-        _cache[key] = None
+def load_image(key: str, size_px: tuple[int, int] | None = None) -> pygame.Surface | None:
+    """Load and cache an image for ``key`` at the requested size.
+
+    ``size_px`` is the desired *real* pixel size (already scaled by UI_SCALE).
+    If omitted, the spec's logical display size is converted via
+    :func:`config.px`.  Each distinct final size is scaled once and cached
+    under ``(key, width, height)``.  Returns ``None`` when the file is missing
+    or cannot be loaded, so callers can fall back to code-drawn art.
+    """
+    source = _load_source(key)
+    if source is None:
         return None
 
     # Determine target real-pixel size.
+    spec = get_spec(key)
     if size_px is not None:
         target_w, target_h = size_px
     elif spec.display_w is not None and spec.display_h is not None:
         target_w = px(spec.display_w)
         target_h = px(spec.display_h)
     else:
-        target_w, target_h = surf.get_size()
-
-    # Scale once, cache the result.  Never re-scale per frame.
+        target_w, target_h = source.get_size()
     try:
-        if (target_w, target_h) != surf.get_size():
-            surf = pygame.transform.smoothscale(
-                surf, (max(1, int(target_w)), max(1, int(target_h)))
-            )
-    except (pygame.error, ValueError, OverflowError) as exc:
-        log.warning("failed to scale image %s: %r", path, exc)
+        size = (max(1, int(target_w)), max(1, int(target_h)))
+    except (TypeError, ValueError, OverflowError) as exc:
+        log.warning("bad size %r for image %r: %r", (target_w, target_h), key, exc)
+        return source
 
-    _cache[key] = surf
+    cache_key = (key, *size)
+    if cache_key in _cache:
+        return _cache[cache_key]
+
+    # Scale once per size, cache the result.  Never re-scale per frame.
+    surf = source
+    try:
+        if size != source.get_size():
+            surf = pygame.transform.smoothscale(source, size)
+    except (pygame.error, ValueError, OverflowError) as exc:
+        log.warning("failed to scale image %r to %s: %r", key, size, exc)
+
+    _cache[cache_key] = surf
     return surf
