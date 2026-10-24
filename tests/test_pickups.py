@@ -6,10 +6,12 @@ import pytest
 from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec, get_level
 from vector_drift.physics import Flight, ForceField
 from vector_drift.pickups import (
+    ADD_TIME_DURATION,
     BOMB_BLAST_RADIUS,
     PickupState,
     active_pickups,
     bomb_effect,
+    add_time_effect,
     check_pickups_segment,
     discs_overlap,
     obstacles_hit_by_blast,
@@ -206,3 +208,13 @@ def test_consumed_pickups_persist_across_launches():
     second = Flight(ForceField(), SHIP, level, pickups=shared)
     second.step()
     assert [e for e in second.pickup_events if e["kind"] == "bomb"] == []
+
+
+def test_add_time_effect_reports_duration():
+    pickup = PickupState((0.0, 0.0), 0.45, "add_time")
+    event = add_time_effect(pickup, None)
+    assert event == {
+        "kind": "add_time",
+        "center": (0.0, 0.0),
+        "duration": ADD_TIME_DURATION,
+    }

@@ -26,6 +26,11 @@ log = logging.getLogger(__name__)
 # --- tunable constants (single place to adjust) ---------------------------
 BOMB_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
 
+# Seconds granted per active add_time pickup. The scene extends ``max_steps``
+# by ``duration / DT`` steps so flight time / scoring stays accurate (it never
+# rewinds elapsed steps).
+ADD_TIME_DURATION = 5.0
+
 
 def discs_overlap(c0, r0, c1, r1, gap=0.0):
     """True when two discs touch/overlap (edge distance <= gap).
@@ -53,7 +58,7 @@ class PickupState:
         self.radius = float(radius)
         self.kind = kind
         self.consumed = False
-        self.duration = 5.0  # for add_time effect; ignored by other kinds
+        self.duration = ADD_TIME_DURATION  # for add_time effect; ignored by other kinds
 
     @classmethod
     def from_spec(cls, spec):
@@ -131,10 +136,12 @@ def bomb_effect(pickup, ctx, blast_radius=BOMB_BLAST_RADIUS):
 
 @register_effect("add_time")
 def add_time_effect(pickup, ctx):
-    """Add time: increase the game time.
+    """Add time: report the duration granted by a consumed pickup.
 
-    Rewrites ``ctx.time``. Returns an event dict for scene sync.
-    Never touches unrelated game data.
+    Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
+    Returns an event dict consumed by :class:`GameScene`, which extends
+    ``flight.max_steps`` by ``duration / DT`` steps. The effect is pure and
+    never mutates the pickup, ``ctx``, or any other game data.
     """
     return {"kind": "add_time", "center": pickup.center, "duration": pickup.duration}
 

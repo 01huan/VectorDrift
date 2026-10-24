@@ -6,6 +6,7 @@ import math
 import pygame
 
 from .. import config, render, sprites
+from ..pickups import ADD_TIME_DURATION
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
@@ -432,7 +433,7 @@ class GameScene(Scene):
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
             elif event.get("kind") == "add_time":
-                duration = float(event.get("duration", 5.0))
+                duration = float(event.get("duration", ADD_TIME_DURATION))
                 # Extend the deadline instead of rewinding elapsed steps, so
                 # flight time / scoring remain accurate.
                 if self.flight.dt > 0:
