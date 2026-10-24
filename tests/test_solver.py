@@ -30,7 +30,7 @@ from vector_drift.solver import (
     template_keys,
     run_solver_async,
 )
-from vector_drift.solver.engine import _score
+from vector_drift.solver.engine import _score, _time_budget_steps
 from vector_drift.solver.templates import FieldTemplate
 
 # Force headless for any transitive pygame import.
@@ -217,3 +217,44 @@ def test_deep_budget_default_is_large():
     # The new baseline config must ask for a large simulation budget.
     assert PSOConfig().max_simulations >= 100_000
 
+
+
+# --------------------------------------------------------------------------- #
+# Scoring with add_time pickups: rank successes by absolute flight time
+# --------------------------------------------------------------------------- #
+def _score_level():
+    """5 s limit, one add_time pickup at (0, 1): off the straight y = 0 path."""
+    from vector_drift.data import LevelSpec, PickupSpec
+    return LevelSpec(id=950, name="Score", start=(-7.0, 0.0), target_center=(7.0, 0.0),
+                     target_radius=1.0, ship_id="drifter", time_limit=5.0,
+                     pickups=(PickupSpec((0.0, 1.0), radius=0.6, kind="add_time"),))
+
+
+def _poly_record(**coeffs):
+    tpl = get_template("general_poly")
+    params = dict(zip(tpl.param_names, tpl.param_defaults))
+    params.update(coeffs)
+    return evaluate_candidate(level=_score_level(), template=tpl, params=params,
+                              config=EvalConfig(record_trajectory=False)).record
+
+
+def test_faster_success_outscores_a_slower_one_that_took_extra_time():
+    fast = _poly_record(c0=2.0)                        # straight along y = 0, misses the pickup
+    slow = _poly_record(c0=0.9, d0=0.2266, d2=-0.412)  # bends through it and needs its 3 s
+    assert fast.outcome == slow.outcome == SimulationOutcome.REACHED
+    assert fast.time < 5.0 < slow.time
+    assert fast.score > slow.score
+
+
+def test_time_budget_is_the_limit_plus_every_add_time_pickup():
+    from dataclasses import replace
+    from vector_drift.data import PickupSpec
+    from vector_drift.pickups import ADD_TIME_DURATION
+    level = replace(_score_level(), time_limit=12.0, pickups=(
+        PickupSpec((0.0, 3.0), kind="add_time"),
+        PickupSpec((0.0, -3.0), kind="add_time"),
+        PickupSpec((3.0, 0.0), kind="bomb"),
+    ))
+    expected = round((12.0 + 2 * ADD_TIME_DURATION) / config.DT)
+    assert _time_budget_steps(level, round(12.0 / config.DT), config.DT) == expected
+    assert _time_budget_steps(LEVEL, 1200, config.DT) == 1200   # no pickups: unchanged
