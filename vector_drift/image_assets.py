@@ -63,7 +63,6 @@ def get_spec(key: str) -> AssetSpec | None:
 
 # Ships (key = f"ship.{ship_id}")
 register(AssetSpec("ship.drifter", Path("ships/drifter.png"), display_w=76, display_h=76))
-
 # Targets / destination
 register(AssetSpec("target.planet", Path("targets/planet.png"), display_w=120, display_h=120))
 
@@ -73,7 +72,7 @@ register(AssetSpec("obstacle.bumper", Path("obstacles/bumper.png"), display_w=64
 # Pickups (key = f"pickup.{kind}")
 register(AssetSpec("pickup.bomb", Path("pickups/bomb.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.add_time", Path("pickups/add_time.png"), display_w=40, display_h=40))
-
+register(AssetSpec("pickup.penetrate", Path("pickups/penetrate.png"), display_w=40, display_h=40))
 # UI
 register(AssetSpec("ui.start_marker", Path("ui/start_marker.png"), display_w=36, display_h=36))
 

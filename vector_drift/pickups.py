@@ -29,7 +29,8 @@ BOMB_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
 # Seconds granted per active add_time pickup. The scene extends ``max_steps``
 # by ``duration / DT`` steps so flight time / scoring stays accurate (it never
 # rewinds elapsed steps).
-ADD_TIME_DURATION = 5.0
+ADD_TIME_DURATION = 3.0
+PENETRATE_DURATION = 3.0  # Seconds granted per active penetrate pickup
 
 
 def discs_overlap(c0, r0, c1, r1, gap=0.0):
@@ -51,15 +52,15 @@ class PickupState:
     participates in collision or effects again.
     """
 
-    __slots__ = ("center", "radius", "kind", "consumed", "duration")
+    __slots__ = ("center", "radius", "kind", "consumed", "add_time_duration", "penetrate_duration")
 
     def __init__(self, center, radius, kind="bomb"):
         self.center = (float(center[0]), float(center[1]))
         self.radius = float(radius)
         self.kind = kind
         self.consumed = False
-        self.duration = ADD_TIME_DURATION  # for add_time effect; ignored by other kinds
-
+        self.add_time_duration = ADD_TIME_DURATION  # for add_time effect; ignored by other kinds
+        self.penetrate_duration = PENETRATE_DURATION  # for penetrate effect; ignored by other kinds
     @classmethod
     def from_spec(cls, spec):
         return cls(spec.center, spec.radius, getattr(spec, "kind", "bomb"))
@@ -143,8 +144,17 @@ def add_time_effect(pickup, ctx):
     ``flight.max_steps`` by ``duration / DT`` steps. The effect is pure and
     never mutates the pickup, ``ctx``, or any other game data.
     """
-    return {"kind": "add_time", "center": pickup.center, "duration": pickup.duration}
+    return {"kind": "add_time", "center": pickup.center, "add_time_duration": pickup.add_time_duration}
 
+@register_effect("penetrate")
+def penetrate_effect(pickup, ctx):
+    """Penetrate: report the duration granted by a consumed pickup.
+
+    Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
+    Pure: returns an event dict only. :class:`GameScene` applies it to
+    the Flight; safe to call with ``ctx=None`` (headless / unit tests).
+    """
+    return {"kind": "penetrate", "center": pickup.center, "penetrate_duration": pickup.penetrate_duration}
 
 class _NullCtx:
     """Fallback ctx when no Flight is given (keeps bomb testable)."""

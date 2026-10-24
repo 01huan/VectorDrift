@@ -346,7 +346,7 @@ OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
 add one entry here; draw_obstacle() dispatches, so game.py never branches."""
 
 
-# --- pickup props (extensible; bomb is the first kind) -----------------------
+    # --- pickup props (extensible; bomb is the first kind) -----------------------
 def _render_bomb(radius):
     d = 2 * radius + 10
     D = d * SS
@@ -402,8 +402,33 @@ def _render_add_time(radius):
 def _paint_add_time(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "add_time", _render_add_time)
 
+def _render_penetrate(radius):
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    # Round blue body with top highlight.
+    pygame.draw.circle(surf, (130, 90, 220), (c, c), r)
+    cap = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(cap, (170, 130, 255), (c, c), r)
+    pygame.draw.circle(cap, (0, 0, 0, 0), (c + 0.22 * r, c + 0.30 * r), r * 1.02)
+    surf.blit(cap, (0, 0))
+    shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
+    shine.center = (c - 0.30 * r, c - 0.38 * r)
+    pygame.draw.ellipse(surf, (235, 235, 255), shine)
+    # Penetrate symbol: thick white line punching through the center.
+    line_size = round(0.62 * r)
+    line_thickness = max(3, round(0.14 * r))
+    pygame.draw.line(surf, (255, 255, 255), (c - line_size // 2, c), (c + line_size // 2, c), line_thickness)
+    cap_size = max(2, round(0.09 * r))
+    pygame.draw.line(surf, (255, 255, 255), (c - line_size // 2, c - cap_size), (c - line_size // 2, c + cap_size), cap_size)
+    pygame.draw.line(surf, (255, 255, 255), (c + line_size // 2, c - cap_size), (c + line_size // 2, c + cap_size), cap_size)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
+def _paint_penetrate(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "penetrate", _render_penetrate)
 
-PICKUP_RENDERERS = {"bomb": _paint_bomb, "add_time": _paint_add_time}
+PICKUP_RENDERERS = {"bomb": _paint_bomb, "add_time": _paint_add_time, "penetrate": _paint_penetrate}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 

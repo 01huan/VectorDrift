@@ -6,7 +6,7 @@ import math
 import pygame
 
 from .. import config, render, sprites
-from ..pickups import ADD_TIME_DURATION
+from ..pickups import ADD_TIME_DURATION, PENETRATE_DURATION
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
@@ -433,7 +433,7 @@ class GameScene(Scene):
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
             elif event.get("kind") == "add_time":
-                duration = float(event.get("duration", ADD_TIME_DURATION))
+                duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
                 # Extend the deadline instead of rewinding elapsed steps, so
                 # flight time / scoring remain accurate.
                 if self.flight.dt > 0:
@@ -444,6 +444,16 @@ class GameScene(Scene):
                     self.audio.play("add_time")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("add_time sfx skipped", exc_info=True)
+            elif event.get("kind") == "penetrate":
+                if self.flight is None:
+                    continue
+                duration = float(event.get("penetrate_duration", PENETRATE_DURATION))
+                # One active penetrate at a time: pickup overwrites remaining time.
+                self.flight.penetrate_remaining = duration
+                try:
+                    self.audio.play("penetrate")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("penetrate sfx skipped", exc_info=True)
             
         self.flight.pickup_events = []
         # self.pickups holds the SAME PickupState objects the Flight just
@@ -850,6 +860,9 @@ class GameScene(Scene):
             ("Speed", f"{math.hypot(vx, vy):.2f} m/s", config.VELOCITY_VEC),
             ("Force", fmt_pair(fx, fy, "N"), config.FORCE_VEC),
         ]
+        if in_flight and getattr(self.flight, "penetrate_remaining", 0.0) > 0.0:
+            remain = getattr(self.flight, "penetrate_remaining", 0.0)
+            rows.append(("Penetrate", f"{remain:.1f}s", config.WARNING))
         for i, (label, value, color) in enumerate(rows):
             ry = area.y + px(TELEMETRY_ROW_H * i + TELEMETRY_ROW_H // 2 + 2)
             draw_text(surface, label, (area.x + px(12), ry), 13, config.TEXT_DIM, anchor="midleft")

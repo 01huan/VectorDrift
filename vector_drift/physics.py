@@ -286,6 +286,7 @@ class Flight:
         self.outcome = Outcome.RUNNING
         self.trail = [(self.x, self.y)]
         self._accumulator = 0.0
+        self.penetrate_remaining = 0.0  # seconds of penetrate effect remaining (ship ignores bumpers)
 
     @property
     def time(self):
@@ -324,10 +325,12 @@ class Flight:
         except (ArithmeticError, ValueError, TypeError, OverflowError,
                 RecursionError, MemoryError):
             self.steps += 1
+            self.penetrate_remaining = max(0.0, self.penetrate_remaining - self.dt)
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
         self.steps += 1
+        self.penetrate_remaining = max(0.0, self.penetrate_remaining - self.dt)
 
         if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
             self.outcome = Outcome.DIVERGED
@@ -444,6 +447,8 @@ class Flight:
 
     def _bumper_before(self, p0, p1, t):
         """True if the segment p0->p1 hits a bumper before parameter t."""
+        if(self.penetrate_remaining > 0.0):
+            return False
         for center, radius, _ in self.obstacles:
             hit = segment_circle_first_hit(p0, p1, center, radius)
             if hit is not None and hit < t:
@@ -479,6 +484,9 @@ class Flight:
     def _bounce_along_path(self, p0):
         """Reflect off bumpers hit along this step's path (closest first)."""
         if not self.obstacles:
+            self.trail.append((self.x, self.y))
+            return
+        if self.penetrate_remaining > 0.0:
             self.trail.append((self.x, self.y))
             return
         start = p0

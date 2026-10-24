@@ -8,10 +8,12 @@ from vector_drift.physics import Flight, ForceField
 from vector_drift.pickups import (
     ADD_TIME_DURATION,
     BOMB_BLAST_RADIUS,
+    PENETRATE_DURATION,
     PickupState,
     active_pickups,
     bomb_effect,
     add_time_effect,
+    penetrate_effect,
     check_pickups_segment,
     discs_overlap,
     obstacles_hit_by_blast,
@@ -216,5 +218,17 @@ def test_add_time_effect_reports_duration():
     assert event == {
         "kind": "add_time",
         "center": (0.0, 0.0),
-        "duration": ADD_TIME_DURATION,
+        "add_time_duration": ADD_TIME_DURATION,
     }
+
+
+def test_penetrate_effect_reports_duration():
+    pickup = PickupState((0.0, 0.0), 0.45, "penetrate")
+    # Pure effect: works without a Flight (ctx=None), never mutates ctx.
+    event = penetrate_effect(pickup, None)
+    assert event == {
+        "kind": "penetrate",
+        "center": (0.0, 0.0),
+        "penetrate_duration": PENETRATE_DURATION,
+    }
+    assert not hasattr(pickup, "_mutated_ctx")
