@@ -359,11 +359,7 @@ class Flight:
         self._bounce_along_path(p0)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
-        from .pickups import check_pickups_segment
-        self.pickup_events.extend(
-            check_pickups_segment(self.pickups, p0, (self.x, self.y),
-                                  self.hull_radius, ctx=self)
-        )
+        self._take_pickups(p0, (self.x, self.y))
 
         if segment_hits_circle(
             p0, (self.x, self.y), self.target, self.hit_radius
@@ -445,6 +441,33 @@ class Flight:
             return None
         return near[0] / norm, near[1] / norm
 
+    def _take_pickups(self, p0, p1):
+        """Trigger the pickups on p0->p1, apply them to this flight, keep the events."""
+        from .pickups import check_pickups_segment
+        events = check_pickups_segment(self.pickups, p0, p1, self.hull_radius, ctx=self)
+        self.apply_pickup_events(events)
+        self.pickup_events.extend(events)
+
+    def apply_pickup_events(self, events):
+        """Apply pickup events to this flight: the one place for these rules.
+
+        step() calls it the moment a pickup triggers, so GameScene and the
+        solver fly by the same rules; callers only add presentation (sound).
+        add_time extends max_steps by duration / dt (elapsed steps are never
+        rewound, so flight time and scores stay true). penetrate makes the
+        ship ignore bumpers for its duration; a new one overwrites what is
+        left. bomb needs nothing here: its effect already removed the
+        obstacles from this flight.
+        """
+        from .pickups import ADD_TIME_DURATION, PENETRATE_DURATION
+        for event in events:
+            kind = event.get("kind")
+            if kind == "add_time":
+                duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
+                self.max_steps = max(self.max_steps + int(round(duration / self.dt)), self.steps)
+            elif kind == "penetrate":
+                self.penetrate_remaining = float(event.get("penetrate_duration", PENETRATE_DURATION))
+
     def _bumper_before(self, p0, p1, t):
         """True if the segment p0->p1 hits a bumper before parameter t."""
         if(self.penetrate_remaining > 0.0):
@@ -462,10 +485,7 @@ class Flight:
         the ship leaves along `direction` and the flight is OUT_OF_BOUNDS.
         """
         pole = (p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t)
-        from .pickups import check_pickups_segment
-        self.pickup_events.extend(
-            check_pickups_segment(self.pickups, p0, pole, self.hull_radius, ctx=self)
-        )
+        self._take_pickups(p0, pole)
         self.trail.append(pole)
         if segment_hits_circle(p0, pole, self.target, self.hit_radius):
             self.x, self.y = pole

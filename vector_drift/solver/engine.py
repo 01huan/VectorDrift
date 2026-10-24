@@ -15,7 +15,6 @@ from typing import Callable
 
 from ..data import LevelSpec, SHIPS
 from ..expr_parser import parse_expression
-from ..pickups import ADD_TIME_DURATION, PENETRATE_DURATION
 from ..physics import Flight, ForceField, Outcome
 from .data import (
     SimulationRecord,
@@ -49,30 +48,6 @@ class EvalResult:
 
 def _default_ship() -> object:
     return SHIPS["drifter"]
-
-
-def _apply_pickup_events(flight: Flight, max_steps: int) -> int:
-    """Apply pending pickup events to ``flight`` state (mirrors GameScene).
-
-    Returns the possibly-updated ``max_steps`` so add_time extensions are
-    reflected in the caller's step cap.
-    """
-    events = flight.pickup_events
-    if not events:
-        return max_steps
-    for event in events:
-        kind = event.get("kind")
-        if kind == "add_time":
-            duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
-            if flight.dt > 0:
-                max_steps += int(round(duration / flight.dt))
-                if max_steps < flight.steps:
-                    max_steps = flight.steps
-        elif kind == "penetrate":
-            duration = float(event.get("penetrate_duration", PENETRATE_DURATION))
-            flight.penetrate_remaining = duration
-    flight.pickup_events = []
-    return max_steps
 
 
 def _score(outcome: Outcome, steps: int, max_steps: int,
@@ -146,18 +121,17 @@ def evaluate_candidate(
     min_dist = min(min_dist, math.dist((flight.x, flight.y), (tx, ty)))
 
     while flight.running:
-        flight.step()
-        max_steps = _apply_pickup_events(flight, max_steps)
+        flight.step()               # applies pickup effects (add_time, penetrate) itself
         if cfg.record_trajectory:
             trajectory.append(TrajectoryPoint(
                 x=flight.x, y=flight.y,
                 vx=flight.vx, vy=flight.vy, step=flight.steps))
         min_dist = min(min_dist, math.dist((flight.x, flight.y), (tx, ty)))
-        if flight.steps >= max_steps:
+        if flight.steps >= flight.max_steps:
             # Defensive: Flight already caps via max_steps/time_limit, but be safe.
             break
 
-    score = _score(flight.outcome, flight.steps, max_steps, min_dist)
+    score = _score(flight.outcome, flight.steps, flight.max_steps, min_dist)
 
     import uuid as _uuid
     record = record_from_flight(

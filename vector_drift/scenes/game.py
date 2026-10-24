@@ -6,7 +6,6 @@ import math
 import pygame
 
 from .. import config, render, sprites
-from ..pickups import ADD_TIME_DURATION, PENETRATE_DURATION
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
@@ -402,12 +401,13 @@ class GameScene(Scene):
         self._trail_count = len(pts)
 
     def _drain_pickup_events(self):
-        """Apply Flight pickup effects to scene state (once per event).
+        """Sync scene state and play sounds for new pickup events (once each).
 
-        Bomb destroys obstacles: mirror flight.obstacle_specs back into the
-        frozen level (dataclasses.replace -> new tuple) so rendering and the
-        next launch both see the survivors. Any pickup kind just flows
-        through here -- no per-kind branches.
+        The Flight has already applied every effect to itself (see
+        Flight.apply_pickup_events). Bomb destroys obstacles: mirror
+        flight.obstacle_specs back into the frozen level (dataclasses.replace
+        -> new tuple) so rendering and the next launch both see the
+        survivors. The other kinds only play their sound here.
         """
         from dataclasses import replace
 
@@ -433,28 +433,17 @@ class GameScene(Scene):
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
             elif event.get("kind") == "add_time":
-                duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
-                # Extend the deadline instead of rewinding elapsed steps, so
-                # flight time / scoring remain accurate.
-                if self.flight.dt > 0:
-                    self.flight.max_steps += int(round(duration / self.flight.dt))
-                    if self.flight.max_steps < self.flight.steps:
-                        self.flight.max_steps = self.flight.steps
+                # Flight.apply_pickup_events already extended the flight.
                 try:
                     self.audio.play("add_time")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("add_time sfx skipped", exc_info=True)
             elif event.get("kind") == "penetrate":
-                if self.flight is None:
-                    continue
-                duration = float(event.get("penetrate_duration", PENETRATE_DURATION))
-                # One active penetrate at a time: pickup overwrites remaining time.
-                self.flight.penetrate_remaining = duration
+                # Flight.apply_pickup_events already started the effect.
                 try:
                     self.audio.play("penetrate")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("penetrate sfx skipped", exc_info=True)
-            
         self.flight.pickup_events = []
         # self.pickups holds the SAME PickupState objects the Flight just
         # consumed (passed by reference), so no re-sync is needed: used

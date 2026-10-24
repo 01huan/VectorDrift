@@ -1,10 +1,12 @@
 """Tests for the extensible pickup system + bomb (first pickup)."""
 
+import math
+
 import pygame
 import pytest
 
 from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec, get_level
-from vector_drift.physics import Flight, ForceField
+from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.pickups import (
     ADD_TIME_DURATION,
     BOMB_BLAST_RADIUS,
@@ -232,3 +234,87 @@ def test_penetrate_effect_reports_duration():
         "penetrate_duration": PENETRATE_DURATION,
     }
     assert not hasattr(pickup, "_mutated_ctx")
+
+
+# --- add_time / penetrate applied to the Flight itself ------------------------
+# The same rules must hold for GameScene and the solver, so these drive the
+# shared path (Flight.step) rather than any one caller's copy of the logic.
+
+def _add_time_level():
+    """Ship parked on an add_time pickup with no force: it can only time out."""
+    return LevelSpec(id=902, name="Add time", start=(-7.0, 0.0),
+                     target_center=(7.0, 0.0), target_radius=1.0,
+                     ship_id="drifter", time_limit=4.0,
+                     pickups=(PickupSpec(center=(-7.0, 0.0), kind="add_time"),))
+
+
+def test_add_time_extends_the_flight_itself():
+    flight = Flight(ForceField(), SHIP, _add_time_level())
+    while flight.running:
+        flight.step()
+    assert flight.outcome is Outcome.TIMEOUT
+    assert flight.time == pytest.approx(4.0 + ADD_TIME_DURATION)
+
+
+def test_solver_flight_gets_the_extended_time():
+    from vector_drift.solver import EvalConfig, SimulationOutcome, evaluate_candidate, get_template
+    template = get_template("general_poly")              # all-zero defaults: no force
+    params = dict(zip(template.param_names, template.param_defaults))
+    result = evaluate_candidate(level=_add_time_level(), template=template, params=params,
+                                config=EvalConfig(record_trajectory=False))
+    assert result.record.outcome == SimulationOutcome.TIMEOUT
+    assert result.record.time == pytest.approx(4.0 + ADD_TIME_DURATION)
+
+
+def test_game_scene_flight_gets_the_extended_time_once(pygame_display):
+    from types import SimpleNamespace
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+    audio = SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
+                            stop_loop=lambda *a: None)
+    scene = GameScene(SceneManager(audio))
+    scene.level = _add_time_level()
+    scene.pickups = [PickupState.from_spec(s) for s in scene.level.pickups]
+    scene.launch_pos = scene.level.start
+    scene.editor.set_lines(["0", "0"])
+    scene._try_launch()
+    flight = scene.flight
+    while scene.flight is flight:
+        scene.update(1 / 60)
+    assert flight.outcome is Outcome.TIMEOUT
+    assert flight.time == pytest.approx(4.0 + ADD_TIME_DURATION)
+
+
+def test_penetrate_passes_one_bumper_then_collisions_return():
+    # Constant push to the right, x(t) = -7 + t^2 / 4. The ship takes the
+    # pickup at t ~ 1.41 s (effect until ~4.41 s), is inside bumper A from
+    # ~3.03 s to ~3.85 s, and reaches bumper B at ~5.02 s: after the effect
+    # has ended, with the ship fully outside A the whole time in between.
+    hull = SHIP.hull_radius
+    bumper_a = ObstacleSpec(center=(-4.0, 0.0), radius=0.5)
+    bumper_b = ObstacleSpec(center=(0.0, 0.0), radius=0.5)
+    pickup = PickupSpec(center=(-6.0, 0.0), radius=0.3, kind="penetrate")
+    flight = Flight(ForceField(c=0.5), SHIP, _level_with([bumper_a, bumper_b], [pickup]))
+
+    def clear_of(bumper):
+        return math.dist((flight.x, flight.y), bumper.center) > bumper.radius + hull
+
+    # 1) Through A without a bounce while the effect is active.
+    while flight.running and flight.x < bumper_a.center[0] + bumper_a.radius + hull:
+        flight.step()
+    assert flight.bounces == 0
+    assert flight.penetrate_remaining > 0.0
+
+    # 2) The effect runs out between the bumpers, touching neither.
+    while flight.running and flight.penetrate_remaining > 0.0:
+        flight.step()
+    assert flight.bounces == 0
+    assert clear_of(bumper_a) and clear_of(bumper_b)
+
+    # 3) Collisions are back: B bounces the ship, which is entirely outside A.
+    while flight.running and flight.bounces == 0:
+        flight.step()
+    assert flight.bounces == 1
+    assert flight.vx < 0.0
+    assert clear_of(bumper_a)
+    assert math.dist((flight.x, flight.y), bumper_b.center) < bumper_b.radius + hull + 0.1

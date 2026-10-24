@@ -26,9 +26,9 @@ log = logging.getLogger(__name__)
 # --- tunable constants (single place to adjust) ---------------------------
 BOMB_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
 
-# Seconds granted per active add_time pickup. The scene extends ``max_steps``
-# by ``duration / DT`` steps so flight time / scoring stays accurate (it never
-# rewinds elapsed steps).
+# Seconds granted per active add_time pickup. Flight.apply_pickup_events extends
+# ``max_steps`` by ``duration / DT`` steps so flight time / scoring stays
+# accurate (it never rewinds elapsed steps).
 ADD_TIME_DURATION = 3.0
 PENETRATE_DURATION = 3.0  # Seconds granted per active penetrate pickup
 
@@ -140,7 +140,7 @@ def add_time_effect(pickup, ctx):
     """Add time: report the duration granted by a consumed pickup.
 
     Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
-    Returns an event dict consumed by :class:`GameScene`, which extends
+    Returns an event dict; ``Flight.apply_pickup_events`` extends
     ``flight.max_steps`` by ``duration / DT`` steps. The effect is pure and
     never mutates the pickup, ``ctx``, or any other game data.
     """
@@ -151,8 +151,8 @@ def penetrate_effect(pickup, ctx):
     """Penetrate: report the duration granted by a consumed pickup.
 
     Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
-    Pure: returns an event dict only. :class:`GameScene` applies it to
-    the Flight; safe to call with ``ctx=None`` (headless / unit tests).
+    Pure: returns an event dict only. ``Flight.apply_pickup_events``
+    applies it; safe to call with ``ctx=None`` (headless / unit tests).
     """
     return {"kind": "penetrate", "center": pickup.center, "penetrate_duration": pickup.penetrate_duration}
 
