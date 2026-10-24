@@ -12,8 +12,13 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `target.planet` | `targets/planet.png` | Destination / target planet |
 | `obstacle.bumper` | `obstacles/bumper.png` | Circular bumper obstacle |
 | `pickup.bomb` | `pickups/bomb.png` | Bomb pickup |
+| `pickup.add_time` | `pickups/add_time.png` | Add-time pickup |
+| `pickup.penetrate` | `pickups/penetrate.png` | Penetrate pickup |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
+
+`targets/planet.png` is not included at the moment, so the game draws the
+target planet in code.
 
 ## Sizing
 

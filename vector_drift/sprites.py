@@ -346,7 +346,7 @@ OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
 add one entry here; draw_obstacle() dispatches, so game.py never branches."""
 
 
-    # --- pickup props (extensible; bomb is the first kind) -----------------------
+# --- pickup props (extensible; bomb is the first kind) -----------------------
 def _render_bomb(radius):
     d = 2 * radius + 10
     D = d * SS

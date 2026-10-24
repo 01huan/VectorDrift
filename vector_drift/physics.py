@@ -470,7 +470,7 @@ class Flight:
 
     def _bumper_before(self, p0, p1, t):
         """True if the segment p0->p1 hits a bumper before parameter t."""
-        if(self.penetrate_remaining > 0.0):
+        if self.penetrate_remaining > 0.0:
             return False
         for center, radius, _ in self.obstacles:
             hit = segment_circle_first_hit(p0, p1, center, radius)
