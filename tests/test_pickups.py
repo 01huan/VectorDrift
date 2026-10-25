@@ -318,3 +318,41 @@ def test_penetrate_passes_one_bumper_then_collisions_return():
     assert flight.vx < 0.0
     assert clear_of(bumper_a)
     assert math.dist((flight.x, flight.y), bumper_b.center) < bumper_b.radius + hull + 0.1
+
+
+def test_penetrate_ending_inside_a_bumper_lets_the_ship_out_without_bouncing():
+    # No force, 2 m/s to the right. Penetrate (taken at the start) runs out
+    # after ~3 s at x ~ -1: the middle of bumper A. The ship must coast out
+    # of A unchanged, bounce off B, and then bounce off A normally when it
+    # comes back from outside.
+    hull = SHIP.hull_radius
+    bumper_a = ObstacleSpec(center=(-1.0, 0.0), radius=1.0)
+    bumper_b = ObstacleSpec(center=(3.0, 0.0), radius=0.5)
+    pickup = PickupSpec(center=(-7.0, 0.0), radius=0.3, kind="penetrate")
+    flight = Flight(ForceField(), SHIP, _level_with([bumper_a, bumper_b], [pickup]))
+    flight.vx = 2.0
+
+    def inside(bumper):
+        return math.dist((flight.x, flight.y), bumper.center) < bumper.radius + hull
+
+    flight.step()
+    assert flight.penetrate_remaining > 0.0
+    while flight.running and flight.penetrate_remaining > 0.0:
+        flight.step()
+    assert inside(bumper_a)                       # the effect ran out inside A
+
+    while flight.running and inside(bumper_a):
+        flight.step()
+    assert flight.bounces == 0
+    assert (flight.vx, flight.vy) == (2.0, 0.0)
+
+    while flight.running and flight.bounces == 0:
+        flight.step()
+    assert flight.bounces == 1                    # B bounces it back
+    assert flight.vx < 0.0
+
+    while flight.running and flight.bounces == 1:
+        flight.step()
+    assert flight.bounces == 2                    # and A, hit from outside, bounces it again
+    assert flight.vx > 0.0
+    assert not inside(bumper_a)

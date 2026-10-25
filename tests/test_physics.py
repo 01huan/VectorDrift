@@ -731,3 +731,26 @@ def test_segment_misses_circle_with_zero_radius():
         (5, 1),
         0,
     )
+
+
+# ---------------------------------------------------------------------------
+# Starting inside a bumper
+# ---------------------------------------------------------------------------
+
+def test_flight_starting_inside_a_bumper_coasts_out_without_bouncing():
+    # E.g. a launch resumed after a timeout where penetrate had carried the
+    # ship into a bumper. No force, 2 m/s: it must leave the bumper as if it
+    # were not there, without bounces or extra trail points.
+    from vector_drift.data import LevelSpec, ObstacleSpec
+    bumper = ObstacleSpec(center=(0.0, 0.0), radius=1.0)
+    level = LevelSpec(id=990, name="Inside", start=(0.0, 0.0), target_center=(9.0, 6.0),
+                      target_radius=0.5, ship_id=LEVEL.ship_id, obstacles=(bumper,))
+    flight = Flight(ForceField(), SHIP, level)
+    flight.vx = 2.0
+    reach = bumper.radius + SHIP.hull_radius
+    while flight.running and math.dist((flight.x, flight.y), bumper.center) < reach:
+        flight.step()
+    assert flight.running
+    assert flight.bounces == 0
+    assert (flight.vx, flight.vy) == (2.0, 0.0)
+    assert len(flight.trail) == flight.steps + 1

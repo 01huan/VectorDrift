@@ -115,3 +115,13 @@ def test_bumper_before_pole_in_same_step_bounces_instead():
     assert flight.step() is Outcome.RUNNING
     assert flight.bounces == 1
     assert flight.vx < 0
+
+
+def test_bumper_the_ship_is_already_inside_does_not_block_the_fling():
+    # Same rule as the bounce: a bumper overlapping the ship at the start of
+    # the step is not "hit first", so crossing pi/2 inside it still flings.
+    inside = ObstacleSpec(center=(math.pi / 2, 0.0), radius=1.0)
+    flight = _about_to_cross_pole(6.0, (inside,))
+    assert flight.step() is Outcome.OUT_OF_BOUNDS
+    assert math.isclose(flight.y, config.WORLD_HALF_H)
+    assert flight.bounces == 0

@@ -343,6 +343,7 @@ class Flight:
             return self.outcome
 
         p0 = (self.x, self.y)
+        solid = self._solid_obstacles(p0)
 
         self.vx, self.vy = vx, vy
         # Samples only see the force at step ends, so a point of infinite
@@ -351,12 +352,12 @@ class Flight:
         # Passing through one flings the ship off the field instead (unless
         # a bumper comes first).
         pole = self._pole_between(p0, (nx, ny))
-        if pole is not None and not self._bumper_before(p0, (nx, ny), pole[0]):
+        if pole is not None and not self._bumper_before(p0, (nx, ny), pole[0], solid):
             self._fling(p0, (nx, ny), *pole)
             return self.outcome
 
         self.x, self.y = nx, ny
-        self._bounce_along_path(p0)
+        self._bounce_along_path(p0, solid)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
         self._take_pickups(p0, (self.x, self.y))
@@ -471,11 +472,22 @@ class Flight:
             elif kind == "penetrate":
                 self.penetrate_remaining = float(event.get("penetrate_duration", PENETRATE_DURATION))
 
-    def _bumper_before(self, p0, p1, t):
-        """True if the segment p0->p1 hits a bumper before parameter t."""
+    def _solid_obstacles(self, p0):
+        """The bumpers that can bounce the ship this step.
+
+        All but those it starts the step overlapping (closer than radius +
+        hull, the collision reach): after penetrate runs out inside a bumper,
+        or when a resumed launch starts in one, the ship passes through that
+        bumper until it is fully out. Reflecting there would only bounce it
+        back and forth inside. Once out, hitting it again bounces as usual.
+        """
+        return tuple(ob for ob in self.obstacles if math.dist(p0, ob[0]) >= ob[1])
+
+    def _bumper_before(self, p0, p1, t, obstacles):
+        """True if the segment p0->p1 hits one of ``obstacles`` before parameter t."""
         if self.penetrate_remaining > 0.0:
             return False
-        for center, radius, _ in self.obstacles:
+        for center, radius, _ in obstacles:
             hit = segment_circle_first_hit(p0, p1, center, radius)
             if hit is not None and hit < t:
                 return True
@@ -504,9 +516,9 @@ class Flight:
         self.trail.append((self.x, self.y))
         self.outcome = Outcome.OUT_OF_BOUNDS
 
-    def _bounce_along_path(self, p0):
-        """Reflect off bumpers hit along this step's path (closest first)."""
-        if not self.obstacles:
+    def _bounce_along_path(self, p0, obstacles):
+        """Reflect off ``obstacles`` hit along this step's path (closest first)."""
+        if not obstacles:
             self.trail.append((self.x, self.y))
             return
         if self.penetrate_remaining > 0.0:
@@ -514,9 +526,9 @@ class Flight:
             return
         start = p0
         end = (self.x, self.y)
-        for _ in range(max(1, len(self.obstacles) * 2)):
+        for _ in range(max(1, len(obstacles) * 2)):
             earliest = None  # (t, center, radius, restitution)
-            for center, radius, restitution in self.obstacles:
+            for center, radius, restitution in obstacles:
                 t = segment_circle_first_hit(start, end, center, radius)
                 if t is not None and (earliest is None or t < earliest[0]):
                     earliest = (t, center, radius, restitution)
