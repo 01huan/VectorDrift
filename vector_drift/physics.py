@@ -477,10 +477,11 @@ class Flight:
         """The bumpers that can bounce the ship this step.
 
         All but those it starts the step overlapping (closer than radius +
-        hull, the collision reach): after penetrate runs out inside a bumper,
-        or when a resumed launch starts in one, the ship passes through that
-        bumper until it is fully out. Reflecting there would only bounce it
-        back and forth inside. Once out, hitting it again bounces as usual.
+        hull, the collision reach): the bumper the penetrate shield broke on,
+        or the one a resumed launch starts in (time ran out while passing
+        it). The ship passes through such a bumper until it is fully out;
+        reflecting there would only bounce it back and forth inside. Once
+        out, hitting it again bounces as usual.
         """
         return tuple(ob for ob in self.obstacles if math.dist(p0, ob[0]) >= ob[1])
 
