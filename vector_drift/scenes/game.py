@@ -2,6 +2,7 @@
 
 import logging
 import math
+from dataclasses import replace
 
 import pygame
 
@@ -167,6 +168,10 @@ class GameScene(Scene):
                                       style="primary", font_size=15)
         self.ai_close_button = Button((0, 0, px(100), px(40)), "Close",
                                       style="plain", font_size=15)
+        self.ai_job_state_key = None
+        self.ai_best_by_state = {}
+        self._last_state_key = None
+        self._kick_ai_for_state()
 
     def _heading_to_target(self):
         tx = self.level.target_center[0] - self.launch_pos[0]
@@ -481,21 +486,27 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
+        key = self._state_key()
+        if key != self._last_state_key:
+            self._last_state_key = key
+            self._kick_ai_for_state()
         # Poll the offline solver job on the main thread (never blocks PyGame).
         if self.ai_job is not None and not self.ai_job.running:
+            job_key = self.ai_job_state_key
+            current_key = self._state_key()
             if self.ai_job.error is not None:
-                self.ai_status = "error"
-                self.ai_message = f"Solver Error: {self.ai_job.error}"
+                if job_key == current_key:
+                    self.ai_status = "error"
+                    self.ai_message = f"Solver Error: {self.ai_job.error}"
             else:
-                self.ai_result = self.ai_job.result
-                self.ai_status = "ready"
-                self.ai_message = (self.ai_job.result.message
-                                   if self.ai_job.result is not None else "")
-                # Solution is ready: show the answer popup immediately so the
-                # user does not have to press the AI button a second time.
-                self.ai_popup = True
-                self._position_ai_popup_buttons()
+                if job_key == current_key:
+                    self.ai_best_by_state[job_key] = self.ai_job.result
+                    self.ai_result = self.ai_job.result
+                    self.ai_status = "ready"
+                    self.ai_message = (self.ai_job.result.message
+                                       if self.ai_job.result is not None else "")
             self.ai_job = None
+            self.ai_job_state_key = None
         try:
             self.editor.update(dt)
         except _RENDER_ERRORS as exc:
@@ -569,29 +580,59 @@ class GameScene(Scene):
         self.ai_apply_button.rect = pygame.Rect(x0, by, bw, bh)
         self.ai_close_button.rect = pygame.Rect(x0 + bw + gap, by, bw, bh)
 
-    def _on_ai_click(self):
-        """User tapped the AI button: open result popup or start a new solve."""
-        if self.ai_status == "solving":
+    def _state_key(self):
+        obstacles = tuple(getattr(self.level, "obstacles", ()) or ())
+        pickups = tuple(p.consumed for p in getattr(self, "pickups", ()) or ())
+        return (self.level.id, self.session.random_seed, self.launch_pos,
+                self.lives, getattr(self.session, "ship_id", None), obstacles, pickups)
+
+    def _kick_ai_for_state(self):
+        key = self._state_key()
+        self._last_state_key = key
+        if key in self.ai_best_by_state:
+            self.ai_result = self.ai_best_by_state[key]
+            self.ai_status = "ready"
             return
-        if self.ai_status == "ready" and self.ai_result is not None:
-            self.ai_popup = True
-            self._position_ai_popup_buttons()
+        if self.ai_job is not None and self.ai_job.running and self.ai_job_state_key == key:
             return
-        # Kick off an offline solve on the current level (background thread).
-        # Deeper search: keep going until a solution is found or the simulation
-        # cap (100000) / time cap (120s) is reached.
+        if self.ai_job is not None and self.ai_job.running:
+            try:
+                self.ai_job.cancel()
+            except Exception:
+                pass
         self.ai_status = "solving"
-        self.ai_message = "Solving… (offline PSO, no network needed)"
-        self.ai_result = None
+        self.ai_message = "Solving (offline PSO, no network needed)"
         self.ai_popup = False
+        self.ai_result = None
         seed = self.session.random_seed
+        self.ai_job_state_key = key
+        # Solve from the *current* launch point: after a TIMEOUT resume the
+        # ship sits at the stopped position, not the level start, so the
+        # cached formulas must be re-derived from here.
+        solve_level = self.level
+        if tuple(self.level.start) != tuple(self.launch_pos):
+            solve_level = replace(self.level, start=tuple(self.launch_pos))
         self.ai_job = run_solver_async(
             self.ai_solver,
-            self.level,
+            solve_level,
             time_budget_s=120.0,
             simulation_budget=100000,
             rng_seed=seed,
         )
+
+    def _on_ai_click(self):
+        """User tapped the AI button: return best verified solution or wait."""
+        key = self._state_key()
+        if key in self.ai_best_by_state:
+            self.ai_result = self.ai_best_by_state[key]
+            self.ai_status = "ready"
+            self.ai_popup = True
+            self._position_ai_popup_buttons()
+            return
+        if self.ai_job is not None and self.ai_job.running and self.ai_job_state_key == key:
+            self.ai_status = "solving"
+            return
+        self._kick_ai_for_state()
 
     def _apply_ai_suggestion(self):
         """Write the best candidate formula into the Fx/Fy editor."""
