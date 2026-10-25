@@ -8,7 +8,8 @@ import pygame
 
 from . import config
 
-SOUND_SLOTS = ["click", "error", "launch", "thruster_loop", "life_lost", "win", "game_over"]
+SOUND_SLOTS = ["click", "error", "launch", "thruster_loop", "life_lost", "win", "game_over",
+               "shield_break"]
 MUSIC_SLOT = "bgm"
 EXTENSIONS = (".ogg", ".wav", ".mp3")
 

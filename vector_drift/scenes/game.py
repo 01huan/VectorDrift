@@ -444,6 +444,12 @@ class GameScene(Scene):
                     self.audio.play("penetrate")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("penetrate sfx skipped", exc_info=True)
+            elif event.get("kind") == "penetrate_used":
+                # The protection broke on a bumper (the ship still passes it).
+                try:
+                    self.audio.play("shield_break")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("shield_break sfx skipped", exc_info=True)
         self.flight.pickup_events = []
         # self.pickups holds the SAME PickupState objects the Flight just
         # consumed (passed by reference), so no re-sync is needed: used
@@ -753,6 +759,8 @@ class GameScene(Scene):
                     sprites.draw_vector(surface, ship_pos, (vx, vy), config.VELOCITY_VEC)
                     sprites.draw_vector(surface, ship_pos, (fx, fy), config.FORCE_VEC)
                 sprites.draw_ship(surface, ship_pos, self.heading, vp.length(self.ship.length), self.ship)
+                if self.flight is not None and self.flight.penetrate_remaining > 0.0:
+                    sprites.draw_shield(surface, ship_pos, vp.length(0.6 * self.ship.length), self.t)
         finally:
             try:
                 surface.set_clip(prev_clip)
@@ -849,9 +857,6 @@ class GameScene(Scene):
             ("Speed", f"{math.hypot(vx, vy):.2f} m/s", config.VELOCITY_VEC),
             ("Force", fmt_pair(fx, fy, "N"), config.FORCE_VEC),
         ]
-        if in_flight and getattr(self.flight, "penetrate_remaining", 0.0) > 0.0:
-            remain = getattr(self.flight, "penetrate_remaining", 0.0)
-            rows.append(("Penetrate", f"{remain:.1f}s", config.WARNING))
         for i, (label, value, color) in enumerate(rows):
             ry = area.y + px(TELEMETRY_ROW_H * i + TELEMETRY_ROW_H // 2 + 2)
             draw_text(surface, label, (area.x + px(12), ry), 13, config.TEXT_DIM, anchor="midleft")
