@@ -343,6 +343,7 @@ class Flight:
             return self.outcome
 
         p0 = (self.x, self.y)
+        solid = self._solid_obstacles(p0)
 
         self.vx, self.vy = vx, vy
         # Samples only see the force at step ends, so a point of infinite
@@ -351,12 +352,12 @@ class Flight:
         # Passing through one flings the ship off the field instead (unless
         # a bumper comes first).
         pole = self._pole_between(p0, (nx, ny))
-        if pole is not None and not self._bumper_before(p0, (nx, ny), pole[0]):
+        if pole is not None and not self._bumper_before(p0, (nx, ny), pole[0], solid):
             self._fling(p0, (nx, ny), *pole)
             return self.outcome
 
         self.x, self.y = nx, ny
-        self._bounce_along_path(p0)
+        self._bounce_along_path(p0, solid)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
         self._take_pickups(p0, (self.x, self.y))
@@ -456,10 +457,11 @@ class Flight:
         Private because calling it again would apply the same events twice
         (one add_time pickup granting 6 s). add_time extends max_steps by
         add_time_bonus_steps() (elapsed steps are never rewound, so flight
-        time and scores stay true). penetrate makes the ship ignore bumpers
-        for its duration; a new one overwrites what is left. bomb needs
-        nothing here: its effect already removed the obstacles from this
-        flight.
+        time and scores stay true). penetrate protects the ship for its
+        duration (a new one overwrites what is left): the first bumper it
+        touches is passed and uses the protection up (_bounce_along_path).
+        bomb needs nothing here: its effect already removed the obstacles
+        from this flight.
         """
         from .pickups import ADD_TIME_DURATION, PENETRATE_DURATION, add_time_bonus_steps
         for event in events:
@@ -471,15 +473,34 @@ class Flight:
             elif kind == "penetrate":
                 self.penetrate_remaining = float(event.get("penetrate_duration", PENETRATE_DURATION))
 
-    def _bumper_before(self, p0, p1, t):
-        """True if the segment p0->p1 hits a bumper before parameter t."""
+    def _solid_obstacles(self, p0):
+        """The bumpers that can bounce the ship this step.
+
+        All but those it starts the step overlapping (closer than radius +
+        hull, the collision reach): the bumper the penetrate shield broke on,
+        or the one a resumed launch starts in (time ran out while passing
+        it). The ship passes through such a bumper until it is fully out;
+        reflecting there would only bounce it back and forth inside. Once
+        out, hitting it again bounces as usual.
+        """
+        return tuple(ob for ob in self.obstacles if math.dist(p0, ob[0]) >= ob[1])
+
+    def _bumper_before(self, p0, p1, t, obstacles):
+        """True if the segment p0->p1 hits one of ``obstacles`` before parameter t.
+
+        Same rules as _bounce_along_path: under penetrate protection the first
+        bumper touched is passed, so only a later one can block.
+        """
+        hits = sorted(hit for center, radius, _ in obstacles
+                      if (hit := segment_circle_first_hit(p0, p1, center, radius)) is not None)
         if self.penetrate_remaining > 0.0:
-            return False
-        for center, radius, _ in self.obstacles:
-            hit = segment_circle_first_hit(p0, p1, center, radius)
-            if hit is not None and hit < t:
-                return True
-        return False
+            hits = hits[1:]
+        return bool(hits) and hits[0] < t
+
+    def _use_penetrate(self, center):
+        """Protection is used up on touching a bumper; the scene plays shield_break."""
+        self.penetrate_remaining = 0.0
+        self.pickup_events.append({"kind": "penetrate_used", "center": center})
 
     def _fling(self, p0, p1, t, direction):
         """Reach the pole at p0 + t*(p1-p0), then shoot straight off the field.
@@ -504,25 +525,34 @@ class Flight:
         self.trail.append((self.x, self.y))
         self.outcome = Outcome.OUT_OF_BOUNDS
 
-    def _bounce_along_path(self, p0):
-        """Reflect off bumpers hit along this step's path (closest first)."""
-        if not self.obstacles:
+    def _bounce_along_path(self, p0, obstacles):
+        """Reflect off ``obstacles`` hit along this step's path (closest first).
+
+        Under penetrate protection the first bumper touched is passed instead
+        of reflected, and touching it uses the protection up. The ship then
+        starts the next steps inside that bumper, which _solid_obstacles
+        leaves out until the ship is through.
+        """
+        if not obstacles:
             self.trail.append((self.x, self.y))
             return
-        if self.penetrate_remaining > 0.0:
-            self.trail.append((self.x, self.y))
-            return
+        obstacles = list(obstacles)
         start = p0
         end = (self.x, self.y)
-        for _ in range(max(1, len(self.obstacles) * 2)):
-            earliest = None  # (t, center, radius, restitution)
-            for center, radius, restitution in self.obstacles:
-                t = segment_circle_first_hit(start, end, center, radius)
+        for _ in range(max(1, len(obstacles) * 2)):
+            earliest = None  # (t, obstacle)
+            for obstacle in obstacles:
+                t = segment_circle_first_hit(start, end, obstacle[0], obstacle[1])
                 if t is not None and (earliest is None or t < earliest[0]):
-                    earliest = (t, center, radius, restitution)
+                    earliest = (t, obstacle)
             if earliest is None:
                 break
-            t, center, radius, restitution = earliest
+            t, obstacle = earliest
+            center, radius, restitution = obstacle
+            if self.penetrate_remaining > 0.0:
+                self._use_penetrate(center)
+                obstacles.remove(obstacle)          # carried through this one
+                continue
             hx = start[0] + (end[0] - start[0]) * t
             hy = start[1] + (end[1] - start[1]) * t
             nx, ny = hx - center[0], hy - center[1]

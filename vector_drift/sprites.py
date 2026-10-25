@@ -144,17 +144,44 @@ def draw_ship(surface, center, heading, size, ship):
         return
 
 
+# Mean brightness (0-255) of the opaque pixels of the code-drawn grey rocket
+# that marks a used life; a ship picture's used-life icon is dimmed to match.
+USED_LIFE_BRIGHTNESS = 63
+
+
+def _used_life_image(img):
+    """``img`` in grey (R = G = B), dimmed to about USED_LIFE_BRIGHTNESS."""
+    grey = pygame.transform.grayscale(img)
+    level = pygame.surfarray.array3d(grey)[..., 0]
+    opaque = pygame.surfarray.array_alpha(grey) > 128
+    mean = float(level[opaque].mean()) if opaque.any() else 0.0
+    if mean > USED_LIFE_BRIGHTNESS:
+        k = round(256 * USED_LIFE_BRIGHTNESS / mean)
+        grey.fill((k, k, k), special_flags=pygame.BLEND_RGB_MULT)
+    return grey
+
+
 def draw_ship_icon(surface, center, size, ship, alive=True):
     """Small upright ship (for the lives counter); grey when the life is used up."""
-    if alive:
-        img = load_image(f"ship.{ship.id}", size_px=(size, size))
-        if img is not None:
-            try:
-                icon = pygame.transform.rotozoom(img, 90, 1.0)
-                surface.blit(icon, icon.get_rect(center=center))
-            except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
-                return
-            return
+    try:
+        icon = ship_icon_surface(ship, size, alive)
+        surface.blit(icon, icon.get_rect(center=center))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
+def ship_icon_surface(ship, size, alive=True):
+    """The upright lives-counter icon for ``ship`` at ``size`` px, cached.
+
+    With a ship picture, a used life is the same picture in grey, dimmed to
+    about the code-drawn grey rocket; without one, both states are
+    code-drawn as before. The cache key holds the picture itself, so a new
+    picture (or size) gets its own icon and nothing is redone per frame.
+    """
+    img = load_image(f"ship.{ship.id}", size_px=(size, size))
+    if img is not None:
+        return _cached(("icon-image", img, alive), lambda: pygame.transform.rotozoom(
+            img if alive else _used_life_image(img), 90, 1.0))
 
     def build():
         if alive:
@@ -162,8 +189,33 @@ def draw_ship_icon(surface, center, size, ship, alive=True):
         else:
             img = _render_ship(size, (70, 80, 108), (54, 62, 88), (64, 72, 98))
         return pygame.transform.rotozoom(img, 90, 1.0)
-    icon = _cached(("icon", ship.id, size, alive), build)
-    surface.blit(icon, icon.get_rect(center=center))
+    return _cached(("icon", ship.id, size, alive), build)
+
+
+# --- penetrate shield --------------------------------------------------------------
+SHIELD = (120, 220, 255)
+
+
+def _render_shield(radius):
+    d = 2 * radius + 4
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (*SHIELD, 55), (c, c), r)                                # bubble
+    pygame.draw.circle(surf, (*SHIELD, 210), (c, c), r, max(2, round(0.09 * r)))     # rim
+    pygame.draw.circle(surf, (255, 255, 255, 140), (c - 0.45 * r, c - 0.45 * r), 0.12 * r)  # glint
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def draw_shield(surface, center, radius, t):
+    """Pulsing protective bubble around the ship while penetrate protects it."""
+    radius = max(4, round(radius))
+    img = _cached(("shield", radius), lambda: _render_shield(radius)).copy()
+    img.set_alpha(round(170 + 85 * (0.5 + 0.5 * math.sin(t * 5.0))))
+    try:
+        surface.blit(img, img.get_rect(center=center))
+    except (pygame.error, TypeError, ValueError, OverflowError):
+        pass
 
 
 # --- target planet ------------------------------------------------------------------

@@ -84,3 +84,40 @@ def test_unreadable_file_is_cached_as_none(images, monkeypatch, disk_reads):
     assert load_image("test.broken", size_px=(18, 18)) is None
     assert load_image("test.broken", size_px=(64, 64)) is None
     assert len(disk_reads) == 1
+
+
+# --- lives counter: a used life is the same picture in grey --------------------
+
+def _rgb_alpha(surface):
+    import numpy as np
+    return (np.array(pygame.surfarray.pixels3d(surface)),
+            np.array(pygame.surfarray.pixels_alpha(surface)))
+
+
+def test_used_life_icon_is_the_ship_picture_in_grey(images, monkeypatch):
+    from types import SimpleNamespace
+    from vector_drift import sprites
+    monkeypatch.setitem(image_assets._SPECS, "ship.test",
+                        AssetSpec("ship.test", Path("ships/test.png")))
+    ship = SimpleNamespace(id="test")
+    alive = sprites.ship_icon_surface(ship, 18, alive=True)
+    used = sprites.ship_icon_surface(ship, 18, alive=False)
+
+    assert used.get_size() == alive.get_size()
+    rgb, alpha = _rgb_alpha(used)
+    assert (rgb[..., 0] == rgb[..., 1]).all() and (rgb[..., 1] == rgb[..., 2]).all()
+    opaque = alpha > 128
+    assert opaque.any()
+    assert abs(rgb[..., 0][opaque].mean() - sprites.USED_LIFE_BRIGHTNESS) < 4
+    assert sprites.ship_icon_surface(ship, 18, alive=False) is used    # cached
+
+
+def test_used_life_icon_without_a_png_is_still_the_code_drawn_rocket(images, monkeypatch):
+    from vector_drift import sprites
+    from vector_drift.data import SHIPS
+    # images points IMAGES_DIR at a folder without ships/drifter.png.
+    used = sprites.ship_icon_surface(SHIPS["drifter"], 18, alive=False)
+    rgb, alpha = _rgb_alpha(used)
+    opaque = alpha > 128
+    r, b = rgb[..., 0][opaque].mean(), rgb[..., 2][opaque].mean()
+    assert b > r + 10        # the blue-grey code-drawn rocket, not a grey picture

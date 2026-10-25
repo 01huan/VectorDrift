@@ -285,36 +285,112 @@ def test_game_scene_flight_gets_the_extended_time_once(pygame_display):
     assert flight.time == pytest.approx(4.0 + ADD_TIME_DURATION)
 
 
-def test_penetrate_passes_one_bumper_then_collisions_return():
-    # Constant push to the right, x(t) = -7 + t^2 / 4. The ship takes the
-    # pickup at t ~ 1.41 s (effect until ~4.41 s), is inside bumper A from
-    # ~3.03 s to ~3.85 s, and reaches bumper B at ~5.02 s: after the effect
-    # has ended, with the ship fully outside A the whole time in between.
-    hull = SHIP.hull_radius
-    bumper_a = ObstacleSpec(center=(-4.0, 0.0), radius=0.5)
-    bumper_b = ObstacleSpec(center=(0.0, 0.0), radius=0.5)
-    pickup = PickupSpec(center=(-6.0, 0.0), radius=0.3, kind="penetrate")
-    flight = Flight(ForceField(c=0.5), SHIP, _level_with([bumper_a, bumper_b], [pickup]))
-
-    def clear_of(bumper):
-        return math.dist((flight.x, flight.y), bumper.center) > bumper.radius + hull
-
-    # 1) Through A without a bounce while the effect is active.
-    while flight.running and flight.x < bumper_a.center[0] + bumper_a.radius + hull:
-        flight.step()
-    assert flight.bounces == 0
+def _protected_flight(bumpers, vx=2.0):
+    """No force, ``vx`` to the right from (-7, 0), protection taken at the start."""
+    pickup = PickupSpec(center=(-7.0, 0.0), radius=0.3, kind="penetrate")
+    flight = Flight(ForceField(), SHIP, _level_with(bumpers, [pickup]))
+    flight.vx = vx
+    flight.step()
     assert flight.penetrate_remaining > 0.0
+    return flight
 
-    # 2) The effect runs out between the bumpers, touching neither.
-    while flight.running and flight.penetrate_remaining > 0.0:
+
+def _inside(flight, bumper):
+    return math.dist((flight.x, flight.y), bumper.center) < bumper.radius + SHIP.hull_radius
+
+
+def _used_events(flight):
+    return [e for e in flight.pickup_events if e["kind"] == "penetrate_used"]
+
+
+def test_penetrate_is_used_up_on_the_first_bumper_and_carries_the_ship_through():
+    # A is touched at ~0.65 s and B at ~2.15 s: both inside the 3 s window,
+    # but only A is passed. B bounces the ship back, and A, now hit from
+    # outside, bounces it again.
+    bumper_a = ObstacleSpec(center=(-5.0, 0.0), radius=0.5)
+    bumper_b = ObstacleSpec(center=(-2.0, 0.0), radius=0.5)
+    flight = _protected_flight([bumper_a, bumper_b])
+
+    while flight.running and not _inside(flight, bumper_a):
         flight.step()
+    assert flight.penetrate_remaining == 0.0      # used up the moment A is touched
+    assert len(_used_events(flight)) == 1
     assert flight.bounces == 0
-    assert clear_of(bumper_a) and clear_of(bumper_b)
 
-    # 3) Collisions are back: B bounces the ship, which is entirely outside A.
+    while flight.running and _inside(flight, bumper_a):
+        flight.step()
+    assert flight.bounces == 0                    # ... yet A is passed all the way
+    assert (flight.vx, flight.vy) == (2.0, 0.0)
+
     while flight.running and flight.bounces == 0:
         flight.step()
-    assert flight.bounces == 1
+    assert flight.time < PENETRATE_DURATION       # the old window would still be open
+    assert flight.vx < 0.0                        # B bounced it
+
+    while flight.running and flight.bounces == 1:
+        flight.step()
+    assert flight.vx > 0.0                        # A is solid again from outside
+    assert not _inside(flight, bumper_a)
+    assert len(_used_events(flight)) == 1
+
+
+def test_unused_penetrate_runs_out_and_the_next_bumper_bounces():
+    bumper = ObstacleSpec(center=(0.0, 0.0), radius=0.5)  # touched at ~3.15 s
+    flight = _protected_flight([bumper])
+    while flight.running and flight.bounces == 0:
+        flight.step()
+    assert flight.time > PENETRATE_DURATION
     assert flight.vx < 0.0
-    assert clear_of(bumper_a)
-    assert math.dist((flight.x, flight.y), bumper_b.center) < bumper_b.radius + hull + 0.1
+    assert _used_events(flight) == []
+
+
+def _scene_on(level, fx="2", fy="0"):
+    from types import SimpleNamespace
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+    played = []
+    audio = SimpleNamespace(play=played.append, start_loop=lambda *a: None,
+                            stop_loop=lambda *a: None)
+    scene = GameScene(SceneManager(audio))
+    scene.level = level
+    scene.pickups = [PickupState.from_spec(s) for s in level.pickups]
+    scene.launch_pos = level.start
+    scene.editor.set_lines([fx, fy])
+    scene._try_launch()
+    return scene, played
+
+
+def test_scene_shows_the_shield_while_protected_and_plays_shield_break(pygame_display, monkeypatch):
+    from vector_drift import config, sprites
+    shields = []
+    real_draw_shield = sprites.draw_shield
+    monkeypatch.setattr(sprites, "draw_shield",
+                        lambda *a, **k: (shields.append(a), real_draw_shield(*a, **k)))
+    bumper = ObstacleSpec(center=(-5.0, 0.0), radius=0.5)   # Fx = 2: touched at ~1.14 s
+    pickup = PickupSpec(center=(-7.0, 0.0), radius=0.3, kind="penetrate")
+    scene, played = _scene_on(_level_with([bumper], [pickup]))
+    screen = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+
+    scene.update(1 / 60)
+    scene.draw(screen)
+    assert scene.flight.penetrate_remaining > 0.0
+    assert shields                                 # protected: the bubble is drawn
+
+    while scene.flight is not None and scene.flight.penetrate_remaining > 0.0:
+        scene.update(1 / 60)
+    assert played.count("shield_break") == 1       # the moment the rock is touched
+    shields.clear()
+    scene.draw(screen)
+    assert shields == []                           # protection gone: no bubble
+
+
+def test_telemetry_no_longer_lists_penetrate_seconds(pygame_display, monkeypatch):
+    from vector_drift.scenes import game
+    pickup = PickupSpec(center=(-7.0, 0.0), radius=0.3, kind="penetrate")
+    scene, _ = _scene_on(_level_with([], [pickup]))
+    scene.update(1 / 60)
+    assert scene.flight.penetrate_remaining > 0.0
+    texts = []
+    monkeypatch.setattr(game, "draw_text", lambda surface, text, *a, **k: texts.append(text))
+    scene._draw_telemetry(pygame.Surface((400, 300)), scene.editor.footer_body)
+    assert texts and not any("Penetrate" in t for t in texts)
