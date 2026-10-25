@@ -16,7 +16,7 @@ from typing import Callable
 from ..data import LevelSpec, SHIPS
 from ..expr_parser import parse_expression
 from ..physics import Flight, ForceField, Outcome
-from ..pickups import ADD_TIME_DURATION
+from ..pickups import add_time_bonus_steps
 from .data import (
     SimulationRecord,
     TrajectoryPoint,
@@ -55,11 +55,12 @@ def _time_budget_steps(level: LevelSpec, base_steps: int, dt: float) -> int:
     """The most steps any flight on ``level`` can get.
 
     That is the base limit plus every add_time pickup on the level (counted
-    the way Flight.apply_pickup_events extends max_steps). It is one fixed
-    number per level, so scoring against it ranks successful flights purely
-    by how long they took, whether or not they picked up extra time.
+    with add_time_bonus_steps, the conversion Flight._apply_pickup_events
+    uses). It is one fixed number per level, so scoring against it ranks
+    successful flights purely by how long they took, whether or not they
+    picked up extra time.
     """
-    bonus = int(round(ADD_TIME_DURATION / dt))
+    bonus = add_time_bonus_steps(dt)
     count = sum(1 for p in getattr(level, "pickups", ()) or ()
                 if getattr(p, "kind", None) == "add_time")
     return base_steps + count * bonus

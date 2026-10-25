@@ -26,11 +26,20 @@ log = logging.getLogger(__name__)
 # --- tunable constants (single place to adjust) ---------------------------
 BOMB_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
 
-# Seconds granted per active add_time pickup. Flight.apply_pickup_events extends
-# ``max_steps`` by ``duration / DT`` steps so flight time / scoring stays
+# Seconds granted per active add_time pickup. Flight._apply_pickup_events extends
+# ``max_steps`` by add_time_bonus_steps() so flight time / scoring stays
 # accurate (it never rewinds elapsed steps).
 ADD_TIME_DURATION = 3.0
 PENETRATE_DURATION = 3.0  # Seconds granted per active penetrate pickup
+
+
+def add_time_bonus_steps(dt, duration=ADD_TIME_DURATION):
+    """Simulation steps one add_time pickup adds to a flight's limit.
+
+    The one place that turns add_time seconds into steps: Flight uses it to
+    extend max_steps, the solver to size its per-level time budget.
+    """
+    return int(round(duration / dt))
 
 
 def discs_overlap(c0, r0, c1, r1, gap=0.0):
@@ -140,8 +149,8 @@ def add_time_effect(pickup, ctx):
     """Add time: report the duration granted by a consumed pickup.
 
     Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
-    Returns an event dict; ``Flight.apply_pickup_events`` extends
-    ``flight.max_steps`` by ``duration / DT`` steps. The effect is pure and
+    Returns an event dict; ``Flight._apply_pickup_events`` extends
+    ``flight.max_steps`` by ``add_time_bonus_steps``. The effect is pure and
     never mutates the pickup, ``ctx``, or any other game data.
     """
     return {"kind": "add_time", "center": pickup.center, "add_time_duration": pickup.add_time_duration}
@@ -151,7 +160,7 @@ def penetrate_effect(pickup, ctx):
     """Penetrate: report the duration granted by a consumed pickup.
 
     Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
-    Pure: returns an event dict only. ``Flight.apply_pickup_events``
+    Pure: returns an event dict only. ``Flight._apply_pickup_events``
     applies it; safe to call with ``ctx=None`` (headless / unit tests).
     """
     return {"kind": "penetrate", "center": pickup.center, "penetrate_duration": pickup.penetrate_duration}

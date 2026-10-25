@@ -445,26 +445,29 @@ class Flight:
         """Trigger the pickups on p0->p1, apply them to this flight, keep the events."""
         from .pickups import check_pickups_segment
         events = check_pickups_segment(self.pickups, p0, p1, self.hull_radius, ctx=self)
-        self.apply_pickup_events(events)
+        self._apply_pickup_events(events)
         self.pickup_events.extend(events)
 
-    def apply_pickup_events(self, events):
+    def _apply_pickup_events(self, events):
         """Apply pickup events to this flight: the one place for these rules.
 
         step() calls it the moment a pickup triggers, so GameScene and the
         solver fly by the same rules; callers only add presentation (sound).
-        add_time extends max_steps by duration / dt (elapsed steps are never
-        rewound, so flight time and scores stay true). penetrate makes the
-        ship ignore bumpers for its duration; a new one overwrites what is
-        left. bomb needs nothing here: its effect already removed the
-        obstacles from this flight.
+        Private because calling it again would apply the same events twice
+        (one add_time pickup granting 6 s). add_time extends max_steps by
+        add_time_bonus_steps() (elapsed steps are never rewound, so flight
+        time and scores stay true). penetrate makes the ship ignore bumpers
+        for its duration; a new one overwrites what is left. bomb needs
+        nothing here: its effect already removed the obstacles from this
+        flight.
         """
-        from .pickups import ADD_TIME_DURATION, PENETRATE_DURATION
+        from .pickups import ADD_TIME_DURATION, PENETRATE_DURATION, add_time_bonus_steps
         for event in events:
             kind = event.get("kind")
             if kind == "add_time":
                 duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
-                self.max_steps = max(self.max_steps + int(round(duration / self.dt)), self.steps)
+                self.max_steps = max(self.max_steps + add_time_bonus_steps(self.dt, duration),
+                                     self.steps)
             elif kind == "penetrate":
                 self.penetrate_remaining = float(event.get("penetrate_duration", PENETRATE_DURATION))
 

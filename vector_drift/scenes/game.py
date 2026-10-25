@@ -404,7 +404,7 @@ class GameScene(Scene):
         """Sync scene state and play sounds for new pickup events (once each).
 
         The Flight has already applied every effect to itself (see
-        Flight.apply_pickup_events). Bomb destroys obstacles: mirror
+        Flight._apply_pickup_events). Bomb destroys obstacles: mirror
         flight.obstacle_specs back into the frozen level (dataclasses.replace
         -> new tuple) so rendering and the next launch both see the
         survivors. The other kinds only play their sound here.
@@ -433,13 +433,13 @@ class GameScene(Scene):
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("bomb sfx skipped", exc_info=True)
             elif event.get("kind") == "add_time":
-                # Flight.apply_pickup_events already extended the flight.
+                # Flight._apply_pickup_events already extended the flight.
                 try:
                     self.audio.play("add_time")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("add_time sfx skipped", exc_info=True)
             elif event.get("kind") == "penetrate":
-                # Flight.apply_pickup_events already started the effect.
+                # Flight._apply_pickup_events already started the effect.
                 try:
                     self.audio.play("penetrate")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
