@@ -35,6 +35,13 @@ and cached under `(key, width, height)`, so it is never re-scaled per frame.
 A missing or unreadable file is remembered as missing (not retried every
 frame) and the code-drawn art is used instead.
 
+## Ship orientation
+
+Draw ship images with the nose pointing right.  The game rotates the image
+to the direction of flight, and the lives counter turns it 90 degrees so the
+nose points up.  A used life shows the same image in grey, dimmed to about
+the brightness of the code-drawn grey rocket.
+
 ## Collision
 
 Collision radii remain authoritative in game data
