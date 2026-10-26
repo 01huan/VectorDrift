@@ -103,8 +103,12 @@ def _render_ship(length, hull, wing, trim):
     return pygame.transform.smoothscale(big, (w, h))
 
 
-def draw_ship(surface, center, heading, size, ship):
-    """Draw the ship. `size` = ship length in px, `heading` in world radians."""
+def draw_ship(surface, center, heading, size, ship, grey=False):
+    """Draw the ship. `size` = ship length in px, `heading` in world radians.
+
+    ``grey`` draws it the way a used life looks (a ship the level has not
+    unlocked yet).
+    """
     try:
         cx, cy = float(center[0]), float(center[1])
         heading = float(heading)
@@ -127,6 +131,9 @@ def draw_ship(surface, center, heading, size, ship):
     # --- image path ---------------------------------------------------------
     img = load_image(f"ship.{ship.id}", size_px=(size, size))
     if img is not None:
+        if grey:
+            picture = img
+            img = _cached(("ship-grey", picture), lambda: _used_life_image(picture))
         try:
             rotated = pygame.transform.rotozoom(img, deg, 1.0)
             surface.blit(rotated, rotated.get_rect(center=center))
@@ -135,8 +142,9 @@ def draw_ship(surface, center, heading, size, ship):
         return
 
     # --- fallback: code-drawn art ------------------------------------------
-    img = _cached(("ship", ship.id, size),
-                  lambda: _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color))
+    colors = (USED_LIFE_COLORS if grey
+              else (ship.hull_color, ship.wing_color, ship.trim_color))
+    img = _cached(("ship", ship.id, size, grey), lambda: _render_ship(size, *colors))
     try:
         rotated = pygame.transform.rotozoom(img, deg, 1.0)
         surface.blit(rotated, rotated.get_rect(center=center))
@@ -144,8 +152,10 @@ def draw_ship(surface, center, heading, size, ship):
         return
 
 
-# Mean brightness (0-255) of the opaque pixels of the code-drawn grey rocket
-# that marks a used life; a ship picture's used-life icon is dimmed to match.
+# Hull, wing and trim of the code-drawn grey rocket that marks a used life.
+USED_LIFE_COLORS = ((70, 80, 108), (54, 62, 88), (64, 72, 98))
+# Mean brightness (0-255) of that rocket's opaque pixels; a ship picture's
+# used-life icon is dimmed to match.
 USED_LIFE_BRIGHTNESS = 63
 
 
@@ -187,7 +197,7 @@ def ship_icon_surface(ship, size, alive=True):
         if alive:
             img = _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color)
         else:
-            img = _render_ship(size, (70, 80, 108), (54, 62, 88), (64, 72, 98))
+            img = _render_ship(size, *USED_LIFE_COLORS)
         return pygame.transform.rotozoom(img, 90, 1.0)
     return _cached(("icon", ship.id, size, alive), build)
 

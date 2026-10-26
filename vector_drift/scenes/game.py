@@ -10,10 +10,10 @@ from .. import config, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
-from ..data import SHIPS, get_level
+from ..data import SHIPS, default_ship_id, get_level, ship_unlocked
 from ..expr_parser import diagnose_expression
 from ..physics import Flight, ForceField, Outcome
-from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text
+from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
 from ..solver import PSOSolver, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
@@ -100,10 +100,16 @@ class GameScene(Scene):
             self.level = get_level(self.session.level_id, seed=self.session.random_seed)
         else:
             self.level = get_level(self.session.level_id)
-        self.owned_ships = list(SHIPS)          # all ships the player may pick (shop comes later)
-        ship_id = self.session.ship_id or self.level.ship_id
+        # Every skin in order; the ones this level has not unlocked are shown
+        # (grey, "LvN+") but cannot fly. Retry / Replay keep the session's
+        # pick; the level select clears it, so a level starts on its newest ship.
+        self.owned_ships = list(SHIPS)
+        ship_id = self.session.ship_id
+        if ship_id not in SHIPS or not ship_unlocked(SHIPS[ship_id], self.level.id):
+            ship_id = default_ship_id(self.level.id)
         self.ship_index = self.owned_ships.index(ship_id)
         self.ship = SHIPS[ship_id]
+        self.flyable_ship = self.ship           # what flies (and fills the lives row)
 
         self.viewport = Viewport()
         self.background = render.make_plot_background(self.viewport)
@@ -245,18 +251,30 @@ class GameScene(Scene):
             self.run_button.enabled = True
         else:
             self.run_button.icon, self.run_button.color = "play", RUN_GREEN
-            self.run_button.enabled = self.state == SETUP and self.valid
+            self.run_button.enabled = self.state == SETUP and self.valid and self._ship_unlocked
         setup = self.state == SETUP
         self.level_button.enabled = setup
-        self.prev_ship.enabled = self.next_ship.enabled = setup and len(self.owned_ships) > 1
+        self.prev_ship.enabled = setup and self.ship_index > 0
+        self.next_ship.enabled = setup and self.ship_index < len(self.owned_ships) - 1
         self.editor.enabled = setup
         self._update_cursor()
 
+    @property
+    def _ship_unlocked(self):
+        return ship_unlocked(self.ship, self.level.id)
+
     def _switch_ship(self, step):
-        self.ship_index = (self.ship_index + step) % len(self.owned_ships)
-        self.session.ship_id = self.owned_ships[self.ship_index]
+        """Show the previous / next skin; no wrap-around at either end."""
+        index = max(0, min(len(self.owned_ships) - 1, self.ship_index + step))
+        if index == self.ship_index:
+            return
+        self.ship_index = index
+        self.session.ship_id = self.owned_ships[index]
         self.ship = SHIPS[self.session.ship_id]
+        if self._ship_unlocked:
+            self.flyable_ship = self.ship
         self.audio.play("click")
+        self._refresh_buttons()
 
     def _update_cursor(self):
         set_cursor("text" if self.editor.is_text_area(self._mouse_pos) else "arrow")
@@ -316,7 +334,7 @@ class GameScene(Scene):
 
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
-        if not self.valid:
+        if not self.valid or not self._ship_unlocked:
             self.audio.play("error")
             return
         self.attempts += 1
@@ -854,20 +872,29 @@ class GameScene(Scene):
         # Current ship
         draw_text(surface, "Current ship", (cx, px(SHIP_LABEL_Y)), 15, config.TEXT_DIM, anchor="center")
         draw_panel_box(surface, SHIP_BOX, fill=config.BG)
+        unlocked = self._ship_unlocked
         sprites.draw_ship(surface, SHIP_BOX.center, math.pi / 4 + 0.12 * math.sin(self.t * 1.3),
-                          px(76), self.ship)
+                          px(76), self.ship, grey=not unlocked)
+        if not unlocked:
+            lock = icon_surface("lock", px(22), config.TEXT_DIM)
+            surface.blit(lock, lock.get_rect(bottomright=(SHIP_BOX.right - px(6), SHIP_BOX.bottom - px(6))))
         self.prev_ship.draw(surface)
         self.next_ship.draw(surface)
-        draw_text(surface, self.ship.name, (cx, px(SHIP_NAME_Y)), 18, config.TEXT, kind="bold", anchor="center")
-        draw_text(surface, f"Mass: {self.ship.mass:g} kg", (cx, px(SHIP_MASS_Y)), 15, config.TEXT_DIM,
-                  anchor="center")
+        draw_text(surface, self.ship.name, (cx, px(SHIP_NAME_Y)), 18,
+                  config.TEXT if unlocked else config.TEXT_DIM, kind="bold", anchor="center")
+        if unlocked:
+            draw_text(surface, f"Mass: {self.ship.mass:g} kg", (cx, px(SHIP_MASS_Y)), 15, config.TEXT_DIM,
+                      anchor="center")
+        else:
+            draw_text(surface, f"Lv{self.ship.unlock_level}+", (cx, px(SHIP_MASS_Y)), 15, config.WARNING,
+                      kind="bold", anchor="center")
 
-        # Lives + clock
+        # Lives + clock (the lives show the ship that would fly, not a locked one on display)
         icon_step = px(18)
         first = px(CX - 52) - icon_step * (self.level.lives - 1) // 2
         for i in range(self.level.lives):
-            sprites.draw_ship_icon(surface, (first + i * icon_step, px(STATUS_Y)), px(18), self.ship,
-                                   alive=i < self.lives)
+            sprites.draw_ship_icon(surface, (first + i * icon_step, px(STATUS_Y)), px(18),
+                                   self.flyable_ship, alive=i < self.lives)
         time_left = self.flight.time_left if self.flight is not None else self.level.time_limit
         time_color = config.WARNING if self.state == FLIGHT and time_left < 1.0 else config.TEXT
         draw_text(surface, fmt_clock(time_left), (px(CX + 62), px(STATUS_Y)), 24, time_color,

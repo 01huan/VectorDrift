@@ -38,6 +38,13 @@ works even when a CJK IME is in Chinese mode.
 Main menu -> **Start** -> level select -> level. In a level, the round button next to
 "LV1" goes back to level select, which has the way back to the main menu.
 
+## Ships
+
+Six ship skins, `ship01` to `ship06`, look different but fly the same (1 kg).
+On level N you can fly `ship01` to `shipN`, and the level starts on `shipN`.
+The arrows beside the ship also show the later ones, in grey with "LvN+",
+but those cannot launch until their level. Random levels allow every ship.
+
 ## Controls
 
 | Input | Action |

@@ -23,6 +23,7 @@ class ShipSpec:
     wing_color: tuple = (240, 100, 96)
     trim_color: tuple = (255, 196, 70)
     length: float = 0.8         # drawn length (m); collision uses hull_radius
+    unlock_level: int = 1       # first fixed level that may fly it (see ship_unlocked)
 
 
 @dataclass(frozen=True)
@@ -77,11 +78,29 @@ class LevelSpec:
 
 
 # Ship skins: same physics, different look (assets/images/ships/<id>.png).
-# The shown name is the id until the team picks real names.
+# The shown name is the id until the team picks real names. shipN unlocks
+# on level N.
 SHIPS = {
-    f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2)
+    f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2,
+                             unlock_level=n)
     for n in range(1, 7)
 }
+
+
+def ship_unlocked(ship, level_id):
+    """True if ``ship`` may fly on ``level_id``.
+
+    Fixed level N flies the ships with unlock_level <= N (ship01..shipN),
+    by the level being played, not by saved progress. Random levels fly
+    every ship.
+    """
+    return is_dynamic_level(level_id) or ship.unlock_level <= level_id
+
+
+def default_ship_id(level_id):
+    """The ship a level starts on: the newest one it may fly (shipN on level N)."""
+    usable = [ship_id for ship_id, ship in SHIPS.items() if ship_unlocked(ship, level_id)]
+    return usable[-1] if usable else next(iter(SHIPS))
 
 LEVELS = [
     LevelSpec(
