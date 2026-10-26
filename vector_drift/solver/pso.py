@@ -10,8 +10,10 @@ are compared.
 from __future__ import annotations
 
 import math
+import os
 import random
 import time
+import concurrent.futures
 from dataclasses import dataclass
 
 from ..data import LevelSpec
@@ -33,7 +35,7 @@ class PSOConfig:
 
     template_key: str = "rich_combo"
     n_particles: int = 50
-    max_simulations: int = 100_000
+    max_simulations: int = 100000
     inertia: float = 0.5
     cognitive: float = 1.5
     social: float = 1.5
@@ -46,6 +48,7 @@ class PSOConfig:
     # iterations, re-scatter part of the swarm to escape local optima.
     stall_limit: int = 25
     restart_on_stall: bool = True
+    n_workers: int | None = None  # None -> os.cpu_count() (multiprocessing)
 
 
 class Particle:
@@ -57,6 +60,23 @@ class Particle:
         self.best_pos = list(pos)
         self.best_score = -math.inf
         self.score = -math.inf
+
+
+def _eval_worker(payload):
+    """Top-level (picklable) worker for multiprocessing particle evaluation."""
+    level, template_key, params, iteration = payload
+    from .templates import get_template
+    from .engine import evaluate_candidate, EvalConfig
+    template = get_template(template_key)
+    result = evaluate_candidate(
+        level=level,
+        template=template,
+        params=params,
+        iteration=iteration,
+        source="pso",
+        config=EvalConfig(record_trajectory=True),
+    )
+    return result.record
 
 
 class PSOSolver(Solver):
@@ -86,6 +106,7 @@ class PSOSolver(Solver):
             cfg.time_budget_s = time_budget_s
         if simulation_budget is not None:
             cfg.simulation_budget = simulation_budget
+
         seed = rng_seed if rng_seed is not None else cfg.seed
         rng = random.Random(seed)
 
@@ -105,8 +126,10 @@ class PSOSolver(Solver):
         particles: list[Particle] = []
         for _ in range(cfg.n_particles):
             pos = [rng.uniform(lo, hi) for lo, hi in bounds]
-            vel = [rng.uniform(-1.0, 1.0) * (hi - lo) * cfg.velocity_scale
-                   for lo, hi in bounds]
+            vel = [
+                rng.uniform(-1.0, 1.0) * (hi - lo) * cfg.velocity_scale
+                for lo, hi in bounds
+            ]
             particles.append(Particle(pos, vel))
 
         global_best_pos: list[float] | None = None
@@ -114,6 +137,7 @@ class PSOSolver(Solver):
 
         def _evaluate(particle: Particle, iteration: int):
             nonlocal total_simulations
+
             params = dict(zip(template.param_names, particle.pos))
             result = evaluate_candidate(
                 level=level,
@@ -127,89 +151,191 @@ class PSOSolver(Solver):
             total_simulations += 1
             return result.record.score, result.record
 
-        # Evaluate initial swarm.
-        for p in particles:
-            score, rec = _evaluate(p, 0)
-            p.score = score
-            p.best_score = score
-            p.best_pos = list(p.pos)
-            if score > global_best_score:
-                global_best_score = score
-                global_best_pos = list(p.pos)
+        workers = cfg.n_workers or (os.cpu_count() or 1)
 
-        iterations = 0
+        max_sim = (
+            cfg.simulation_budget
+            if cfg.simulation_budget is not None
+            else cfg.max_simulations
+        )
+        max_sim = max(0, max_sim)
+
         success_found = False
         stall_count = 0
         prev_global_best = -math.inf
-        # Hard cap on simulations: never run forever.  Caller may pass a
-        # smaller simulation_budget; otherwise fall back to max_simulations.
-        max_sim = (cfg.simulation_budget
-                   if cfg.simulation_budget is not None
-                   else cfg.max_simulations)
 
-        while total_simulations < max_sim and not success_found:
-            iterations += 1
-            # Budget / time guards.
-            if cfg.simulation_budget is not None and \
-                    total_simulations >= cfg.simulation_budget:
-                break
-            if cfg.time_budget_s is not None and \
-                    (time.perf_counter() - start) >= cfg.time_budget_s:
-                break
+        pool = None
 
-            r1 = [rng.random() for _ in range(n_dim)]
-            r2 = [rng.random() for _ in range(n_dim)]
-            for p in particles:
-                for i in range(n_dim):
-                    cognitive_v = (cfg.cognitive * r1[i] *
-                                   (p.best_pos[i] - p.pos[i]))
-                    social_v = (cfg.social * r2[i] *
-                                (global_best_pos[i] - p.pos[i]))
-                    p.vel[i] = (cfg.inertia * p.vel[i] + cognitive_v +
-                                social_v)
-                    lo, hi = bounds[i]
-                    vmax = (hi - lo) * cfg.velocity_scale
-                    p.vel[i] = max(-vmax, min(vmax, p.vel[i]))
-                    p.pos[i] = p.pos[i] + p.vel[i]
-                    p.pos[i] = max(lo, min(hi, p.pos[i]))
+        try:
+            # Create the process pool once and reuse it for the entire solve.
+            if workers > 1 and max_sim > 0:
+                pool = concurrent.futures.ProcessPoolExecutor(
+                    max_workers=workers
+                )
 
-            for p in particles:
-                score, rec = _evaluate(p, iterations)
+            def _evaluate_batch(
+                batch_particles: list[Particle],
+                iteration: int,
+            ):
+                nonlocal total_simulations
+
+                if not batch_particles:
+                    return []
+
+                payloads = [
+                    (
+                        level,
+                        cfg.template_key,
+                        dict(zip(template.param_names, p.pos)),
+                        iteration,
+                    )
+                    for p in batch_particles
+                ]
+
+                if pool is not None:
+                    records = list(pool.map(_eval_worker, payloads))
+                    simulations.extend(records)
+                    total_simulations += len(records)
+                    return [(rec.score, rec) for rec in records]
+
+                results = []
+                for p in batch_particles:
+                    score, rec = _evaluate(p, iteration)
+                    results.append((score, rec))
+                return results
+
+            # Evaluate the initial swarm, respecting the simulation budget.
+            initial_count = min(len(particles), max_sim)
+            initial_particles = particles[:initial_count]
+
+            initial_results = _evaluate_batch(initial_particles, 0)
+
+            for p, (score, rec) in zip(initial_particles, initial_results):
                 p.score = score
-                if score > p.best_score:
-                    p.best_score = score
-                    p.best_pos = list(p.pos)
+                p.best_score = score
+                p.best_pos = list(p.pos)
+
                 if score > global_best_score:
                     global_best_score = score
                     global_best_pos = list(p.pos)
 
                 if rec.outcome == SimulationOutcome.REACHED:
                     success_found = True
-                    if cfg.early_stop_on_success:
-                        break
 
-            # Stall detection & recovery: if the global best does not improve
-            # for stall_limit iterations, re-scatter part of the swarm so the
-            # search does not stall on "too many failures".
-            if global_best_score > prev_global_best:
-                prev_global_best = global_best_score
-                stall_count = 0
-            else:
-                stall_count += 1
-                if (cfg.restart_on_stall and stall_count >= cfg.stall_limit
-                        and not success_found):
-                    elite = list(global_best_pos) if global_best_pos is not None else None
-                    for p in particles:
-                        if rng.random() < 0.5:
-                            p.pos = [rng.uniform(lo, hi) for lo, hi in bounds]
-                            p.vel = [rng.uniform(-1.0, 1.0) * (hi - lo) *
-                                     cfg.velocity_scale for lo, hi in bounds]
-                            p.best_pos = list(p.pos)
-                            p.best_score = -math.inf
-                    if elite is not None and particles:
-                        particles[0].pos = list(elite)
-                        particles[0].best_pos = list(elite)
+            # Run PSO iterations until success, budget exhaustion, or timeout.
+            while total_simulations < max_sim and not success_found:
+                if (
+                    cfg.time_budget_s is not None
+                    and time.perf_counter() - start >= cfg.time_budget_s
+                ):
+                    break
+
+                if (
+                    cfg.simulation_budget is not None
+                    and total_simulations >= cfg.simulation_budget
+                ):
+                    break
+
+                remaining = max_sim - total_simulations
+                if remaining <= 0:
+                    break
+
+                iterations += 1
+
+                r1 = [rng.random() for _ in range(n_dim)]
+                r2 = [rng.random() for _ in range(n_dim)]
+
+                for p in particles:
+                    for i in range(n_dim):
+                        cognitive_v = (
+                            cfg.cognitive
+                            * r1[i]
+                            * (p.best_pos[i] - p.pos[i])
+                        )
+                        social_v = (
+                            cfg.social
+                            * r2[i]
+                            * (global_best_pos[i] - p.pos[i])
+                        )
+
+                        p.vel[i] = (
+                            cfg.inertia * p.vel[i]
+                            + cognitive_v
+                            + social_v
+                        )
+
+                        lo, hi = bounds[i]
+                        vmax = (hi - lo) * cfg.velocity_scale
+                        p.vel[i] = max(-vmax, min(vmax, p.vel[i]))
+                        p.pos[i] = p.pos[i] + p.vel[i]
+                        p.pos[i] = max(lo, min(hi, p.pos[i]))
+
+                # Never submit more evaluations than the remaining budget.
+                batch_particles = particles[:min(len(particles), remaining)]
+                batch_results = _evaluate_batch(batch_particles, iterations)
+
+                for p, (score, rec) in zip(batch_particles, batch_results):
+                    p.score = score
+
+                    if score > p.best_score:
+                        p.best_score = score
+                        p.best_pos = list(p.pos)
+
+                    if score > global_best_score:
+                        global_best_score = score
+                        global_best_pos = list(p.pos)
+
+                    if rec.outcome == SimulationOutcome.REACHED:
+                        success_found = True
+
+                        # Preserve the original sequential early-stop behavior.
+                        # Parallel batches may already have completed additional
+                        # simulations before their results are collected.
+                        if cfg.early_stop_on_success:
+                            break
+
+                # Stall detection and recovery.
+                if global_best_score > prev_global_best:
+                    prev_global_best = global_best_score
                     stall_count = 0
+                else:
+                    stall_count += 1
+
+                    if (
+                        cfg.restart_on_stall
+                        and stall_count >= cfg.stall_limit
+                        and not success_found
+                    ):
+                        elite = (
+                            list(global_best_pos)
+                            if global_best_pos is not None
+                            else None
+                        )
+
+                        for p in particles:
+                            if rng.random() < 0.5:
+                                p.pos = [
+                                    rng.uniform(lo, hi)
+                                    for lo, hi in bounds
+                                ]
+                                p.vel = [
+                                    rng.uniform(-1.0, 1.0)
+                                    * (hi - lo)
+                                    * cfg.velocity_scale
+                                    for lo, hi in bounds
+                                ]
+                                p.best_pos = list(p.pos)
+                                p.best_score = -math.inf
+
+                        if elite is not None and particles:
+                            particles[0].pos = list(elite)
+                            particles[0].best_pos = list(elite)
+
+                        stall_count = 0
+
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=True, cancel_futures=True)
 
         if global_best_pos is not None:
             params = dict(zip(template.param_names, global_best_pos))
@@ -225,15 +351,18 @@ class PSOSolver(Solver):
 
         solve_time = time.perf_counter() - start
         success = any(r.success for r in simulations)
+
         best_outcome = None
         for r in simulations:
             if r.success:
                 best_outcome = r.outcome
                 break
 
-        message = (f"{total_simulations} simulations over {iterations} "
-                   f"iterations in {solve_time:.2f}s; "
-                   f"best score {best_score:.4f}")
+        message = (
+            f"{total_simulations} simulations over {iterations} "
+            f"iterations in {solve_time:.2f}s; "
+            f"best score {best_score:.4f}"
+        )
         if success:
             message += "; SOLVED"
 

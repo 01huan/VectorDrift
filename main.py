@@ -2,18 +2,15 @@
 
 import os
 
-import pygame
 
-from vector_drift import config
-from vector_drift.audio import SoundBank
-from vector_drift.desktop import disable_ime
-from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.menu import MenuScene
-
-MOUSE_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP)
+def _pygame():
+    import pygame
+    return pygame
 
 
 def open_display():
+    import pygame
+    from vector_drift import config
     """Return (display, canvas, offset). The game draws on `canvas`, a
     WINDOW_W x WINDOW_H area centered on the display."""
     if config.FULLSCREEN:
@@ -41,6 +38,8 @@ def margin_rects(display, canvas, offset):
 
 
 def to_canvas(event, offset):
+    import pygame
+    MOUSE_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP)
     """Shift mouse positions from display to canvas coordinates."""
     if offset == (0, 0) or event.type not in MOUSE_EVENTS:
         return event
@@ -50,6 +49,12 @@ def to_canvas(event, offset):
 
 
 def main():
+    import pygame
+    from vector_drift import config
+    from vector_drift.audio import SoundBank
+    from vector_drift.desktop import disable_ime
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.menu import MenuScene
     pygame.mixer.pre_init(44100, -16, 2, 512)
     pygame.init()
     if pygame.mixer.get_init() is None:
