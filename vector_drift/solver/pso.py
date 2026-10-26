@@ -32,7 +32,7 @@ class PSOConfig:
     """
 
     template_key: str = "rich_combo"
-    n_particles: int = 30
+    n_particles: int = 50
     max_simulations: int = 100_000
     inertia: float = 0.5
     cognitive: float = 1.5

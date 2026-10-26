@@ -115,7 +115,10 @@ class GameScene(Scene):
             ship_id = default_ship_id(self.level.id, self.cleared_levels)
         elif ship_id in SHIPS and not ship_unlocked(SHIPS[ship_id], self.level.id, self.cleared_levels):
             ship_id = default_ship_id(self.level.id, self.cleared_levels)
-        self.ship_index = self.owned_ship_ids.index(ship_id)
+        try:
+            self.ship_index = self.owned_ship_ids.index(ship_id)
+        except :
+            self.ship_index = self.owned_ship_ids.index(DEFAULT_SHIP.id)
         self.ship = self.owned_ships[self.ship_index]
         self.flyable_ship = self.ship           # what flies (and fills the lives row)
 
