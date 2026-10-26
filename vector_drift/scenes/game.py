@@ -781,7 +781,8 @@ class GameScene(Scene):
             for obstacle in getattr(self.level, "obstacles", ()) or ():
                 sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
                                       vp.length(obstacle.radius), self.t,
-                                      kind=getattr(obstacle, "kind", "bumper"))
+                                      kind=getattr(obstacle, "kind", "bumper"),
+                                      seed=(obstacle.center, obstacle.radius))
 
             for pickup in getattr(self, "pickups", ()) or ():
                 if pickup.consumed:
