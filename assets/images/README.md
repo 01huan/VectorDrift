@@ -9,16 +9,20 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | Resource key | File (relative to this folder) | Used for |
 |--------------|-------------------------------|----------|
 | `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite) |
-| `target.planet` | `targets/planet.png` | Destination / target planet |
-| `obstacle.bumper` | `obstacles/bumper.png` | Circular bumper obstacle |
+| `target.planet` | `targets/planet.png` | Destination / target planet, 512 x 512 |
+| `obstacle.rock01`, `obstacle.rock02` | `obstacles/rock01.png`, `obstacles/rock02.png` | Bumper rocks, 512 x 512: each bumper shows one of them, picked at random and turned by a random angle (fixed per bumper) |
 | `pickup.bomb` | `pickups/bomb.png` | Bomb pickup |
 | `pickup.add_time` | `pickups/add_time.png` | Add-time pickup |
 | `pickup.penetrate` | `pickups/penetrate.png` | Penetrate pickup |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
 
-`targets/planet.png` is not included at the moment, so the game draws the
-target planet in code.
+Round props (the planet and the rocks) fill about 98% of their canvas: the
+whole canvas is drawn at the collision size, so the picture's circle is the
+circle the ship bounces off or reaches. Their glow stays code-drawn. The
+planet and the rocks are stored with a 256-colour palette to keep files
+small (about 40-60 KB each); at game size this looks the same as the
+full-colour original.
 
 ## Sizing
 

@@ -62,14 +62,17 @@ def get_spec(key: str) -> AssetSpec | None:
 
 
 # Ships (key = f"ship.{ship_id}")
-register(AssetSpec(f"ship.ship_default", Path(f"ships/ship_default.png"), display_w=76, display_h=76))
 for _n in range(1, 7):
     register(AssetSpec(f"ship.ship{_n:02d}", Path(f"ships/ship{_n:02d}.png"), display_w=76, display_h=76))
 # Targets / destination
 register(AssetSpec("target.planet", Path("targets/planet.png"), display_w=120, display_h=120))
 
-# Obstacles (key = f"obstacle.{kind}")
-register(AssetSpec("obstacle.bumper", Path("obstacles/bumper.png"), display_w=64, display_h=64))
+# Obstacles: every bumper shows one of these rock pictures, picked at random
+# per bumper (sprites.draw_obstacle). To add a look, add obstacles/rock03.png
+# and widen the range.
+ROCK_KEYS = tuple(f"obstacle.rock{n:02d}" for n in range(1, 3))
+for _key in ROCK_KEYS:
+    register(AssetSpec(_key, Path(f"obstacles/{_key.split('.', 1)[1]}.png"), display_w=64, display_h=64))
 
 # Pickups (key = f"pickup.{kind}")
 register(AssetSpec("pickup.bomb", Path("pickups/bomb.png"), display_w=40, display_h=40))

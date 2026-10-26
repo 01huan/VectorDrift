@@ -7,11 +7,12 @@ sprites later only touches this file.
 
 import logging
 import math
+import random
 
 import pygame
 
 from . import config
-from .image_assets import load_image
+from .image_assets import ROCK_KEYS, load_image
 from .render import draw_smooth_arrow, soft_glow
 
 log = logging.getLogger(__name__)
@@ -340,14 +341,46 @@ def _render_bumper(radius):
     return pygame.transform.smoothscale(surf, (d, d))
 
 
-def draw_obstacle(surface, center, radius, t, kind="bumper"):
+# kind -> the pictures a bumper of that kind picks from (one per bumper).
+OBSTACLE_IMAGES = {"bumper": ROCK_KEYS}
+
+
+def _obstacle_look(seed, keys):
+    """(picture key, angle in degrees) for the bumper identified by ``seed``.
+
+    Random across bumpers, but the same seed always gives the same look, so
+    a bumper keeps its rock and its angle from frame to frame.
+    """
+    rng = random.Random(repr(seed))
+    return keys[rng.randrange(len(keys))], rng.uniform(0.0, 360.0)
+
+
+def _obstacle_picture(kind, radius, seed):
+    """The bumper's rock picture at ``radius`` px, turned; None if there is none."""
+    size = (radius * 2, radius * 2)
+    keys = [key for key in OBSTACLE_IMAGES.get(kind, (f"obstacle.{kind}",))
+            if load_image(key, size_px=size) is not None]
+    if not keys:
+        return None
+    key, angle = _obstacle_look(seed, keys)
+    img = load_image(key, size_px=size)
+    return _cached(("obstacle-turned", img, angle),
+                   lambda: pygame.transform.rotozoom(img, angle, 1.0))
+
+
+def draw_obstacle(surface, center, radius, t, kind="bumper", seed=None):
     """Draw one bumper. `center`/`radius` are in px. Never raises.
 
     `kind` selects the painter from OBSTACLE_RENDERERS: "bumper" is the
     classic rock. New kinds add one entry -- callers never branch.
+    ``seed`` identifies the bumper (game.py passes its world centre and
+    radius) and fixes which rock picture it shows and how it is turned.
     """
     # --- image path ---------------------------------------------------------
-    img = load_image(f"obstacle.{kind}", size_px=(radius * 2, radius * 2))
+    try:
+        img = _obstacle_picture(kind, radius, center if seed is None else seed)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        img = None
     if img is not None:
         try:
             surface.blit(img, img.get_rect(center=center))
