@@ -10,7 +10,7 @@ from .. import config, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
-from ..data import DEFAULT_SHIP, SHIPS, default_ship_id, get_level, ship_unlocked
+from ..data import SHIPS, default_ship_id, get_level, ship_unlocked
 from ..expr_parser import diagnose_expression
 from ..physics import Flight, ForceField, Outcome
 from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
@@ -91,7 +91,6 @@ def fmt_clock(seconds):
 class GameScene(Scene):
     def __init__(self, manager):
         super().__init__(manager)
-        self.cleared_levels = set(self.session.records)
         from ..level_presets import is_dynamic_level
         if is_dynamic_level(self.session.level_id):
             # Same seed for the whole run: retry/replay keep one layout.
@@ -101,22 +100,15 @@ class GameScene(Scene):
             self.level = get_level(self.session.level_id, seed=self.session.random_seed)
         else:
             self.level = get_level(self.session.level_id)
-        # Every skin in order: default before ship01..ship06. The ones this
-        # level has not unlocked are shown (grey, "LvN+") but cannot fly.
-        # Retry / Replay keep the session's pick; back in from level select
-        # it starts on the highest cleared level's style (or default).
-        self.owned_ships = [DEFAULT_SHIP, *SHIPS.values()]
-        self.owned_ship_ids = [s.id for s in self.owned_ships]
+        # Every skin in order; the ones this level has not unlocked are shown
+        # (grey, "LvN+") but cannot fly. Retry / Replay keep the session's
+        # pick; the level select clears it, so a level starts on its newest ship.
+        self.owned_ships = list(SHIPS)
         ship_id = self.session.ship_id
-        if is_dynamic_level(self.level.id):
-            # Random levels fly any ship. Prefer the newest ship style.
-            ship_id = f"ship06"
-        elif ship_id not in SHIPS and ship_id != DEFAULT_SHIP.id:
-            ship_id = default_ship_id(self.level.id, self.cleared_levels)
-        elif ship_id in SHIPS and not ship_unlocked(SHIPS[ship_id], self.level.id, self.cleared_levels):
-            ship_id = default_ship_id(self.level.id, self.cleared_levels)
-        self.ship_index = self.owned_ship_ids.index(ship_id)
-        self.ship = self.owned_ships[self.ship_index]
+        if ship_id not in SHIPS or not ship_unlocked(SHIPS[ship_id], self.level.id):
+            ship_id = default_ship_id(self.level.id)
+        self.ship_index = self.owned_ships.index(ship_id)
+        self.ship = SHIPS[ship_id]
         self.flyable_ship = self.ship           # what flies (and fills the lives row)
 
         self.viewport = Viewport()
@@ -269,7 +261,7 @@ class GameScene(Scene):
 
     @property
     def _ship_unlocked(self):
-        return ship_unlocked(self.ship, self.level.id, self.cleared_levels)
+        return ship_unlocked(self.ship, self.level.id)
 
     def _switch_ship(self, step):
         """Show the previous / next skin; no wrap-around at either end."""
@@ -277,8 +269,8 @@ class GameScene(Scene):
         if index == self.ship_index:
             return
         self.ship_index = index
-        self.session.ship_id = self.owned_ship_ids[index]
-        self.ship = self.owned_ships[self.ship_index]
+        self.session.ship_id = self.owned_ships[index]
+        self.ship = SHIPS[self.session.ship_id]
         if self._ship_unlocked:
             self.flyable_ship = self.ship
         self.audio.play("click")
@@ -371,7 +363,6 @@ class GameScene(Scene):
             best = self.session.records.get(self.level.id)
             if best is None or self.total_time < best:
                 self.session.records[self.level.id] = self.total_time
-            self.cleared_levels = set(self.session.records)
             self.audio.play("win")
             self._refresh_buttons()
             return
