@@ -78,29 +78,63 @@ class LevelSpec:
 
 
 # Ship skins: same physics, different look (assets/images/ships/<id>.png).
-# The shown name is the id until the team picks real names. shipN unlocks
-# on level N.
+# The shown name is the id until the team picks real names.
+# levelN's style is the ship with unlock_level == N; it is unlocked only when
+# that level is successfully cleared.
 SHIPS = {
     f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2,
                              unlock_level=n)
     for n in range(1, 7)
 }
 
+# Default style shown before any fixed level has been cleared.
+DEFAULT_SHIP = ShipSpec(
+    id="default",
+    name="Default",
+    mass=1.0,
+    hull_radius=0.2,
+    hull_color=(238, 242, 252),
+    wing_color=(240, 100, 96),
+    trim_color=(255, 196, 70),
+    length=0.8,
+    unlock_level=0,  # not used by the new unlock rule; kept for introspection
+)
 
-def ship_unlocked(ship, level_id):
+
+def ship_unlocked(ship, level_id, cleared_levels=None):
     """True if ``ship`` may fly on ``level_id``.
 
-    Fixed level N flies the ships with unlock_level <= N (ship01..shipN),
-    by the level being played, not by saved progress. Random levels fly
-    every ship.
+    cleared_levels: set of successfully completed fixed level ids.
+
+    - Dynamic levels fly every ship.
+    - The default style is always usable.
+    - A fixed level's own style (shipN) is usable only if N is in
+      ``cleared_levels``, i.e. it is unlocked by successfully completing
+      that level, not by merely playing it.
     """
-    return is_dynamic_level(level_id) or ship.unlock_level <= level_id
+    if is_dynamic_level(level_id):
+        return True
+
+    if ship is DEFAULT_SHIP:
+        return True
+
+    if cleared_levels and ship.unlock_level in cleared_levels:
+        return True
+
+    return False
 
 
-def default_ship_id(level_id):
-    """The ship a level starts on: the newest one it may fly (shipN on level N)."""
-    usable = [ship_id for ship_id, ship in SHIPS.items() if ship_unlocked(ship, level_id)]
-    return usable[-1] if usable else next(iter(SHIPS))
+def default_ship_id(level_id, cleared_levels=None):
+    """The ship a level starts on.
+
+    No cleared fixed levels: the default style.
+    Otherwise: the style of the highest cleared fixed level.
+    """
+    if not cleared_levels:
+        return DEFAULT_SHIP.id
+
+    newest = max(cleared_levels)
+    return f"ship{newest:02d}"
 
 LEVELS = [
     LevelSpec(
@@ -121,8 +155,19 @@ LEVELS = [
         obstacles=(
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
         ),
+    ),
+    LevelSpec(
+        id=3,
+        name="First Bounce",
+        start=(-4.0, 0.0),
+        target_center=(7.0, 2.0),
+        target_radius=1.0,
+        ship_id="ship02",
+        obstacles=(
+            ObstacleSpec(center=(0.0, 0.0), radius=3),ObstacleSpec(center=(0.0, 6.0), radius=3),ObstacleSpec(center=(0.0, -6.0), radius=3)
+        ),
         pickups=(
-            PickupSpec(center=(0.0, 2.5), radius=0.45, kind="bomb"),
+            PickupSpec(center=(-7.0, 0.0), radius=0.45, kind="penetrate"),
         ),
     ),
 ]

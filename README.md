@@ -41,9 +41,14 @@ Main menu -> **Start** -> level select -> level. In a level, the round button ne
 ## Ships
 
 Six ship skins, `ship01` to `ship06`, look different but fly the same (1 kg).
-On level N you can fly `ship01` to `shipN`, and the level starts on `shipN`.
-The arrows beside the ship also show the later ones, in grey with "LvN+",
-but those cannot launch until their level. Random levels allow every ship.
+Before any fixed level is cleared, the `default` style is used. A fixed
+level's own style, `shipN`, is unlocked only when level N is successfully
+cleared. The level then starts on the newest unlocked style, and `default`
+is only picked up again if the player switches back to it before any new
+level is cleared.
+
+The arrows beside the ship show the remaining styles in grey with `LvN+`;
+those may be selected, but they cannot launch. Random levels allow every ship.
 
 ## Controls
 

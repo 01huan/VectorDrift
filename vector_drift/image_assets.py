@@ -62,6 +62,7 @@ def get_spec(key: str) -> AssetSpec | None:
 
 
 # Ships (key = f"ship.{ship_id}")
+register(AssetSpec(f"ship.ship_default", Path(f"ships/ship_default.png"), display_w=76, display_h=76))
 for _n in range(1, 7):
     register(AssetSpec(f"ship.ship{_n:02d}", Path(f"ships/ship{_n:02d}.png"), display_w=76, display_h=76))
 # Targets / destination
