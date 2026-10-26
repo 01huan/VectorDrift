@@ -8,7 +8,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 
 | Resource key | File (relative to this folder) | Used for |
 |--------------|-------------------------------|----------|
-| `ship.drifter` | `ships/drifter.png` | Player ship (panel preview, lives icon, in-flight sprite) |
+| `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite) |
 | `target.planet` | `targets/planet.png` | Destination / target planet |
 | `obstacle.bumper` | `obstacles/bumper.png` | Circular bumper obstacle |
 | `pickup.bomb` | `pickups/bomb.png` | Bomb pickup |

@@ -30,7 +30,7 @@ SHIP = SHIPS[LEVEL.ship_id]
 def _level_with(obstacles, pickups, start=(-7.0, 0.0)):
     return LevelSpec(id=900, name="Pickup test", start=start,
                      target_center=(7.0, 0.0), target_radius=1.0,
-                     ship_id="drifter", obstacles=tuple(obstacles),
+                     ship_id="ship01", obstacles=tuple(obstacles),
                      pickups=tuple(pickups))
 
 
@@ -132,7 +132,7 @@ def test_fixed_levels_owned_by_data():
     assert len(get_level(1).pickups) == 0
     bare = LevelSpec(id=901, name="Bare", start=(-7.0, 0.0),
                      target_center=(7.0, 0.0), target_radius=1.0,
-                     ship_id="drifter")
+                     ship_id="ship01")
     assert bare.pickups == ()
     assert Flight(ForceField(), SHIP, bare).pickups == ()
 
@@ -244,7 +244,7 @@ def _add_time_level():
     """Ship parked on an add_time pickup with no force: it can only time out."""
     return LevelSpec(id=902, name="Add time", start=(-7.0, 0.0),
                      target_center=(7.0, 0.0), target_radius=1.0,
-                     ship_id="drifter", time_limit=4.0,
+                     ship_id="ship01", time_limit=4.0,
                      pickups=(PickupSpec(center=(-7.0, 0.0), kind="add_time"),))
 
 

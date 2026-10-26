@@ -226,7 +226,7 @@ def _score_level():
     """5 s limit, one add_time pickup at (0, 1): off the straight y = 0 path."""
     from vector_drift.data import LevelSpec, PickupSpec
     return LevelSpec(id=950, name="Score", start=(-7.0, 0.0), target_center=(7.0, 0.0),
-                     target_radius=1.0, ship_id="drifter", time_limit=5.0,
+                     target_radius=1.0, ship_id="ship01", time_limit=5.0,
                      pickups=(PickupSpec((0.0, 1.0), radius=0.6, kind="add_time"),))
 
 

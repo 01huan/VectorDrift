@@ -11,7 +11,7 @@ class RandomPreset:
 
     level_id: int
     name: str
-    ship_id: str = "drifter"
+    ship_id: str = "ship01"
     time_limit: float = 10.0
     lives: int = 5
     target_radius: float = 1.0
@@ -45,7 +45,7 @@ class RandomPreset:
 PRESET_7 = RandomPreset(
     level_id=7,
     name="Random Drift",
-    ship_id="drifter",
+    ship_id="ship01",
     time_limit=10.0,
     lives=5,
     target_radius=1.0,

@@ -76,13 +76,11 @@ class LevelSpec:
                               # fully: no entry = no pickups (mutual no-stack)
 
 
+# Ship skins: same physics, different look (assets/images/ships/<id>.png).
+# The shown name is the id until the team picks real names.
 SHIPS = {
-    "drifter": ShipSpec(
-        id="drifter",
-        name="Drifter Mk I",
-        mass=1.0,
-        hull_radius=0.2,
-    ),
+    f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2)
+    for n in range(1, 7)
 }
 
 LEVELS = [
@@ -92,7 +90,7 @@ LEVELS = [
         start=(-7.0, 0.0),
         target_center=(7.0, 0.0),
         target_radius=1.0,
-        ship_id="drifter",
+        ship_id="ship01",
     ),
     LevelSpec(
         id=2,
@@ -100,7 +98,7 @@ LEVELS = [
         start=(-7.0, -2.0),
         target_center=(7.0, 2.0),
         target_radius=1.0,
-        ship_id="drifter",
+        ship_id="ship01",
         obstacles=(
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
         ),

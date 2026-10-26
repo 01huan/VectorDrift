@@ -55,7 +55,7 @@ class MenuScene(Scene):
         th = self.t * w
         pos = (cx + a * math.cos(th), cy - b * math.sin(th))
         heading = math.atan2(b * math.cos(th), -a * math.sin(th))
-        sprites.draw_ship(surface, pos, heading, px(64), SHIPS["drifter"])
+        sprites.draw_ship(surface, pos, heading, px(64), SHIPS["ship01"])
 
         draw_text(surface, "VECTOR DRIFT", (config.WINDOW_W // 2 + px(4), px(195)), 76, config.OUTLINE,
                   kind="bold", anchor="center")

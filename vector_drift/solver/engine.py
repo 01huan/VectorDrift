@@ -34,7 +34,7 @@ class EvalConfig:
     dt: float | None = None          # None -> config.DT
     max_steps: int | None = None     # None -> level time_limit / dt
     record_trajectory: bool = True   # full trace (memory cost)
-    ship_id: str = "drifter"
+    ship_id: str = "ship01"
 
 
 @dataclass
@@ -48,7 +48,7 @@ class EvalResult:
 
 
 def _default_ship() -> object:
-    return SHIPS["drifter"]
+    return SHIPS["ship01"]
 
 
 def _time_budget_steps(level: LevelSpec, base_steps: int, dt: float) -> int:

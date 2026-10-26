@@ -115,9 +115,24 @@ def test_used_life_icon_is_the_ship_picture_in_grey(images, monkeypatch):
 def test_used_life_icon_without_a_png_is_still_the_code_drawn_rocket(images, monkeypatch):
     from vector_drift import sprites
     from vector_drift.data import SHIPS
-    # images points IMAGES_DIR at a folder without ships/drifter.png.
-    used = sprites.ship_icon_surface(SHIPS["drifter"], 18, alive=False)
+    # images points IMAGES_DIR at a folder without ships/ship01.png.
+    used = sprites.ship_icon_surface(SHIPS["ship01"], 18, alive=False)
     rgb, alpha = _rgb_alpha(used)
     opaque = alpha > 128
     r, b = rgb[..., 0][opaque].mean(), rgb[..., 2][opaque].mean()
     assert b > r + 10        # the blue-grey code-drawn rocket, not a grey picture
+
+
+def test_every_ship_has_its_own_512px_image():
+    # Uses the real assets/ on purpose: each skin in SHIPS must ship a picture.
+    from vector_drift.data import SHIPS
+    image_assets.clear_cache()
+    try:
+        for ship_id in SHIPS:
+            spec = image_assets.get_spec(f"ship.{ship_id}")
+            assert spec is not None, ship_id
+            path = image_assets.IMAGES_DIR / spec.path
+            assert path.name == f"{ship_id}.png"
+            assert pygame.image.load(str(path)).get_size() == (512, 512)
+    finally:
+        image_assets.clear_cache()
