@@ -114,15 +114,12 @@ LEVELS = [
     LevelSpec(
         id=2,
         name="First Bounce",
-        start=(-7.0, -2.0),
-        target_center=(7.0, 2.0),
+        start=(-7.0, 0.0),
+        target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
         obstacles=(
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
-        ),
-        pickups=(
-            PickupSpec(center=(0.0, 2.5), radius=0.45, kind="bomb"),
         ),
     ),
 ]

@@ -6,6 +6,7 @@ import pytest
 
 from vector_drift import config
 from vector_drift.data import SHIPS, get_level
+from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import (
     Flight,
     ForceField,
@@ -511,6 +512,18 @@ def test_general_expression_field_can_reach_target():
     flight = fly(field)
 
     assert flight.outcome is Outcome.REACHED
+
+
+def test_level_2_is_reached_without_touching_the_bumper():
+    level = get_level(2)
+    field = ForceField.from_exprs(parse_expression("-y"), parse_expression("x + 6"))
+
+    flight = Flight(field, SHIPS[level.ship_id], level)
+    while flight.running:
+        flight.step()
+
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
 
 
 # ---------------------------------------------------------------------------
