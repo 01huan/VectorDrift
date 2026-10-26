@@ -136,3 +136,10 @@ def test_every_ship_has_its_own_512px_image():
             assert pygame.image.load(str(path)).get_size() == (512, 512)
     finally:
         image_assets.clear_cache()
+
+
+def test_planet_has_a_512px_image():
+    # Real assets/ on purpose: the target must ship its picture.
+    spec = image_assets.get_spec("target.planet")
+    path = image_assets.IMAGES_DIR / spec.path
+    assert pygame.image.load(str(path)).get_size() == (512, 512)
