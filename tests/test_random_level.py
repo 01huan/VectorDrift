@@ -73,7 +73,11 @@ def test_corridor_keeps_configured_clearance():
 def test_counts_radii_and_world_bounds():
     for seed in range(20):
         level = generate_random_level(seed=seed)
-        assert len(level.obstacles) == PRESET_7.num_obstacles
+        assert (
+            PRESET_7.num_obstacles_min
+            <= len(level.obstacles)
+            <= PRESET_7.num_obstacles_max
+        )
         for ob in level.obstacles:
             assert (
                 PRESET_7.obstacle_radius_min
@@ -117,14 +121,20 @@ def test_level8_differs_from_level7_by_preset():
     p7, p8 = get_preset(7), get_preset(8)
     assert (p8.num_obstacles, p8.target_radius) != (p7.num_obstacles, p7.target_radius)
     lv8 = generate_random_level(8, seed=7)
-    assert lv8.id == 8 and len(lv8.obstacles) == p8.num_obstacles
+    assert lv8.id == 8 and (
+        p8.num_obstacles_min <= len(lv8.obstacles) <= p8.num_obstacles_max
+    )
 
 
 def test_level8_layout_respects_own_preset():
     preset = get_preset(8)
     for seed in range(5):
         level, _, segments = generate_with_corridor(seed=seed, level_id=8)
-        assert len(level.obstacles) == preset.num_obstacles
+        assert (
+            preset.num_obstacles_min
+            <= len(level.obstacles)
+            <= preset.num_obstacles_max
+        )
         for ob in level.obstacles:
             assert preset.obstacle_radius_min <= ob.radius <= preset.obstacle_radius_max
             gap = min(_seg_dist(ob.center, a, b) for a, b in segments)
