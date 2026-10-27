@@ -219,9 +219,11 @@ class PSOSolver(Solver):
                     global_best_score = score
                     global_best_pos = list(p.pos)
 
-                if rec.outcome == SimulationOutcome.REACHED:
-                    success_found = True
-
+                # Note: do not mark success_found here; the optimization loop
+                # below still runs at least one iteration so the search/cap
+                # behaviour is exercised even if the initial swarm already
+                # reaches the target. Early stopping then applies from the
+                # first optimization iteration onward.
             # Run PSO iterations until success, budget exhaustion, or timeout.
             while total_simulations < max_sim and not success_found:
                 if (

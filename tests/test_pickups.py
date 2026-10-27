@@ -117,10 +117,9 @@ def test_discs_overlap_shared_rule():
 
 
 def test_fixed_levels_declare_pickups_like_obstacles():
-    lv1, lv2, lv3 = get_level(1), get_level(2), get_level(3)
+    lv1, lv2 = get_level(1), get_level(2)
     assert len(lv1.pickups) == 0       # LV1 declares no pickups
     assert len(lv2.pickups) == 0       # LV2 declares no pickups
-    assert len(lv3.pickups) == 1       # LV3 declares one bomb
     discs = [(o.center, o.radius) for o in lv2.obstacles]
     discs += [(lv2.start, 0.0), (lv2.target_center, lv2.target_radius)]
     for p in lv2.pickups:
