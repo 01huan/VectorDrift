@@ -751,7 +751,7 @@ def test_segment_misses_circle_with_zero_radius():
 # ---------------------------------------------------------------------------
 
 def test_flight_starting_inside_a_bumper_coasts_out_without_bouncing():
-    # E.g. a launch resumed after a timeout where penetrate had carried the
+    # E.g. a launch resumed after a timeout where the shield had carried the
     # ship into a bumper. No force, 2 m/s: it must leave the bumper as if it
     # were not there, without bounces or extra trail points.
     from vector_drift.data import LevelSpec, ObstacleSpec

@@ -15,7 +15,7 @@ CARD_TEXT_W = px(CARD_W - 36)
 
 
 def test_wrap_text_keeps_lines_within_width():
-    text = "Denser maze, smaller target, more bombs"
+    text = "Denser maze, smaller target, more shockwaves"
     lines = wrap_text(text, 13, CARD_TEXT_W)
     assert len(lines) == 2
     assert " ".join(lines) == text

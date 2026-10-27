@@ -16,7 +16,7 @@ from typing import Callable
 from ..data import LevelSpec, SHIPS
 from ..expr_parser import parse_expression
 from ..physics import Flight, ForceField, Outcome
-from ..pickups import add_time_bonus_steps
+from ..pickups import extratime_bonus_steps
 from .data import (
     SimulationRecord,
     TrajectoryPoint,
@@ -54,15 +54,15 @@ def _default_ship() -> object:
 def _time_budget_steps(level: LevelSpec, base_steps: int, dt: float) -> int:
     """The most steps any flight on ``level`` can get.
 
-    That is the base limit plus every add_time pickup on the level (counted
-    with add_time_bonus_steps, the conversion Flight._apply_pickup_events
+    That is the base limit plus every extratime pickup on the level (counted
+    with extratime_bonus_steps, the conversion Flight._apply_pickup_events
     uses). It is one fixed number per level, so scoring against it ranks
     successful flights purely by how long they took, whether or not they
     picked up extra time.
     """
-    bonus = add_time_bonus_steps(dt)
+    bonus = extratime_bonus_steps(dt)
     count = sum(1 for p in getattr(level, "pickups", ()) or ()
-                if getattr(p, "kind", None) == "add_time")
+                if getattr(p, "kind", None) == "extratime")
     return base_steps + count * bonus
 
 
@@ -139,7 +139,7 @@ def evaluate_candidate(
     min_dist = min(min_dist, math.dist((flight.x, flight.y), (tx, ty)))
 
     while flight.running:
-        flight.step()               # applies pickup effects (add_time, penetrate) itself
+        flight.step()               # applies pickup effects (extratime, shield) itself
         if cfg.record_trajectory:
             trajectory.append(TrajectoryPoint(
                 x=flight.x, y=flight.y,

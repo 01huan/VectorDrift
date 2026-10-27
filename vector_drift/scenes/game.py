@@ -129,7 +129,7 @@ class GameScene(Scene):
         self.state = SETUP
         self.flight = None
         # One PickupState per spec for the WHOLE run (all lives): consumed
-        # pickups and bomb-cleared obstacles persist like level state until
+        # pickups and shockwave-cleared obstacles persist like level state until
         # all lives are spent. No config = no pickups (data.py decides).
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
@@ -427,7 +427,7 @@ class GameScene(Scene):
         """Sync scene state and play sounds for new pickup events (once each).
 
         The Flight has already applied every effect to itself (see
-        Flight._apply_pickup_events). Bomb destroys obstacles: mirror
+        Flight._apply_pickup_events). Shockwave destroys obstacles: mirror
         flight.obstacle_specs back into the frozen level (dataclasses.replace
         -> new tuple) so rendering and the next launch both see the
         survivors. The other kinds only play their sound here.
@@ -438,10 +438,10 @@ class GameScene(Scene):
         if not events:
             return
         for event in events:
-            if event.get("kind") == "bomb":
+            if event.get("kind") == "shockwave":
                 destroyed = event.get("destroyed") or ()
                 if destroyed:
-                    # bomb_effect already rewrote flight.obstacle_specs to
+                    # shockwave_effect already rewrote flight.obstacle_specs to
                     # survivors; just mirror the same list into the frozen
                     # level so rendering / next launch see the survivors.
                     self.flight.obstacle_specs = tuple(
@@ -452,22 +452,22 @@ class GameScene(Scene):
                         self.level, obstacles=self.flight.obstacle_specs
                     )
                 try:
-                    self.audio.play("bomb")
+                    self.audio.play("shockwave")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
-                    log.debug("bomb sfx skipped", exc_info=True)
-            elif event.get("kind") == "add_time":
+                    log.debug("shockwave sfx skipped", exc_info=True)
+            elif event.get("kind") == "extratime":
                 # Flight._apply_pickup_events already extended the flight.
                 try:
-                    self.audio.play("add_time")
+                    self.audio.play("extratime")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
-                    log.debug("add_time sfx skipped", exc_info=True)
-            elif event.get("kind") == "penetrate":
+                    log.debug("extratime sfx skipped", exc_info=True)
+            elif event.get("kind") == "shield":
                 # Flight._apply_pickup_events already started the effect.
                 try:
-                    self.audio.play("penetrate")
+                    self.audio.play("shield")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
-                    log.debug("penetrate sfx skipped", exc_info=True)
-            elif event.get("kind") == "penetrate_used":
+                    log.debug("shield sfx skipped", exc_info=True)
+            elif event.get("kind") == "shield_used":
                 # The protection broke on a bumper (the ship still passes it).
                 try:
                     self.audio.play("shield_break")
@@ -819,7 +819,7 @@ class GameScene(Scene):
                     sprites.draw_vector(surface, ship_pos, (vx, vy), config.VELOCITY_VEC)
                     sprites.draw_vector(surface, ship_pos, (fx, fy), config.FORCE_VEC)
                 sprites.draw_ship(surface, ship_pos, self.heading, vp.length(self.ship.length), self.ship)
-                if self.flight is not None and self.flight.penetrate_remaining > 0.0:
+                if self.flight is not None and self.flight.shield_remaining > 0.0:
                     sprites.draw_shield(surface, ship_pos, vp.length(0.6 * self.ship.length), self.t)
         finally:
             try:

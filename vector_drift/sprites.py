@@ -203,7 +203,7 @@ def ship_icon_surface(ship, size, alive=True):
     return _cached(("icon", ship.id, size, alive), build)
 
 
-# --- penetrate shield --------------------------------------------------------------
+# --- shield --------------------------------------------------------------
 SHIELD = (120, 220, 255)
 
 
@@ -219,7 +219,7 @@ def _render_shield(radius):
 
 
 def draw_shield(surface, center, radius, t):
-    """Pulsing protective bubble around the ship while penetrate protects it."""
+    """Pulsing protective bubble around the ship while the shield protects it."""
     radius = max(4, round(radius))
     img = _cached(("shield", radius), lambda: _render_shield(radius)).copy()
     img.set_alpha(round(170 + 85 * (0.5 + 0.5 * math.sin(t * 5.0))))
@@ -398,7 +398,7 @@ def draw_obstacle(surface, center, radius, t, kind="bumper", seed=None):
 
 def _paint_cached_prop(surface, center, radius, t, cache_key, render_fn,
                        alpha_base=215, alpha_range=40, pulse_freq=3.0):
-    """Shared boilerplate for cached prop painters (bumper, bomb, ...).
+    """Shared boilerplate for cached prop painters (bumper, shockwave, ...).
 
     Parses/validates inputs, culls off-screen, fetches a cached rendered
     surface, applies a gentle alpha pulse, and blits. Never raises.
@@ -441,8 +441,8 @@ OBSTACLE_RENDERERS = {"bumper": _paint_bumper}
 add one entry here; draw_obstacle() dispatches, so game.py never branches."""
 
 
-# --- pickup props (extensible; bomb is the first kind) -----------------------
-def _render_bomb(radius):
+# --- pickup props (extensible; shockwave is the first kind) -----------------------
+def _render_shockwave(radius):
     d = 2 * radius + 10
     D = d * SS
     c, r = D / 2, radius * SS
@@ -469,10 +469,10 @@ def _render_bomb(radius):
     return pygame.transform.smoothscale(surf, (d, d))
 
 
-def _paint_bomb(surface, center, radius, t):
-    _paint_cached_prop(surface, center, radius, t, "bomb", _render_bomb)
+def _paint_shockwave(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "shockwave", _render_shockwave)
 
-def _render_add_time(radius):
+def _render_extratime(radius):
     d = 2 * radius + 10
     D = d * SS
     c, r = D / 2, radius * SS
@@ -494,10 +494,10 @@ def _render_add_time(radius):
     pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
     return pygame.transform.smoothscale(surf, (d, d))
 
-def _paint_add_time(surface, center, radius, t):
-    _paint_cached_prop(surface, center, radius, t, "add_time", _render_add_time)
+def _paint_extratime(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "extratime", _render_extratime)
 
-def _render_penetrate(radius):
+def _render_shield(radius):
     d = 2 * radius + 10
     D = d * SS
     c, r = D / 2, radius * SS
@@ -511,7 +511,7 @@ def _render_penetrate(radius):
     shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
     shine.center = (c - 0.30 * r, c - 0.38 * r)
     pygame.draw.ellipse(surf, (235, 235, 255), shine)
-    # Penetrate symbol: thick white line punching through the center.
+    # Shield symbol: thick white line punching through the center.
     line_size = round(0.62 * r)
     line_thickness = max(3, round(0.14 * r))
     pygame.draw.line(surf, (255, 255, 255), (c - line_size // 2, c), (c + line_size // 2, c), line_thickness)
@@ -520,15 +520,15 @@ def _render_penetrate(radius):
     pygame.draw.line(surf, (255, 255, 255), (c + line_size // 2, c - cap_size), (c + line_size // 2, c + cap_size), cap_size)
     pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
     return pygame.transform.smoothscale(surf, (d, d))
-def _paint_penetrate(surface, center, radius, t):
-    _paint_cached_prop(surface, center, radius, t, "penetrate", _render_penetrate)
+def _paint_shield(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "shield", _render_shield)
 
-PICKUP_RENDERERS = {"bomb": _paint_bomb, "add_time": _paint_add_time, "penetrate": _paint_penetrate}
+PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 
 
-def draw_pickup(surface, center, radius, t, kind="bomb"):
+def draw_pickup(surface, center, radius, t, kind="shockwave"):
     """Draw one pickup prop. `center`/`radius` are in px. Never raises."""
     # --- image path ---------------------------------------------------------
     img = load_image(f"pickup.{kind}", size_px=(radius * 2, radius * 2))

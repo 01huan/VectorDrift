@@ -15,7 +15,7 @@ Each slot tries `.ogg`, then `.wav`, then `.mp3`.
 | `life_lost` | Time up / out of bounds / diverged / aborted | Kenney *Sci-fi Sounds* |
 | `win` | Ship reaches the target | Kenney *Music Jingles* |
 | `game_over` | Last life lost | Kenney *Music Jingles* |
-| `shield_break` | The penetrate shield breaks on the first rock it touches | Kenney *Sci-fi Sounds* |
+| `shield_break` | The shield breaks on the first rock it touches | Kenney *Sci-fi Sounds* |
 
 ## Music: `assets/music/`
 

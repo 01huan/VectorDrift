@@ -220,14 +220,14 @@ def test_deep_budget_default_is_large():
 
 
 # --------------------------------------------------------------------------- #
-# Scoring with add_time pickups: rank successes by absolute flight time
+# Scoring with extratime pickups: rank successes by absolute flight time
 # --------------------------------------------------------------------------- #
 def _score_level():
-    """5 s limit, one add_time pickup at (0, 1): off the straight y = 0 path."""
+    """5 s limit, one extratime pickup at (0, 1): off the straight y = 0 path."""
     from vector_drift.data import LevelSpec, PickupSpec
     return LevelSpec(id=950, name="Score", start=(-7.0, 0.0), target_center=(7.0, 0.0),
                      target_radius=1.0, ship_id="ship01", time_limit=5.0,
-                     pickups=(PickupSpec((0.0, 1.0), radius=0.6, kind="add_time"),))
+                     pickups=(PickupSpec((0.0, 1.0), radius=0.6, kind="extratime"),))
 
 
 def _poly_record(**coeffs):
@@ -246,15 +246,15 @@ def test_faster_success_outscores_a_slower_one_that_took_extra_time():
     assert fast.score > slow.score
 
 
-def test_time_budget_is_the_limit_plus_every_add_time_pickup():
+def test_time_budget_is_the_limit_plus_every_extratime_pickup():
     from dataclasses import replace
     from vector_drift.data import PickupSpec
-    from vector_drift.pickups import ADD_TIME_DURATION
+    from vector_drift.pickups import EXTRATIME_DURATION
     level = replace(_score_level(), time_limit=12.0, pickups=(
-        PickupSpec((0.0, 3.0), kind="add_time"),
-        PickupSpec((0.0, -3.0), kind="add_time"),
-        PickupSpec((3.0, 0.0), kind="bomb"),
+        PickupSpec((0.0, 3.0), kind="extratime"),
+        PickupSpec((0.0, -3.0), kind="extratime"),
+        PickupSpec((3.0, 0.0), kind="shockwave"),
     ))
-    expected = round((12.0 + 2 * ADD_TIME_DURATION) / config.DT)
+    expected = round((12.0 + 2 * EXTRATIME_DURATION) / config.DT)
     assert _time_budget_steps(level, round(12.0 / config.DT), config.DT) == expected
     assert _time_budget_steps(LEVEL, 1200, config.DT) == 1200   # no pickups: unchanged

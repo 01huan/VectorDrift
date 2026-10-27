@@ -7,7 +7,7 @@ import pytest
 from vector_drift.data import SHIPS, get_level
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import Flight, ForceField, Outcome
-from vector_drift.pickups import BOMB_BLAST_RADIUS, obstacles_hit_by_blast
+from vector_drift.pickups import SHOCKWAVE_BLAST_RADIUS, obstacles_hit_by_blast
 
 TOP, BOTTOM = (3.2, 3.6), (3.2, -3.6)
 
@@ -56,6 +56,6 @@ def test_each_shockwave_blasts_the_three_nearest_bumpers():
 
     assert {p.center for p in level.pickups} == {TOP, BOTTOM}
     for pickup in level.pickups:
-        _, destroyed = obstacles_hit_by_blast(pickup.center, BOMB_BLAST_RADIUS,
+        _, destroyed = obstacles_hit_by_blast(pickup.center, SHOCKWAVE_BLAST_RADIUS,
                                               level.obstacles)
         assert {ob.center for ob in destroyed} == BLASTED[pickup.center]

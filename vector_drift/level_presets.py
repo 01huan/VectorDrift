@@ -95,8 +95,8 @@ PRESET_8 = RandomPreset(
     target_clearance=1.2,
     min_obstacle_gap=0.4,
     num_direct_blockers=2,
-    pickup_groups=(("bomb", (1, 3), 0.5), ("add_time", (1, 3), 0.5), ("penetrate", (1, 3), 0.5)),
-    card_blurb="Denser maze, smaller target; bombs, extra time and penetrate",
+    pickup_groups=(("shockwave", (1, 3), 0.5), ("extratime", (1, 3), 0.5), ("shield", (1, 3), 0.5)),
+    card_blurb="Denser maze, smaller target; shockwaves, extratime and shields",
 )
 
 

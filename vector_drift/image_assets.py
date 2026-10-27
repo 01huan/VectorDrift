@@ -75,9 +75,9 @@ for _key in ROCK_KEYS:
     register(AssetSpec(_key, Path(f"obstacles/{_key.split('.', 1)[1]}.png"), display_w=64, display_h=64))
 
 # Pickups (key = f"pickup.{kind}")
-register(AssetSpec("pickup.bomb", Path("pickups/bomb.png"), display_w=40, display_h=40))
-register(AssetSpec("pickup.add_time", Path("pickups/add_time.png"), display_w=40, display_h=40))
-register(AssetSpec("pickup.penetrate", Path("pickups/penetrate.png"), display_w=40, display_h=40))
+register(AssetSpec("pickup.shockwave", Path("pickups/shockwave.png"), display_w=40, display_h=40))
+register(AssetSpec("pickup.extratime", Path("pickups/extratime.png"), display_w=40, display_h=40))
+register(AssetSpec("pickup.shield", Path("pickups/shield.png"), display_w=40, display_h=40))
 # UI
 register(AssetSpec("ui.start_marker", Path("ui/start_marker.png"), display_w=36, display_h=36))
 

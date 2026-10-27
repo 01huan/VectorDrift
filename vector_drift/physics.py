@@ -257,7 +257,7 @@ class Flight:
         self.hit_radius = level.target_radius + ship.hull_radius
         self.target = level.target_center
         # (center, radius incl. hull, restitution) — precomputed so step() stays cheap.
-        # obstacle_specs is kept (mutable list) so pickup effects (bomb) can
+        # obstacle_specs is kept (mutable list) so pickup effects (shockwave) can
         # remove obstacles mid-flight; obstacles is rebuilt alongside it.
         self.obstacle_specs = list(getattr(level, "obstacles", ()) or ())
         self.obstacles = tuple(
@@ -286,7 +286,7 @@ class Flight:
         self.outcome = Outcome.RUNNING
         self.trail = [(self.x, self.y)]
         self._accumulator = 0.0
-        self.penetrate_remaining = 0.0  # seconds of penetrate effect remaining (ship ignores bumpers)
+        self.shield_remaining = 0.0  # seconds of shield effect remaining (ship ignores bumpers)
 
     @property
     def time(self):
@@ -325,12 +325,12 @@ class Flight:
         except (ArithmeticError, ValueError, TypeError, OverflowError,
                 RecursionError, MemoryError):
             self.steps += 1
-            self.penetrate_remaining = max(0.0, self.penetrate_remaining - self.dt)
+            self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
         self.steps += 1
-        self.penetrate_remaining = max(0.0, self.penetrate_remaining - self.dt)
+        self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
 
         if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
             self.outcome = Outcome.DIVERGED
@@ -455,29 +455,29 @@ class Flight:
         step() calls it the moment a pickup triggers, so GameScene and the
         solver fly by the same rules; callers only add presentation (sound).
         Private because calling it again would apply the same events twice
-        (one add_time pickup granting 6 s). add_time extends max_steps by
-        add_time_bonus_steps() (elapsed steps are never rewound, so flight
-        time and scores stay true). penetrate protects the ship for its
+        (one extratime pickup granting 6 s). extratime extends max_steps by
+        extratime_bonus_steps() (elapsed steps are never rewound, so flight
+        time and scores stay true). The shield protects the ship for its
         duration (a new one overwrites what is left): the first bumper it
         touches is passed and uses the protection up (_bounce_along_path).
-        bomb needs nothing here: its effect already removed the obstacles
+        shockwave needs nothing here: its effect already removed the obstacles
         from this flight.
         """
-        from .pickups import ADD_TIME_DURATION, PENETRATE_DURATION, add_time_bonus_steps
+        from .pickups import EXTRATIME_DURATION, SHIELD_DURATION, extratime_bonus_steps
         for event in events:
             kind = event.get("kind")
-            if kind == "add_time":
-                duration = float(event.get("add_time_duration", ADD_TIME_DURATION))
-                self.max_steps = max(self.max_steps + add_time_bonus_steps(self.dt, duration),
+            if kind == "extratime":
+                duration = float(event.get("extratime_duration", EXTRATIME_DURATION))
+                self.max_steps = max(self.max_steps + extratime_bonus_steps(self.dt, duration),
                                      self.steps)
-            elif kind == "penetrate":
-                self.penetrate_remaining = float(event.get("penetrate_duration", PENETRATE_DURATION))
+            elif kind == "shield":
+                self.shield_remaining = float(event.get("shield_duration", SHIELD_DURATION))
 
     def _solid_obstacles(self, p0):
         """The bumpers that can bounce the ship this step.
 
         All but those it starts the step overlapping (closer than radius +
-        hull, the collision reach): the bumper the penetrate shield broke on,
+        hull, the collision reach): the bumper the shield broke on,
         or the one a resumed launch starts in (time ran out while passing
         it). The ship passes through such a bumper until it is fully out;
         reflecting there would only bounce it back and forth inside. Once
@@ -488,19 +488,19 @@ class Flight:
     def _bumper_before(self, p0, p1, t, obstacles):
         """True if the segment p0->p1 hits one of ``obstacles`` before parameter t.
 
-        Same rules as _bounce_along_path: under penetrate protection the first
+        Same rules as _bounce_along_path: under shield protection the first
         bumper touched is passed, so only a later one can block.
         """
         hits = sorted(hit for center, radius, _ in obstacles
                       if (hit := segment_circle_first_hit(p0, p1, center, radius)) is not None)
-        if self.penetrate_remaining > 0.0:
+        if self.shield_remaining > 0.0:
             hits = hits[1:]
         return bool(hits) and hits[0] < t
 
-    def _use_penetrate(self, center):
+    def _use_shield(self, center):
         """Protection is used up on touching a bumper; the scene plays shield_break."""
-        self.penetrate_remaining = 0.0
-        self.pickup_events.append({"kind": "penetrate_used", "center": center})
+        self.shield_remaining = 0.0
+        self.pickup_events.append({"kind": "shield_used", "center": center})
 
     def _fling(self, p0, p1, t, direction):
         """Reach the pole at p0 + t*(p1-p0), then shoot straight off the field.
@@ -528,7 +528,7 @@ class Flight:
     def _bounce_along_path(self, p0, obstacles):
         """Reflect off ``obstacles`` hit along this step's path (closest first).
 
-        Under penetrate protection the first bumper touched is passed instead
+        Under shield protection the first bumper touched is passed instead
         of reflected, and touching it uses the protection up. The ship then
         starts the next steps inside that bumper, which _solid_obstacles
         leaves out until the ship is through.
@@ -549,8 +549,8 @@ class Flight:
                 break
             t, obstacle = earliest
             center, radius, restitution = obstacle
-            if self.penetrate_remaining > 0.0:
-                self._use_penetrate(center)
+            if self.shield_remaining > 0.0:
+                self._use_shield(center)
                 obstacles.remove(obstacle)          # carried through this one
                 continue
             hx = start[0] + (end[0] - start[0]) * t

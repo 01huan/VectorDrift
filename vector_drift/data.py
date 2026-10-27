@@ -59,7 +59,7 @@ class PickupSpec:
 
     center: tuple
     radius: float = 0.45
-    kind: str = "bomb"
+    kind: str = "shockwave"
 
 
 @dataclass(frozen=True)
@@ -147,8 +147,8 @@ LEVELS = [
             ObstacleSpec(center=(4.51, 1.67), radius=0.8),
         ),
         pickups=(
-            PickupSpec(center=(3.2, 3.6), radius=0.45, kind="bomb"),
-            PickupSpec(center=(3.2, -3.6), radius=0.45, kind="bomb"),
+            PickupSpec(center=(3.2, 3.6), radius=0.45, kind="shockwave"),
+            PickupSpec(center=(3.2, -3.6), radius=0.45, kind="shockwave"),
         ),
     ),
 ]

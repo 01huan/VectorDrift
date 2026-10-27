@@ -11,9 +11,9 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite) |
 | `target.planet` | `targets/planet.png` | Destination / target planet, 512 x 512 |
 | `obstacle.rock01`, `obstacle.rock02` | `obstacles/rock01.png`, `obstacles/rock02.png` | Bumper rocks, 512 x 512: each bumper shows one of them, picked at random and turned by a random angle (fixed per bumper) |
-| `pickup.bomb` | `pickups/bomb.png` | Bomb pickup (shockwave icon), 256 x 256 |
-| `pickup.add_time` | `pickups/add_time.png` | Add-time pickup (stopwatch icon), 256 x 256 |
-| `pickup.penetrate` | `pickups/penetrate.png` | Penetrate pickup (shield icon), 256 x 256 |
+| `pickup.shockwave` | `pickups/shockwave.png` | Shockwave pickup icon, 256 x 256 |
+| `pickup.extratime` | `pickups/extratime.png` | Extratime pickup icon (stopwatch), 256 x 256 |
+| `pickup.shield` | `pickups/shield.png` | Shield pickup icon, 256 x 256 |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
 
