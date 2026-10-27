@@ -17,7 +17,11 @@ class RandomPreset:
     target_radius: float = 1.0
     min_start_target_dist: float = 10.0
     num_hidden_points: int = 7
+    # Obstacle count: fixed (num_obstacles) by default, or random in
+    # [num_obstacles_min, num_obstacles_max] when either bound is given.
     num_obstacles: int = 10
+    num_obstacles_min: int | None = None
+    num_obstacles_max: int | None = None
     obstacle_radius_min: float = 0.5
     obstacle_radius_max: float = 1.4
     corridor_clearance: float = 0.9
@@ -52,6 +56,8 @@ PRESET_7 = RandomPreset(
     min_start_target_dist=10.0,
     num_hidden_points=7,
     num_obstacles=10,
+    num_obstacles_min=5,
+    num_obstacles_max=20,
     obstacle_radius_min=0.5,
     obstacle_radius_max=1.4,
     corridor_clearance=0.9,
@@ -80,6 +86,8 @@ PRESET_8 = RandomPreset(
     min_start_target_dist=12.0,
     num_hidden_points=4,
     num_obstacles=14,
+    num_obstacles_min=10,
+    num_obstacles_max=18,
     obstacle_radius_min=0.4,
     obstacle_radius_max=1.0,
     corridor_clearance=0.7,
@@ -87,7 +95,7 @@ PRESET_8 = RandomPreset(
     target_clearance=1.2,
     min_obstacle_gap=0.4,
     num_direct_blockers=2,
-    pickup_groups=(("bomb", 2, 0.5), ("add_time", 2, 0.5), ("penetrate", 2, 0.5)),
+    pickup_groups=(("bomb", (1, 3), 0.5), ("add_time", (1, 3), 0.5), ("penetrate", (1, 3), 0.5)),
     card_blurb="Denser maze, smaller target; bombs, extra time and penetrate",
 )
 

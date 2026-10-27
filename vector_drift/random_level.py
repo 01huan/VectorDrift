@@ -168,10 +168,27 @@ def _obstacle_ok(center, radius, segments, start, target, placed, preset=None):
 
 
 
+def _obstacle_count(preset, rng, count=None):
+    """Resolve obstacle count: explicit override, else fixed or min/max."""
+    if count is not None:
+        return count
+    lo = getattr(preset, "num_obstacles_min", None)
+    hi = getattr(preset, "num_obstacles_max", None)
+    if lo is None and hi is None:
+        return getattr(preset, "num_obstacles", 0)
+    if lo is None:
+        lo = getattr(preset, "num_obstacles", 0)
+    if hi is None:
+        hi = getattr(preset, "num_obstacles", 0)
+    if hi < lo:
+        lo, hi = hi, lo
+    return rng.randint(int(lo), int(hi))
+
+
 def place_obstacles(rng, segments, start, target, count=None, preset=None):
     """Sample ``count`` non-blocking obstacles around the corridor."""
     preset = _preset_or_default(preset)
-    count = preset.num_obstacles if count is None else count
+    count = _obstacle_count(preset, rng, count)
     placed = []  # [(center, radius)]
     for _ in range(count):
         for _ in range(preset.max_place_attempts):
@@ -222,11 +239,41 @@ def place_pickups(rng, segments, start, target, placed=(), groups=None, preset=N
         groups = getattr(preset, "pickup_groups", ())
     peers = list(placed)
     out = []
-    for kind, count, radius in groups or ():
+    for group in groups or ():
+        # Support count/radius as fixed values or (min, max) ranges.
+        if not isinstance(group, (tuple, list)) or len(group) < 3:
+            continue
+        kind = group[0]
+        if len(group) == 3:
+            count_spec, radius_spec = group[1], group[2]
+        elif len(group) == 4:
+            # (kind, count_min, count_max, radius) OR (kind, count, radius_min, radius_max)
+            # Disambiguate by type of the middle fields.
+            if isinstance(group[1], (tuple, list)) or isinstance(group[2], (tuple, list)):
+                count_spec, radius_spec = group[1], (group[2], group[3]) if not isinstance(group[3], (tuple, list)) else group[3]
+            else:
+                # both ints: treat as count range
+                count_spec = (group[1], group[2])
+                radius_spec = group[3]
+        elif len(group) >= 5:
+            count_spec = (group[1], group[2])
+            radius_spec = (group[3], group[4])
+        else:
+            continue
         try:
-            radius = float(radius)
+            if isinstance(count_spec, (tuple, list)):
+                count = rng.randint(int(count_spec[0]), int(count_spec[1]))
+            else:
+                count = int(count_spec)
         except (TypeError, ValueError):
-            continue  # malformed group spec: skip, never crash placement
+            continue
+        try:
+            if isinstance(radius_spec, (tuple, list)):
+                radius = rng.uniform(float(radius_spec[0]), float(radius_spec[1]))
+            else:
+                radius = float(radius_spec)
+        except (TypeError, ValueError):
+            continue
         margin = radius + preset.edge_margin
         if margin >= config.WORLD_HALF_W or margin >= config.WORLD_HALF_H:
             continue  # cannot fit a disc of this size in the world
