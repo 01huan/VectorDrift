@@ -122,6 +122,35 @@ LEVELS = [
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
         ),
     ),
+    # Shockwave intro: a ring of 9 bumpers (r 2.6 m around the target, every
+    # 40 deg from 180 deg) seals the target until one shockwave blasts a gap.
+    # Reference solutions: Fx = 3, Fy = -x - 2y (top shockwave) or
+    # Fy = x - 2y (bottom, mirrored).
+    LevelSpec(
+        id=3,
+        name="First Blast",
+        start=(-7.0, 0.0),
+        target_center=(6.5, 0.0),
+        target_radius=1.0,
+        ship_id="ship01",
+        # Intentional: neighbouring bumpers are ~0.18 m apart, less than the
+        # ship's 0.4 m width, so their collision discs overlap and seal the ring.
+        obstacles=(
+            ObstacleSpec(center=(3.9, 0.0), radius=0.8),
+            ObstacleSpec(center=(4.51, -1.67), radius=0.8),
+            ObstacleSpec(center=(6.05, -2.56), radius=0.8),
+            ObstacleSpec(center=(7.8, -2.25), radius=0.8),
+            ObstacleSpec(center=(8.94, -0.89), radius=0.8),
+            ObstacleSpec(center=(8.94, 0.89), radius=0.8),
+            ObstacleSpec(center=(7.8, 2.25), radius=0.8),
+            ObstacleSpec(center=(6.05, 2.56), radius=0.8),
+            ObstacleSpec(center=(4.51, 1.67), radius=0.8),
+        ),
+        pickups=(
+            PickupSpec(center=(3.2, 3.6), radius=0.45, kind="bomb"),
+            PickupSpec(center=(3.2, -3.6), radius=0.45, kind="bomb"),
+        ),
+    ),
 ]
 
 
