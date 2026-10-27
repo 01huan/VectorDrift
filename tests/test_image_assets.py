@@ -143,3 +143,10 @@ def test_planet_has_a_512px_image():
     spec = image_assets.get_spec("target.planet")
     path = image_assets.IMAGES_DIR / spec.path
     assert pygame.image.load(str(path)).get_size() == (512, 512)
+
+
+@pytest.mark.parametrize("kind", ["bomb", "add_time", "penetrate"])
+def test_every_pickup_has_a_256px_image(kind):
+    # Real assets/ on purpose: each pickup kind ships its icon.
+    path = image_assets.IMAGES_DIR / image_assets.get_spec(f"pickup.{kind}").path
+    assert pygame.image.load(str(path)).get_size() == (256, 256)
