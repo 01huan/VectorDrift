@@ -160,6 +160,136 @@ def _render_trig_poly(level: LevelSpec,
     _validate(level, fx, fy)
     return fx, fy
 
+def _render_all_in_one(level: LevelSpec,
+                       params: dict[str, float]) -> tuple[str, str]:
+    """Combined force field using all existing template structures.
+
+    Combines:
+    - Target attraction
+    - Distance-dependent damping
+    - General quadratic terms
+    - Swirl around the world center
+    - Trigonometric and polynomial terms
+    - Logarithmic nonlinear terms
+
+    PSO optimizes all numeric parameters.
+    """
+    tx, ty = _target_constants(level)
+
+    # Target attraction and distance damping
+    a = float(params["a"])
+    b = float(params["b"])
+
+    # Swirl
+    s = float(params["s"])
+
+    # General quadratic field: Fx
+    c0 = float(params["c0"])
+    c1 = float(params["c1"])
+    c2 = float(params["c2"])
+    c3 = float(params["c3"])
+    c4 = float(params["c4"])
+    c5 = float(params["c5"])
+
+    # General quadratic field: Fy
+    d0 = float(params["d0"])
+    d1 = float(params["d1"])
+    d2 = float(params["d2"])
+    d3 = float(params["d3"])
+    d4 = float(params["d4"])
+    d5 = float(params["d5"])
+
+    # Trigonometric + polynomial terms
+    p1 = float(params["p1"])
+    p2 = float(params["p2"])
+    p3 = float(params["p3"])
+    p4 = float(params["p4"])
+    p5 = float(params["p5"])
+    p6 = float(params["p6"])
+    p7 = float(params["p7"])
+    p8 = float(params["p8"])
+    p9 = float(params["p9"])
+    p10 = float(params["p10"])
+
+    # Rich nonlinear terms
+    r1 = float(params["r1"])
+    r2 = float(params["r2"])
+    r3 = float(params["r3"])
+    r4 = float(params["r4"])
+    r5 = float(params["r5"])
+    r6 = float(params["r6"])
+    r7 = float(params["r7"])
+    r8 = float(params["r8"])
+    r9 = float(params["r9"])
+    r10 = float(params["r10"])
+    r11 = float(params["r11"])
+    r12 = float(params["r12"])
+
+    # Distance to target
+    dist = (
+        f"sqrt(({tx:g} - x)^2 + ({ty:g} - y)^2)"
+    )
+
+    # Attraction with distance-dependent damping
+    attract_x = (
+        f"{a:g}*({tx:g} - x)/(1 + {b:g}*{dist})"
+    )
+    attract_y = (
+        f"{a:g}*({ty:g} - y)/(1 + {b:g}*{dist})"
+    )
+
+    # Swirl around the world center (0, 0)
+    swirl_x = f"{s:g}*y"
+    swirl_y = f"-({s:g}*x)"
+
+    # General quadratic terms
+    poly_x = (
+        f"{c0:g} + {c1:g}*x + {c2:g}*y + "
+        f"{c3:g}*x^2 + {c4:g}*y^2 + {c5:g}*x*y"
+    )
+    poly_y = (
+        f"{d0:g} + {d1:g}*x + {d2:g}*y + "
+        f"{d3:g}*x^2 + {d4:g}*y^2 + {d5:g}*x*y"
+    )
+
+    # Trigonometric + polynomial terms
+    trig_x = (
+        f"{p1:g}*sin(x) + {p2:g}*cos(y) + "
+        f"{p3:g}*x^2 + {p4:g}*x*y + {p5:g}"
+    )
+    trig_y = (
+        f"{p6:g}*sin(y) + {p7:g}*cos(x) + "
+        f"{p8:g}*y^2 + {p9:g}*x*y + {p10:g}"
+    )
+
+    # Rich trig/log/polynomial terms
+    rich_x = (
+        f"{r1:g}*sin({r2:g}*x) + "
+        f"{r3:g}*log(abs(y)+1) + "
+        f"{r4:g}*x^2 + {r5:g}*x*y + "
+        f"{r6:g}*({tx:g} - x)"
+    )
+    rich_y = (
+        f"{r7:g}*sin({r8:g}*y) + "
+        f"{r9:g}*log(abs(x)+1) + "
+        f"{r10:g}*y^2 + {r11:g}*x*y + "
+        f"{r12:g}*({ty:g} - y)"
+    )
+
+    # Combine all components
+    fx = (
+        f"({attract_x}) + ({swirl_x}) + "
+        f"({poly_x}) + ({trig_x}) + ({rich_x})"
+    )
+    fy = (
+        f"({attract_y}) + ({swirl_y}) + "
+        f"({poly_y}) + ({trig_y}) + ({rich_y})"
+    )
+
+    _validate(level, fx, fy)
+    return fx, fy
+
+
 TEMPLATES: dict[str, FieldTemplate] = {}
 
 
@@ -223,6 +353,39 @@ _register(FieldTemplate(
     param_bounds=((-3.0, 3.0),) * 12,
     render=_render_rich_combo,
 ))
+
+_ALL_IN_ONE_NAMES = (
+    "a", "b", "s",
+    "c0", "c1", "c2", "c3", "c4", "c5",
+    "d0", "d1", "d2", "d3", "d4", "d5",
+    "p1", "p2", "p3", "p4", "p5",
+    "p6", "p7", "p8", "p9", "p10",
+    "r1", "r2", "r3", "r4", "r5", "r6",
+    "r7", "r8", "r9", "r10", "r11", "r12",
+)
+
+register_all_in_one = FieldTemplate(
+    key="all_in_one",
+    name="All-in-One Force Field",
+    param_names=_ALL_IN_ONE_NAMES,
+    param_defaults=(
+        1.0, 0.5, 0.0,          # Attraction, damping, swirl
+        *([0.0] * 12),          # General quadratic field
+        *([0.0] * 10),          # Trig + polynomial field
+        *([0.0] * 12),          # Rich nonlinear field
+    ),
+    param_bounds=(
+        (0.01, 20.0),           # a
+        (0.0, 5.0),             # b
+        (-5.0, 5.0),            # s
+        *([(-5.0, 5.0)] * 12),  # Quadratic coefficients
+        *([(-3.0, 3.0)] * 10),  # Trig + polynomial coefficients
+        *([(-3.0, 3.0)] * 12),  # Rich nonlinear coefficients
+    ),
+    render=_render_all_in_one,
+)
+
+_register(register_all_in_one)
 
 
 def get_template(key: str) -> FieldTemplate:
