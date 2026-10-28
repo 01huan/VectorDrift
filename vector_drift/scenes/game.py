@@ -799,8 +799,8 @@ class GameScene(Scene):
                     bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
                     wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
                     r = getattr(hole, "radius", 0.5)
-                    sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black")
-                    sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white")
+                    sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black", pair_index=i)
+                    sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white", pair_index=i)
                     # Pair marker so players can see which black hole maps to which white hole.
                     for center in (bc, wc):
                         sp = vp.to_screen(*center)
