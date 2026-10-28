@@ -12,11 +12,14 @@ from ..desktop import set_cursor
 from ..coords import Viewport
 from ..data import SHIPS, default_ship_id, get_level, ship_unlocked
 from ..expr_parser import diagnose_expression
+from ..hints import get_hint
+from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
 from ..solver import PSOSolver, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
+from .hint_popup import HintPopup
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +51,8 @@ RESUME_OUTCOMES = (Outcome.TIMEOUT,)
 START_MARKER_RADIUS_M = 0.45
 HISTORY_ALPHA = 110          # earlier legs of the current run
 RUN_GREEN = (137, 209, 133)
+HINT_NUDGE_LOST_LIVES = 3    # lives lost in one run before the "try Hint" reminder
+HINT_NUDGE_DURATION = 8.0    # s the reminder stays up
 
 
 def R(x, y, w, h):
@@ -91,7 +96,6 @@ def fmt_clock(seconds):
 class GameScene(Scene):
     def __init__(self, manager):
         super().__init__(manager)
-        from ..level_presets import is_dynamic_level
         if is_dynamic_level(self.session.level_id):
             # Same seed for the whole run: retry/replay keep one layout.
             if self.session.random_seed is None:
@@ -162,18 +166,29 @@ class GameScene(Scene):
         self.valid = True
         self.editor.set_lines([self.session.fx_text, self.session.fy_text])
 
-        # --- AI assistant (offline solver) ----------------------------------
+        # --- Hint (fixed levels) ----------------------------------------------
+        # Fixed levels show hand-written hints (hints.toml) in place of the AI
+        # Solver and never start it. The answer page marks this run as
+        # "solution used": the win is flagged and not recorded as a best.
+        self.hint_mode = not is_dynamic_level(self.level.id)
+        self.hint = get_hint(self.level.id) if self.hint_mode else None
+        self.hint_popup = None
+        self.solution_used = False
+        self.hint_nudge = None          # s left of the "try Hint" reminder
+        self._hint_nudged = False       # the reminder shows once per run
+
+        # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
         # backend (PSO -> regression -> NN -> GP -> RL) only requires replacing
         # self.ai_solver; no UI or event code changes needed.
-        self.ai_solver: Solver = PSOSolver()
+        self.ai_solver: Solver | None = None if self.hint_mode else PSOSolver()
         self.ai_job = None
         self.ai_result: SolveResult | None = None
         self.ai_status = "idle"        # idle | solving | ready | error
         self.ai_message = ""
         self.ai_popup = False
         self.ai_button = Button((px(PAD), px(690), px(CONTENT_W), px(28)),
-                                "AI Solver", style="plain", font_size=15)
+                                "Hint" if self.hint_mode else "AI Solver", style="plain", font_size=15)
         self.ai_apply_button = Button((0, 0, px(100), px(40)), "Apply",
                                       style="primary", font_size=15)
         self.ai_close_button = Button((0, 0, px(100), px(40)), "Close",
@@ -181,7 +196,8 @@ class GameScene(Scene):
         self.ai_job_state_key = None
         self.ai_best_by_state = {}
         self._last_state_key = None
-        self._kick_ai_for_state()
+        if not self.hint_mode:
+            self._kick_ai_for_state()
 
     def _heading_to_target(self):
         tx = self.level.target_center[0] - self.launch_pos[0]
@@ -287,6 +303,9 @@ class GameScene(Scene):
         if event.type == pygame.MOUSEMOTION:
             self._mouse_pos = event.pos
             self._update_cursor()
+        if self.hint_popup is not None:
+            self._handle_hint_event(event)
+            return                      # modal: nothing behind it takes input
         # The run button sits inside the editor's header, so it gets the event first.
         result = self.run_button.handle_event(event)
         if result == "click":
@@ -333,7 +352,10 @@ class GameScene(Scene):
             return  # Modal: swallow other input while the popup is open.
 
         if self.ai_button.handle_event(event) == "click":
-            self._on_ai_click()
+            if self.hint_mode:
+                self._open_hint()
+            else:
+                self._on_ai_click()
             return
 
     # ------------------------------------------------------------------ flow
@@ -364,8 +386,9 @@ class GameScene(Scene):
         if outcome is Outcome.REACHED:
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
+            self.hint_popup = None
             best = self.session.records.get(self.level.id)
-            if best is None or self.total_time < best:
+            if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
             self.audio.play("win")
             self._refresh_buttons()
@@ -401,6 +424,10 @@ class GameScene(Scene):
         self.flight = None
         self.heading = self._heading_to_target()
         self.state = SETUP
+        if (self.hint is not None and not self._hint_nudged
+                and self.level.lives - self.lives >= HINT_NUDGE_LOST_LIVES):
+            self._hint_nudged = True
+            self.hint_nudge = HINT_NUDGE_DURATION
         self._validate()                # launch point moved: re-check the formulas there
 
     def _snapshot(self):
@@ -514,6 +541,20 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
+        if self.hint_nudge is not None:
+            self.hint_nudge = self.hint_nudge - dt if self.hint_nudge > dt else None
+        if not self.hint_mode:
+            self._update_ai()
+        try:
+            self.editor.update(dt)
+        except _RENDER_ERRORS as exc:
+            log.warning("editor update contained: %r", exc)
+        except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
+            log.exception("unexpected editor failure")
+        self._update_flight(dt)
+
+    def _update_ai(self):
+        """Random levels: restart the solver on a new state, poll the running job."""
         key = self._state_key()
         if key != self._last_state_key:
             self._last_state_key = key
@@ -535,12 +576,8 @@ class GameScene(Scene):
                                        if self.ai_job.result is not None else "")
             self.ai_job = None
             self.ai_job_state_key = None
-        try:
-            self.editor.update(dt)
-        except _RENDER_ERRORS as exc:
-            log.warning("editor update contained: %r", exc)
-        except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
-            log.exception("unexpected editor failure")
+
+    def _update_flight(self, dt):
         if self.banner:
             title, sub, left = self.banner
             self.banner = (title, sub, left - dt) if left > dt else None
@@ -584,6 +621,7 @@ class GameScene(Scene):
                     "max_lives": self.level.lives,
                     "fx": self.editor.lines[0].strip() or "0",
                     "fy": self.editor.lines[1].strip() or "0",
+                    "solution_used": self.solution_used,
                 }
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
@@ -595,6 +633,85 @@ class GameScene(Scene):
         self._draw_panel(surface)
         if self.ai_popup:
             self._draw_ai_popup(surface)
+        if self.hint_popup is not None:
+            self.hint_popup.draw(surface)
+
+    # ------------------------------------------------------------------ Hint
+    def _open_hint(self):
+        if self.hint is None or self.state == ARRIVED:
+            return
+        self.audio.play("click")
+        self.hint_popup = HintPopup(self.hint)
+
+    def _handle_hint_event(self, event):
+        popup = self.hint_popup
+        action = popup.handle_event(event)
+        if action is None:
+            return
+        self.audio.play("click")
+        if action == "next":
+            if popup.page + 1 < popup.answer_page:
+                popup.page += 1
+            elif self.session.hint_answer_confirmed:
+                self._show_hint_answer()
+            else:
+                popup.confirming = True
+        elif action == "prev":
+            popup.page = max(0, popup.page - 1)
+        elif action == "confirm":
+            self.session.hint_answer_confirmed = True
+            popup.confirming = False
+            self._show_hint_answer()
+        elif action == "cancel":
+            popup.confirming = False
+        elif action == "close":
+            self.hint_popup = None
+        else:                                   # ("apply", index)
+            answer = self.hint.answers[action[1]]
+            self.editor.set_lines([answer.fx, answer.fy])
+            self._on_text_change(self.editor)
+            self.hint_popup = None
+
+    def _show_hint_answer(self):
+        """Open the answer page: this run now counts as "solution used"."""
+        self.hint_popup.page = self.hint_popup.answer_page
+        self.solution_used = True
+        self._reset_level()
+
+    def _reset_level(self):
+        """Back to the level as it started (start, pickups, rocks); lives stay.
+
+        A flight in progress just stops: it costs no life.
+        """
+        from ..pickups import PickupState
+        if self.state == FLIGHT:
+            self.audio.stop_loop("thruster_loop")
+            self.flight = None
+            self.state = SETUP
+        self.level = get_level(self.level.id)
+        self.pickups = [PickupState.from_spec(s) for s in self.level.pickups]
+        self.launch_pos = self.level.start
+        self.trail.clear()
+        self._trail_count = 0
+        self.history.fill((0, 0, 0, 0), self.history_bounds)
+        self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self.banner = None
+        self.heading = self._heading_to_target()
+        self._validate()
+
+    def _draw_hint_nudge(self, surface, plot):
+        """Non-blocking reminder near the bottom of the plot; fades out."""
+        alpha = min(1.0, self.hint_nudge / 0.5)
+        layer = pygame.Surface((px(560), px(64)), pygame.SRCALPHA)
+        box = layer.get_rect()
+        pygame.draw.rect(layer, (8, 12, 26, 210), box, border_radius=px(6))
+        pygame.draw.rect(layer, (*config.ACCENT, 220), box, max(1, px(1)), border_radius=px(6))
+        draw_text(layer, "Stuck? Try the Hint button (bottom left).", (box.centerx, px(20)), 16,
+                  config.TEXT, kind="bold", anchor="center")
+        draw_text(layer, "It gives step-by-step tips; the last step shows the answer.",
+                  (box.centerx, px(44)), 14, config.TEXT_DIM, anchor="center")
+        layer.set_alpha(round(255 * alpha))
+        surface.blit(layer, layer.get_rect(midbottom=(plot.centerx, plot.bottom - px(48))))
 
     # ------------------------------------------------------------------ AI assistant
     def _position_ai_popup_buttons(self):
@@ -848,6 +965,8 @@ class GameScene(Scene):
             self._draw_plot_labels(surface, plot)
             if self.banner:
                 self._draw_banner(surface, plot)
+            if self.hint_nudge is not None:
+                self._draw_hint_nudge(surface, plot)
         except _RENDER_ERRORS as exc:
             log.warning("plot overlay contained: %r", exc)
 
@@ -928,11 +1047,16 @@ class GameScene(Scene):
         draw_text(surface, "Longest arrow", (cx, px(LEGEND_LABEL_Y)), 14, config.TEXT_DIM, anchor="center")
         render.draw_legend(surface, (cx, px(LEGEND_Y)), self.max_force)
 
-        # AI assistant button (offline solver).  Disabled while a job runs.
-        self.ai_button.enabled = self.ai_status != "solving"
-        self.ai_button.label = ("Solving…" if self.ai_status == "solving"
-                                else ("AI Solver" if self.ai_status != "error"
-                                      else "AI Solver (Failed)"))
+        if self.hint_mode:
+            # Hint button (fixed levels): usable any time before the win.
+            self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
+            self.ai_button.label = "Hint"
+        else:
+            # AI assistant button (offline solver).  Disabled while a job runs.
+            self.ai_button.enabled = self.ai_status != "solving"
+            self.ai_button.label = ("Solving…" if self.ai_status == "solving"
+                                    else ("AI Solver" if self.ai_status != "error"
+                                          else "AI Solver (Failed)"))
         self.ai_button.draw(surface)
 
     def _draw_telemetry(self, surface, area):
