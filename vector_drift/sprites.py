@@ -733,6 +733,21 @@ def draw_vector(surface, start, vec, color):
         return
 
 
+# Seconds per full turn of a hole picture. Purely visual: holes exert no spin.
+HOLE_SPIN_PERIOD_S = 8.0
+
+
+def _hole_spin_angle(kind, t):
+    """Picture angle in pygame degrees (positive = counter-clockwise).
+
+    The arms of both pictures spiral clockwise going outward, so turning the
+    black hole clockwise draws them inward and turning the white hole
+    counter-clockwise pushes them outward.
+    """
+    direction = 1.0 if kind == "white" else -1.0
+    return direction * 360.0 * float(t) / HOLE_SPIN_PERIOD_S
+
+
 def draw_hole(surface, center, radius, t=0.0, kind="black", pair_index=1):
     try:
         cx, cy = float(center[0]), float(center[1])
@@ -751,6 +766,7 @@ def draw_hole(surface, center, radius, t=0.0, kind="black", pair_index=1):
                 continue
             img = image_assets.load_image(key, size_px=(size, size))
             if img is not None:
+                img = pygame.transform.rotozoom(img, _hole_spin_angle(kind, t), 1.0)
                 rect = img.get_rect(center=(int(cx), int(cy)))
                 surface.blit(img, rect)
                 return
