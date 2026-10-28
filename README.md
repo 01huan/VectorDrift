@@ -17,6 +17,9 @@ The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each lau
 
 ## Run
 
+Requires **Python 3.11 or newer** (the level hints are read with the standard
+library's `tomllib`, added in 3.11).
+
 ```
 pip install -r requirements.txt
 python main.py
@@ -81,6 +84,15 @@ If evaluating a force expression produces an invalid numerical result during fli
 Consider the valid input domain of your expressions when designing a force field. An expression that works at one position may become invalid elsewhere along the ship's trajectory.
 
 
+## Adding a fixed level
+
+A fixed level (one written out in `vector_drift/data.py`) must also get a hint
+in `vector_drift/hints.toml`: a `[level.N]` table with `steps`, `answer_note`
+and at least one answer (`fx`, `fy`, optional `label`). `tests/test_hints.py`
+fails for any fixed level without a hint, and flies every answer from the
+level start to check that it reaches the planet. Random levels (7, 8) use the
+AI Solver and need no hint.
+
 ## Tests
 
 ```
@@ -94,6 +106,7 @@ main.py                 entry point
 vector_drift/
   config.py             layout, colors, physics constants
   data.py               ships and levels (add new ones here)
+  hints.py, hints.toml  step-by-step hints for the fixed levels
   expr_parser.py        formula parser
   physics.py            fixed-step semi-implicit Euler flight
   coords.py             world <-> screen mapping
