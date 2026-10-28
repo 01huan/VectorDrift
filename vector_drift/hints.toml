@@ -37,3 +37,16 @@ answers = [
   { label = "Top Shockwave", fx = "3", fy = "-x - 2y" },
   { label = "Bottom Shockwave", fx = "3", fy = "x - 2y" },
 ]
+
+[level.4]
+steps = [
+  "A wall of rocks seals x = 0 from top to bottom. There is no way around it; the only way through is the wormhole. Its black hole sits at (-3, 4), far above the ship's starting height (y = 0).",
+  "Use the spring from Level 3: Fy = -k(y - line) pulls the ship toward a line. Make the line slope down as x grows, so it is high on the left, for example y = 0.5 - x/4. Push right with a steady Fx = 2.",
+  "The ship starts about 2 m below that line, so it swings roughly as far above it. The spring strength k does not change how high it swings, only where it peaks: a stiffer spring peaks sooner. Pick k so the peak lands near the black hole (x = -3).",
+  "The same field keeps working after the teleport. At the white hole (2, 4) the line has dropped to y = 0, well below the ship, so the same spring pulls it back down into the target.",
+]
+answer_note = "A spring toward the line y = 0.5 - x/4, with a steady push to the right. Pushing harder needs a stiffer spring:"
+answers = [
+  { label = "Fx = 2, k = 2", fx = "2", fy = "1 - 0.5x - 2y" },
+  { label = "Fx = 3, k = 3", fx = "3", fy = "1.5 - 0.75x - 3y" },
+]
