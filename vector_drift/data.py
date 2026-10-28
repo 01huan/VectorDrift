@@ -159,22 +159,34 @@ LEVELS = [
         id=4,
         name="First Wormhole",
         start=(-7.0, 0.0),
-        target_center=(6.5, 0.0),
+        target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
+        # Full-height wall of rocks at x = 0: both ends stick out past the world
+        # bounds (±7.5 m), so there is no way around it, only through the
+        # wormhole. Centers are 1.6 m apart with radius 0.8 m each, so neighbours
+        # touch exactly (the top two overlap) and leave no gap at all. Tighter
+        # than level 3's ring (about 1.78 m apart). The rock art is drawn a bit
+        # inside the radius, so thin slits show on screen, but none is passable.
         obstacles=(
-            ObstacleSpec(center=(3.9, 0.0), radius=0.8),
-            ObstacleSpec(center=(4.51, -1.67), radius=0.8),
-            ObstacleSpec(center=(6.05, -2.56), radius=0.8),
-            ObstacleSpec(center=(7.8, -2.25), radius=0.8),
-            ObstacleSpec(center=(8.94, -0.89), radius=0.8),
-            ObstacleSpec(center=(8.94, 0.89), radius=0.8),
-            ObstacleSpec(center=(7.8, 2.25), radius=0.8),
-            ObstacleSpec(center=(6.05, 2.56), radius=0.8),
-            ObstacleSpec(center=(4.51, 1.67), radius=0.8),
+            ObstacleSpec(center=(0.0, -7.0), radius=0.8),
+            ObstacleSpec(center=(0.0, -5.4), radius=0.8),
+            ObstacleSpec(center=(0.0, -3.8), radius=0.8),
+            ObstacleSpec(center=(0.0, -2.2), radius=0.8),
+            ObstacleSpec(center=(0.0, -0.6), radius=0.8),
+            ObstacleSpec(center=(0.0, 1.0), radius=0.8),
+            ObstacleSpec(center=(0.0, 2.6), radius=0.8),
+            ObstacleSpec(center=(0.0, 4.2), radius=0.8),
+            ObstacleSpec(center=(0.0, 5.8), radius=0.8),
+            ObstacleSpec(center=(0.0, 7.0), radius=0.8),
         ),
+        # Black hole top-left of the wall, white hole top-right, NOT placed on
+        # the target and NOT point-symmetric with (start, target): the ship has
+        # to steer into the black hole, then curve down into the target after
+        # exiting, not just fly a single straight/constant-force line through
+        # both legs.
         holes=(
-            ((0.0, 3.0), (6.5, 0.0), 0.5),
+            ((-3.0, 4.0), (2.0, 4.0), 0.5),
         ),
     ),
 
