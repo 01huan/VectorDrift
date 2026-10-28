@@ -46,3 +46,30 @@ def test_without_hole_pictures_the_code_drawn_hole_is_used(kind, tmp_path, monke
         assert _drawn(kind, 2).get_at((100, 100)).a == 255
     finally:
         image_assets.clear_cache()
+
+
+def test_pair_number_stands_out_on_both_holes():
+    # The white-hole picture is white in the middle, so its number must be dark.
+    from types import SimpleNamespace
+    from vector_drift import config
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    image_assets.clear_cache()
+    manager = SceneManager(SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
+                                           stop_loop=lambda *a: None))
+    manager.session.level_id = 4
+    scene = GameScene(manager)
+    manager.switch(scene)
+    screen = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(screen)
+    black_center, white_center, _ = scene.holes[0]
+    for center, wanted in ((white_center, "dark"), (black_center, "light")):
+        x, y = scene.viewport.to_screen(*center)
+        half = config.px(5)
+        lums = [sum(screen.get_at((int(x) + dx, int(y) + dy))[:3]) / 3
+                for dx in range(-half, half + 1) for dy in range(-half, half + 1)]
+        if wanted == "dark":
+            assert min(lums) < 100
+        else:
+            assert max(lums) > 150

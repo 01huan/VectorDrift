@@ -895,9 +895,10 @@ class GameScene(Scene):
                     sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black", pair_index=i)
                     sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white", pair_index=i)
                     # Pair marker so players can see which black hole maps to which white hole.
-                    for center in (bc, wc):
+                    # The white-hole picture is white in the middle, so its number is dark.
+                    for center, color in ((bc, config.TEXT), (wc, config.OUTLINE)):
                         sp = vp.to_screen(*center)
-                        draw_text(surface, str(i), sp, 12, config.TEXT, kind="bold", anchor="center")
+                        draw_text(surface, str(i), sp, 12, color, kind="bold", anchor="center")
                 except Exception:
                     pass
 
