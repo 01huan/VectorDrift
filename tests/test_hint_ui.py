@@ -306,31 +306,19 @@ def test_reentering_the_level_clears_the_solution_mark():
     assert not _scene(2, manager).solution_used
 
 
-# --- 6. One gentle reminder after 3 lost lives --------------------------------------
+# --- 6. No "try Hint" reminder after lost lives ------------------------------------
 
-def test_the_hint_reminder_appears_once_after_three_lost_lives():
-    scene = _scene(1)
-    _lose_a_life(scene)
-    _lose_a_life(scene)
-    assert scene.hint_nudge is None
-
-    _lose_a_life(scene)
-    assert scene.lives == scene.level.lives - 3
-    assert scene.hint_nudge is not None
-    assert scene.hint_popup is None                 # a reminder, not a dialog
-    scene.editor.set_lines(["1", "0"])              # input still works
-    scene._on_text_change(scene.editor)
-    assert scene.editor.lines == ["1", "0"]
-
-    for _ in range(60 * 30):
-        scene.update(1 / 60)
-    assert scene.hint_nudge is None
-    _lose_a_life(scene)
-    assert scene.hint_nudge is None
-
-
-def test_random_levels_never_show_the_hint_reminder():
-    scene = _scene(7)
-    for _ in range(3):
+@pytest.mark.parametrize("level_id", [1, 7])
+def test_losing_lives_never_pops_a_hint_reminder(monkeypatch, level_id):
+    texts = []
+    real = game_module.draw_text
+    monkeypatch.setattr(game_module, "draw_text", lambda surface, text, *a, **k:
+                        (texts.append(text), real(surface, text, *a, **k))[1])
+    scene = _scene(level_id)
+    for _ in range(4):
         _lose_a_life(scene)
-    assert scene.hint_nudge is None
+        scene.update(1 / 60)
+        _draw(scene)
+
+    assert scene.hint_popup is None
+    assert not any("Hint" in t and t != "Hint" for t in texts)
