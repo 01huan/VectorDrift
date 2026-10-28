@@ -33,8 +33,8 @@ class PSOConfig:
     (e.g. 100 000) bounds the cost while the search keeps going.
     """
 
-    template_key: str = "rich_combo"
-    n_particles: int = 50
+    template_key: str = "all_in_one"
+    n_particles: int = 150
     max_simulations: int = 100000
     inertia: float = 0.5
     cognitive: float = 1.5
