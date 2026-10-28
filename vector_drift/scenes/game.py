@@ -433,6 +433,9 @@ class GameScene(Scene):
         pts = self.flight.trail
         if len(pts) <= self._trail_count:
             return
+        if getattr(self.flight, "hole_teleported", False):
+            self.trail.last = None
+            self.flight.hole_teleported = False
         vp = self.viewport
         try:
             new = [(vp.cx - vp.left + x * vp.scale, vp.cy - vp.top - y * vp.scale)

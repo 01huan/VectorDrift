@@ -310,6 +310,7 @@ class Flight:
         self.trail = [(self.x, self.y)]
         self._accumulator = 0.0
         self.shield_remaining = 0.0  # seconds of shield effect remaining (ship ignores bumpers)
+        self.hole_teleported = False  # True if this step's hole teleport moved the ship
 
     @property
     def time(self):
@@ -381,14 +382,20 @@ class Flight:
 
         self.x, self.y = nx, ny
         self._bounce_along_path(p0, solid)
+        # Remember where the ship actually travelled this step before any
+        # black-hole teleport, so the teleport itself does not draw a trail
+        # segment and does not count as passing the target/endpoints.
+        pre_hole_pos = (self.x, self.y)
         # Black holes teleport the ship to the paired white hole (same velocity).
+        self.hole_teleported = False
         self._take_holes(p0, (self.x, self.y))
+        reach_end = pre_hole_pos if self.hole_teleported else (self.x, self.y)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
-        self._take_pickups(p0, (self.x, self.y))
+        self._take_pickups(p0, reach_end)
 
         if segment_hits_circle(
-            p0, (self.x, self.y), self.target, self.hit_radius
+            p0, reach_end, self.target, self.hit_radius
         ):
             self.outcome = Outcome.REACHED
         elif abs(self.x) > self.bounds[0] or abs(self.y) > self.bounds[1]:
@@ -474,6 +481,7 @@ class Flight:
                 if segment_hits_circle(p0, p1, black, radius + self.hull_radius):
                     self.x, self.y = white[0], white[1]
                     self.trail.append((self.x, self.y))
+                    self.hole_teleported = True
                     return
             except (TypeError, ValueError, OverflowError):
                 continue
