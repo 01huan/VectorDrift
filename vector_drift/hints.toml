@@ -1,0 +1,39 @@
+# Hints for the FIXED levels 1-6 only. Random levels (7, 8) use the AI Solver instead.
+# Each level: `steps` are shown one at a time; the last page shows `answer_note`
+# plus every entry of `answers` (each one can be applied to the Fx / Fy editor).
+# tests/test_hints.py checks that every answer actually reaches the target.
+
+[level.1]
+steps = [
+  "The planet is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
+  "Push only to the right: make Fx positive and keep Fy = 0. A constant force gives constant acceleration (F = ma).",
+]
+answer_note = "Any positive Fx works, as long as it is not too small to arrive in time."
+answers = [
+  { fx = "5", fy = "0" },
+]
+
+[level.2]
+steps = [
+  "A rock blocks the middle. Pushing straight right, like in Level 1, crashes into it. You need a curved path.",
+  "Try a swirl: F = (-y, x) always pushes sideways, turning the ship around the point (0, 0).",
+  "The swirl only pushes sideways and never pulls inward, so inertia carries the ship outward: it spirals, getting wider. Centered at (0, 0), the ship starts 7 m away and the force is too strong, so it gets flung out.",
+  "Move the swirl center: replace x with (x - h) to center it at (h, 0). Put the center just to the right of the ship, so the spiral starts small and opens up around the rock.",
+]
+answer_note = "A swirl centered at (-6, 0)."
+answers = [
+  { fx = "-y", fy = "x + 6" },
+]
+
+[level.3]
+steps = [
+  "The planet is sealed by a ring of rocks. Grab a Shockwave first: it blasts nearby rocks and opens a gap.",
+  "Plan the route: go up to the top Shockwave first, then come down to the planet. So Fy should push up on the left and down on the right. Fy = -x does exactly that, and a constant Fx moves you right.",
+  "But F = (3, -x) climbs too fast and flies off the top. Add -2y to pull the ship back down as it climbs.",
+  "Together, Fy = -x - 2y works like a spring pulling the ship toward the slanted line y = -x/2: high on the left, low on the right.",
+]
+answer_note = "Two mirrored routes:"
+answers = [
+  { label = "Top Shockwave", fx = "3", fy = "-x - 2y" },
+  { label = "Bottom Shockwave", fx = "3", fy = "x - 2y" },
+]

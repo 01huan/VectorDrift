@@ -4,6 +4,7 @@ import pygame
 
 from .. import config
 from ..config import px
+from ..ui import draw_text
 from .base import Scene, draw_overlay_card, result_buttons
 
 
@@ -41,6 +42,12 @@ class WinScene(Scene):
             ("Fx", s.get("fx", "0")),
             ("Fy", s.get("fy", "0")),
         ]
-        draw_overlay_card(surface, self.background, "MISSION COMPLETE", config.SUCCESS, lines, card_h=410)
+        card = draw_overlay_card(surface, self.background, "MISSION COMPLETE", config.SUCCESS, lines,
+                                 card_h=410)
+        if s.get("solution_used"):
+            # Below the stat lines (they start at card.y + 104, 30 apart).
+            draw_text(surface, "Solution used · not counted as a best time",
+                      (card.centerx, card.y + px(104 + 30 * len(lines) + 6)), 16, config.WARNING,
+                      kind="bold", anchor="center")
         for b in (self.replay_button, self.levels_button, self.menu_button):
             b.draw(surface)

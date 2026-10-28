@@ -20,6 +20,7 @@ class Session:
     random_seed: int | None = None  # fixed layout for one dynamic-level run (retry/replay)
     stats: dict = field(default_factory=dict)       # last win/fail details
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
+    hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
 
 
 class Scene:
