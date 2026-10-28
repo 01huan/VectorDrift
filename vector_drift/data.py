@@ -75,6 +75,10 @@ class LevelSpec:
     obstacles: tuple = ()       # tuple[ObstacleSpec, ...]; empty = no bumpers
     pickups: tuple = ()         # tuple[PickupSpec, ...]; FIXED levels own this
                               # fully: no entry = no pickups (mutual no-stack)
+    holes: tuple = ()           # tuple[HoleSpec, ...]; black/white hole pairs
+    portals: tuple = ()
+    wormholes: tuple = ()
+
 
 
 # Ship skins: same physics, different look (assets/images/ships/<id>.png).
@@ -151,6 +155,29 @@ LEVELS = [
             PickupSpec(center=(3.2, -3.6), radius=0.45, kind="shockwave"),
         ),
     ),
+    LevelSpec(
+        id=4,
+        name="First Wormhole",
+        start=(-7.0, 0.0),
+        target_center=(6.5, 0.0),
+        target_radius=1.0,
+        ship_id="ship01",
+        obstacles=(
+            ObstacleSpec(center=(3.9, 0.0), radius=0.8),
+            ObstacleSpec(center=(4.51, -1.67), radius=0.8),
+            ObstacleSpec(center=(6.05, -2.56), radius=0.8),
+            ObstacleSpec(center=(7.8, -2.25), radius=0.8),
+            ObstacleSpec(center=(8.94, -0.89), radius=0.8),
+            ObstacleSpec(center=(8.94, 0.89), radius=0.8),
+            ObstacleSpec(center=(7.8, 2.25), radius=0.8),
+            ObstacleSpec(center=(6.05, 2.56), radius=0.8),
+            ObstacleSpec(center=(4.51, 1.67), radius=0.8),
+        ),
+        holes=(
+            ((0.0, 3.0), (6.5, 0.0), 0.5),
+        ),
+    ),
+
 ]
 
 
@@ -190,3 +217,47 @@ def get_level(level_id, seed=None):
         if level.id == level_id:
             return level
     raise KeyError(f"Unknown level {level_id}")
+
+# Black/white hole (wormhole) spec.
+@dataclass(frozen=True)
+class HoleSpec:
+    black_center: tuple = (0.0, 0.0)
+    white_center: tuple = (0.0, 0.0)
+    radius: float = 0.5
+
+    def __init__(self, *args, **kwargs):
+        bc = kwargs.pop("black_center", None)
+        wc = kwargs.pop("white_center", None)
+        if bc is None:
+            for key in ("black", "entry", "in_center", "start", "center"):
+                if key in kwargs:
+                    bc = kwargs.pop(key)
+                    break
+        if wc is None:
+            for key in ("white", "exit", "out_center", "target", "end"):
+                if key in kwargs:
+                    wc = kwargs.pop(key)
+                    break
+        if bc is None and args:
+            bc = args[0]; args = args[1:]
+        if wc is None and args:
+            wc = args[0]; args = args[1:]
+        radius = kwargs.pop("radius", 0.5)
+        if args:
+            radius = args[0]
+        object.__setattr__(self, "black_center", (float(bc[0]), float(bc[1])))
+        object.__setattr__(self, "white_center", (float(wc[0]), float(wc[1])))
+        object.__setattr__(self, "radius", float(radius))
+
+    @classmethod
+    def from_centers(cls, black_center, white_center, radius=0.5):
+        return cls(black_center=black_center, white_center=white_center, radius=radius)
+
+
+PortalSpec = HoleSpec
+WormholeSpec = HoleSpec
+BlackHoleSpec = HoleSpec
+WhiteHoleSpec = HoleSpec
+
+
+# test insert

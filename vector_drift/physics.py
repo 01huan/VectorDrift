@@ -238,6 +238,7 @@ class Flight:
         bounds=(config.WORLD_HALF_W, config.WORLD_HALF_H),
         dt=config.DT,
         pickups=None,
+        holes=None,
     ):
         if not math.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be a finite positive number")
@@ -275,6 +276,28 @@ class Flight:
         else:
             self.pickups = tuple(pickups)
         self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
+        # Black/white hole pairs (wormholes). Persist for the whole flight.
+        raw_holes = holes
+        if raw_holes is None:
+            raw_holes = getattr(level, "holes", ()) or ()
+            for alias in ("portals", "wormholes"):
+                raw_holes = raw_holes or getattr(level, alias, ()) or ()
+        self.holes = []
+        for h in (raw_holes or ()):
+            try:
+                bc = getattr(h, "black_center", None)
+                wc = getattr(h, "white_center", None)
+                r = getattr(h, "radius", 0.5)
+                if bc is None and isinstance(h, (tuple, list)):
+                    # (black_center, white_center, radius?) or (black, white)
+                    bc = h[0]; wc = h[1]
+                    r = h[2] if len(h) > 2 else r
+                self.holes.append(((float(bc[0]), float(bc[1])),
+                                  (float(wc[0]), float(wc[1])), float(r)))
+            except (TypeError, ValueError, IndexError, AttributeError):
+                continue
+        self.portals = self.holes
+        self.wormholes = self.holes
         self.bounds = bounds
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
@@ -358,6 +381,8 @@ class Flight:
 
         self.x, self.y = nx, ny
         self._bounce_along_path(p0, solid)
+        # Black holes teleport the ship to the paired white hole (same velocity).
+        self._take_holes(p0, (self.x, self.y))
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
         self._take_pickups(p0, (self.x, self.y))
@@ -440,7 +465,20 @@ class Flight:
         norm = math.hypot(*near) if near is not None else 0.0
         if norm == 0.0 or not any(growing):
             return None
+
         return near[0] / norm, near[1] / norm
+    def _take_holes(self, p0, p1):
+        """Teleport the ship through any black hole hit on p0->p1."""
+        for black, white, radius in (self.holes or []):
+            try:
+                if segment_hits_circle(p0, p1, black, radius + self.hull_radius):
+                    self.x, self.y = white[0], white[1]
+                    self.trail.append((self.x, self.y))
+                    return
+            except (TypeError, ValueError, OverflowError):
+                continue
+
+
 
     def _take_pickups(self, p0, p1):
         """Trigger the pickups on p0->p1, apply them to this flight, keep the events."""
