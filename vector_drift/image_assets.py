@@ -78,8 +78,13 @@ for _key in ROCK_KEYS:
 register(AssetSpec("pickup.shockwave", Path("pickups/shockwave.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.extratime", Path("pickups/extratime.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.shield", Path("pickups/shield.png"), display_w=40, display_h=40))
+# Black/white holes (key = f"black_hole.black_hole{n:02d}" / "white_hole.white_hole{n:02d}")
+for _n in range(1, 11):
+    register(AssetSpec(f"black_hole.black_hole{_n:02d}", Path(f"black_holes/black_hole{_n:02d}.png"), display_w=48, display_h=48))
+    register(AssetSpec(f"white_hole.white_hole{_n:02d}", Path(f"white_holes/white_hole{_n:02d}.png"), display_w=48, display_h=48))
 # UI
 register(AssetSpec("ui.start_marker", Path("ui/start_marker.png"), display_w=36, display_h=36))
+
 
 # Background (tiled full-screen backdrop)
 register(AssetSpec("background.space", Path("background/space.png"), scale_mode="tile"))

@@ -42,6 +42,9 @@ class RandomPreset:
     # to random levels = appending one tuple here.
     pickup_groups: tuple = ()
     pickup_corridor_max: float = 0.6  # must sit ON the route (m from corridor)
+    num_holes: int = 0
+    num_wormholes: int = 0
+    num_portals: int = 0
     card_blurb: str = "New maze every visit"
     extra_rules: tuple = field(default=(), compare=False, repr=False)
 
@@ -72,7 +75,7 @@ PRESET_7 = RandomPreset(
     max_level_attempts=10,
     num_direct_blockers=1,
     pickup_groups=(),
-
+    num_holes=2,
     card_blurb="New maze every visit",
 )
 

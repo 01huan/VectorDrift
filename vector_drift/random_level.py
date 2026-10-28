@@ -290,9 +290,53 @@ def place_pickups(rng, segments, start, target, placed=(), groups=None, preset=N
                 break  # too crowded: fewer (or zero) pickups is fine
     return tuple(out)
 
-
-def _make_spec(start, target, obstacles, preset=None, pickups=()):
+def place_holes(rng, segments, start, target, placed=(), preset=None):
     preset = _preset_or_default(preset)
+    n = preset.num_holes or preset.num_wormholes or preset.num_portals
+    n = int(n or 0)
+    out = []
+    placed = list(placed or [])
+    for _ in range(n):
+        for _attempt in range(preset.max_place_attempts):
+            seg = rng.choice(segments) if segments else (start, target)
+            a, b = seg
+            t = rng.random()
+            bx = a[0] + (b[0]-a[0])*t
+            by = a[1] + (b[1]-a[1])*t
+            black = (bx, by)
+            white = _rand_point(rng, preset.edge_margin)
+            r = 0.5
+            # avoid overlaps with existing discs (obstacles/pickups/peers)
+            ok = True
+            for (pc, pr) in placed:
+                if math.dist(pc, black) <= pr + r + 0.2:
+                    ok = False
+                    break
+            if ok:
+                for (pc, pr) in placed:
+                    if math.dist(pc, white) <= pr + r + 0.2:
+                        ok = False
+                        break
+            if ok:
+                out.append((black, white, r))
+                placed.append((black, r))
+                placed.append((white, r))
+                break
+    return tuple(out)
+
+
+
+
+def _make_spec(start, target, obstacles, preset=None, pickups=(), holes=()):
+    preset = _preset_or_default(preset)
+    from .data import HoleSpec
+    hole_specs = []
+    for h in (holes or ()):
+        if isinstance(h, HoleSpec):
+            hole_specs.append(h)
+        elif isinstance(h, (tuple, list)):
+            hole_specs.append(HoleSpec(black_center=h[0], white_center=h[1],
+                                      radius=h[2] if len(h) > 2 else 0.5))
     return LevelSpec(
         id=preset.level_id,
         name=preset.name,
@@ -304,6 +348,7 @@ def _make_spec(start, target, obstacles, preset=None, pickups=()):
         lives=preset.lives,
         obstacles=obstacles,
         pickups=pickups,
+        holes=tuple(hole_specs),
     )
 
 
@@ -325,7 +370,8 @@ def generate_with_corridor(seed=None, level_id=7, preset=None):
             peers = [(o.center, o.radius) for o in obstacles]
             pickups = place_pickups(rng, segments, start, target, placed=peers,
                                     preset=preset)
-            return _make_spec(start, target, obstacles, preset, pickups), ordered, segments
+            holes = place_holes(rng, segments, start, target, placed=peers, preset=preset)
+            return _make_spec(start, target, obstacles, preset, pickups, holes), ordered, segments
         except RuntimeError:
             continue
     start, target = sample_endpoints(random.Random(rng.random()), preset)
