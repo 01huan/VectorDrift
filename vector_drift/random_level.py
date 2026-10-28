@@ -294,36 +294,56 @@ def place_holes(rng, segments, start, target, placed=(), preset=None):
     preset = _preset_or_default(preset)
     n = preset.num_holes or preset.num_wormholes or preset.num_portals
     n = int(n or 0)
+
     out = []
     placed = list(placed or [])
+    r = 0.5
+    gap = 0.2
+
+    # 起點與終點的安全距離
+    start_clearance = preset.start_clearance
+    target_clearance = preset.target_radius + preset.target_clearance
+
     for _ in range(n):
         for _attempt in range(preset.max_place_attempts):
             seg = rng.choice(segments) if segments else (start, target)
             a, b = seg
             t = rng.random()
-            bx = a[0] + (b[0]-a[0])*t
-            by = a[1] + (b[1]-a[1])*t
-            black = (bx, by)
-            white = _rand_point(rng, preset.edge_margin)
-            r = 0.5
-            # avoid overlaps with existing discs (obstacles/pickups/peers)
-            ok = True
-            for (pc, pr) in placed:
-                if math.dist(pc, black) <= pr + r + 0.2:
-                    ok = False
-                    break
-            if ok:
-                for (pc, pr) in placed:
-                    if math.dist(pc, white) <= pr + r + 0.2:
-                        ok = False
-                        break
-            if ok:
-                out.append((black, white, r))
-                placed.append((black, r))
-                placed.append((white, r))
-                break
-    return tuple(out)
 
+            black = (
+                a[0] + (b[0] - a[0]) * t,
+                a[1] + (b[1] - a[1]) * t,
+            )
+            white = _rand_point(rng, preset.edge_margin)
+
+            # 1. Hole 不得與起點或終點重疊
+            if math.dist(black, start) <= r + start_clearance:
+                continue
+            if math.dist(white, start) <= r + start_clearance:
+                continue
+
+            if math.dist(black, target) <= r + target_clearance:
+                continue
+            if math.dist(white, target) <= r + target_clearance:
+                continue
+
+            # 2. 黑白端點不得與既有物件重疊
+            if any(
+                math.dist(center, point) <= radius + r + gap
+                for center, radius in placed
+                for point in (black, white)
+            ):
+                continue
+
+            # 3. 同一組黑白端點不得互相重疊
+            if math.dist(black, white) <= 2 * r + gap:
+                continue
+
+            out.append((black, white, r))
+            placed.extend(((black, r), (white, r)))
+            break
+
+    return tuple(out)
 
 
 
@@ -370,7 +390,18 @@ def generate_with_corridor(seed=None, level_id=7, preset=None):
             peers = [(o.center, o.radius) for o in obstacles]
             pickups = place_pickups(rng, segments, start, target, placed=peers,
                                     preset=preset)
-            holes = place_holes(rng, segments, start, target, placed=peers, preset=preset)
+            all_peers = [
+                (o.center, o.radius) for o in obstacles
+            ]
+            all_peers.extend(
+                (p.center, p.radius) for p in pickups
+            )
+
+            holes = place_holes(
+                rng, segments, start, target,
+                placed=all_peers,
+                preset=preset
+            )
             return _make_spec(start, target, obstacles, preset, pickups, holes), ordered, segments
         except RuntimeError:
             continue
