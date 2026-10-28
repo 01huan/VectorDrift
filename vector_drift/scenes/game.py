@@ -51,8 +51,6 @@ RESUME_OUTCOMES = (Outcome.TIMEOUT,)
 START_MARKER_RADIUS_M = 0.45
 HISTORY_ALPHA = 110          # earlier legs of the current run
 RUN_GREEN = (137, 209, 133)
-HINT_NUDGE_LOST_LIVES = 3    # lives lost in one run before the "try Hint" reminder
-HINT_NUDGE_DURATION = 8.0    # s the reminder stays up
 
 
 def R(x, y, w, h):
@@ -170,8 +168,6 @@ class GameScene(Scene):
         self.hint = get_hint(self.level.id) if self.hint_mode else None
         self.hint_popup = None
         self.solution_used = False
-        self.hint_nudge = None          # s left of the "try Hint" reminder
-        self._hint_nudged = False       # the reminder shows once per run
 
         # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
@@ -420,10 +416,6 @@ class GameScene(Scene):
         self.flight = None
         self.heading = self._heading_to_target()
         self.state = SETUP
-        if (self.hint is not None and not self._hint_nudged
-                and self.level.lives - self.lives >= HINT_NUDGE_LOST_LIVES):
-            self._hint_nudged = True
-            self.hint_nudge = HINT_NUDGE_DURATION
         self._validate()                # launch point moved: re-check the formulas there
 
     def _snapshot(self):
@@ -537,8 +529,6 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
-        if self.hint_nudge is not None:
-            self.hint_nudge = self.hint_nudge - dt if self.hint_nudge > dt else None
         if not self.hint_mode:
             self._update_ai()
         try:
@@ -694,20 +684,6 @@ class GameScene(Scene):
         self.banner = None
         self.heading = self._heading_to_target()
         self._validate()
-
-    def _draw_hint_nudge(self, surface, plot):
-        """Non-blocking reminder near the bottom of the plot; fades out."""
-        alpha = min(1.0, self.hint_nudge / 0.5)
-        layer = pygame.Surface((px(560), px(64)), pygame.SRCALPHA)
-        box = layer.get_rect()
-        pygame.draw.rect(layer, (8, 12, 26, 210), box, border_radius=px(6))
-        pygame.draw.rect(layer, (*config.ACCENT, 220), box, max(1, px(1)), border_radius=px(6))
-        draw_text(layer, "Stuck? Try the Hint button (bottom left).", (box.centerx, px(20)), 16,
-                  config.TEXT, kind="bold", anchor="center")
-        draw_text(layer, "It gives step-by-step tips; the last step shows the answer.",
-                  (box.centerx, px(44)), 14, config.TEXT_DIM, anchor="center")
-        layer.set_alpha(round(255 * alpha))
-        surface.blit(layer, layer.get_rect(midbottom=(plot.centerx, plot.bottom - px(48))))
 
     # ------------------------------------------------------------------ AI assistant
     def _position_ai_popup_buttons(self):
@@ -947,8 +923,6 @@ class GameScene(Scene):
             self._draw_plot_labels(surface, plot)
             if self.banner:
                 self._draw_banner(surface, plot)
-            if self.hint_nudge is not None:
-                self._draw_hint_nudge(surface, plot)
         except _RENDER_ERRORS as exc:
             log.warning("plot overlay contained: %r", exc)
 
