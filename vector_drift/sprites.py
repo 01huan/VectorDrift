@@ -740,13 +740,15 @@ def draw_hole(surface, center, radius, t=0.0, kind="black", pair_index=1):
     except (TypeError, ValueError, OverflowError):
         return
     # Try an image asset first (black_hole01.png / white_hole01.png, ...).
+    # A pair without its own picture shows the pair-01 picture.
     try:
         from . import image_assets
         prefix = "black_hole" if kind != "white" else "white_hole"
-        key = f"{prefix}.{prefix}{int(pair_index):02d}"
-        spec = image_assets.get_spec(key)
-        if spec is not None:
-            size = max(1, int(2 * r))
+        size = max(1, int(2 * r))
+        for n in (int(pair_index), 1):
+            key = f"{prefix}.{prefix}{n:02d}"
+            if image_assets.get_spec(key) is None:
+                continue
             img = image_assets.load_image(key, size_px=(size, size))
             if img is not None:
                 rect = img.get_rect(center=(int(cx), int(cy)))
