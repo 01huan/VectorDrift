@@ -62,12 +62,27 @@ class Particle:
         self.score = -math.inf
 
 
+# Worker-global state, populated once per pool by the initializer so the level
+# (and template key) are pickled a single time instead of once per task.
+_WORKER_LEVEL = None
+_WORKER_TEMPLATE_KEY = None
+_WORKER_TEMPLATE = None
+
+
+def _init_worker(level, template_key):
+    global _WORKER_LEVEL, _WORKER_TEMPLATE_KEY, _WORKER_TEMPLATE
+    _WORKER_LEVEL = level
+    _WORKER_TEMPLATE_KEY = template_key
+    from .templates import get_template
+    _WORKER_TEMPLATE = get_template(template_key)
+
+
 def _eval_worker(payload):
     """Top-level (picklable) worker for multiprocessing particle evaluation."""
-    level, template_key, params, iteration = payload
-    from .templates import get_template
+    params, iteration = payload
+    level = _WORKER_LEVEL
+    template = _WORKER_TEMPLATE
     from .engine import evaluate_candidate, EvalConfig
-    template = get_template(template_key)
     result = evaluate_candidate(
         level=level,
         template=template,
@@ -170,7 +185,9 @@ class PSOSolver(Solver):
             # Create the process pool once and reuse it for the entire solve.
             if workers > 1 and max_sim > 0:
                 pool = concurrent.futures.ProcessPoolExecutor(
-                    max_workers=workers
+                    max_workers=workers,
+                    initializer=_init_worker,
+                    initargs=(level, cfg.template_key),
                 )
 
             def _evaluate_batch(
@@ -182,18 +199,22 @@ class PSOSolver(Solver):
                 if not batch_particles:
                     return []
 
-                payloads = [
-                    (
-                        level,
-                        cfg.template_key,
-                        dict(zip(template.param_names, p.pos)),
-                        iteration,
-                    )
-                    for p in batch_particles
+                # Split the batch into one chunk per worker to reduce IPC overhead.
+                n = len(batch_particles)
+                n_chunks = min(workers*8, n)
+                chunk_size = (n + n_chunks - 1) // n_chunks
+                chunks = [
+                    batch_particles[i:i + chunk_size]
+                    for i in range(0, n, chunk_size)
+                ]
+                chunk_payloads = [
+                    ([dict(zip(template.param_names, p.pos)) for p in chunk], iteration)
+                    for chunk in chunks
                 ]
 
                 if pool is not None:
-                    records = list(pool.map(_eval_worker, payloads))
+                    chunk_results = list(pool.map(_eval_chunk, chunk_payloads))
+                    records = [rec for chunk in chunk_results for rec in chunk]
                     simulations.extend(records)
                     total_simulations += len(records)
                     return [(rec.score, rec) for rec in records]
@@ -382,3 +403,22 @@ class PSOSolver(Solver):
             pso_iterations=iterations,
             message=message,
         )
+
+def _eval_chunk(payload):
+    """Evaluate a chunk of particles in one worker task (reduces IPC overhead)."""
+    params_list, iteration = payload
+    level = _WORKER_LEVEL
+    template = _WORKER_TEMPLATE
+    from .engine import evaluate_candidate, EvalConfig
+    out = []
+    for params in params_list:
+        result = evaluate_candidate(
+            level=level,
+            template=template,
+            params=params,
+            iteration=iteration,
+            source="pso",
+            config=EvalConfig(record_trajectory=True),
+        )
+        out.append(result.record)
+    return out
