@@ -297,16 +297,31 @@ def place_holes(rng, segments, start, target, placed=(), preset=None):
     out = []
     placed = list(placed or [])
     for _ in range(n):
-        seg = rng.choice(segments) if segments else (start, target)
-        a, b = seg
-        t = rng.random()
-        bx = a[0] + (b[0]-a[0])*t
-        by = a[1] + (b[1]-a[1])*t
-        black = (bx, by)
-        white = _rand_point(rng, preset.edge_margin)
-        r = 0.5
-        out.append((black, white, r))
-        placed.append((black, r))
+        for _attempt in range(preset.max_place_attempts):
+            seg = rng.choice(segments) if segments else (start, target)
+            a, b = seg
+            t = rng.random()
+            bx = a[0] + (b[0]-a[0])*t
+            by = a[1] + (b[1]-a[1])*t
+            black = (bx, by)
+            white = _rand_point(rng, preset.edge_margin)
+            r = 0.5
+            # avoid overlaps with existing discs (obstacles/pickups/peers)
+            ok = True
+            for (pc, pr) in placed:
+                if math.dist(pc, black) <= pr + r + 0.2:
+                    ok = False
+                    break
+            if ok:
+                for (pc, pr) in placed:
+                    if math.dist(pc, white) <= pr + r + 0.2:
+                        ok = False
+                        break
+            if ok:
+                out.append((black, white, r))
+                placed.append((black, r))
+                placed.append((white, r))
+                break
     return tuple(out)
 
 
