@@ -731,3 +731,26 @@ def draw_vector(surface, start, vec, color):
         draw_smooth_arrow(surface, (sx, sy), end, color, width=2.5 * u, head=9 * u, k=2 if u >= 1.5 else 3)
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
         return
+
+
+def draw_hole(surface, center, radius, t=0.0, kind="black"):
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        r = max(1.0, float(radius))
+    except (TypeError, ValueError, OverflowError):
+        return
+    try:
+        if kind == "white":
+            pygame.draw.circle(surface, (240, 240, 255), (int(cx), int(cy)), int(r))
+            pygame.draw.circle(surface, (180, 180, 220), (int(cx), int(cy)), int(r), 2)
+        else:
+            pygame.draw.circle(surface, (10, 10, 20), (int(cx), int(cy)), int(r))
+            pygame.draw.circle(surface, (120, 80, 220), (int(cx), int(cy)), int(r), 2)
+    except (pygame.error, TypeError, ValueError, OverflowError):
+        return
+
+def draw_black_hole(surface, center, radius, t=0.0):
+    draw_hole(surface, center, radius, t, kind="black")
+
+def draw_white_hole(surface, center, radius, t=0.0):
+    draw_hole(surface, center, radius, t, kind="white")

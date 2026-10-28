@@ -134,6 +134,10 @@ class GameScene(Scene):
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
         self.pickups = [PickupState.from_spec(s) for s in specs]
+        # Black/white hole pairs (wormholes).
+        self.holes = list(getattr(self.level, "holes", ()) or ())
+        for alias in ("portals", "wormholes"):
+            self.holes = self.holes or list(getattr(self.level, alias, ()) or ())
         self.launch_pos = self.level.start
         self.banner = None              # (title, subtitle, time_left)
         self.arrive_timer = 0.0
@@ -339,7 +343,7 @@ class GameScene(Scene):
             return
         self.attempts += 1
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
-                             pickups=self.pickups)
+                             pickups=self.pickups, holes=self.holes)
         self.trail.clear()
         self._trail_count = 0
         self.state = FLIGHT
@@ -789,6 +793,20 @@ class GameScene(Scene):
                     continue
                 sprites.draw_pickup(surface, vp.to_screen(*pickup.center),
                                     vp.length(pickup.radius), self.t, kind=pickup.kind)
+
+            for i, hole in enumerate(getattr(self, "holes", ()) or (), start=1):
+                try:
+                    bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
+                    wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
+                    r = getattr(hole, "radius", 0.5)
+                    sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black")
+                    sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white")
+                    # Pair marker so players can see which black hole maps to which white hole.
+                    for center in (bc, wc):
+                        sp = vp.to_screen(*center)
+                        draw_text(surface, str(i), sp, 12, config.TEXT, kind="bold", anchor="center")
+                except Exception:
+                    pass
 
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)
