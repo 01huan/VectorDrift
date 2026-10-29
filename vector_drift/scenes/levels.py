@@ -10,7 +10,7 @@ from ..ui import Button, draw_text, icon_surface, wrap_text
 from .base import Scene
 
 PAGES = 3                    # number of level-select pages (extensible)
-LEVELS_PER_PAGE = 8          # playable level cards on a non-final page
+LEVELS_PER_PAGE = 7          # playable level cards on a non-final page
 CARDS_PER_PAGE = 9           # 3x3 grid; last slot is "next page" on non-final pages
 COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
@@ -25,6 +25,7 @@ class LevelSelectScene(Scene):
         self.page = 0
         self.hover = None
         self.cards = []
+        self.prev_button = None
         self.next_button = None
         self.menu_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Main Menu",
                                   style="plain", font_size=17)
@@ -54,6 +55,8 @@ class LevelSelectScene(Scene):
             self.hover = next((lid for lid, r in self.cards if r.collidepoint(event.pos)), None)
             if self.next_button is not None:
                 self.next_button.handle_event(event)
+            if self.prev_button is not None:
+                self.prev_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lid, rect in self.cards:
                 if rect.collidepoint(event.pos):
@@ -64,6 +67,9 @@ class LevelSelectScene(Scene):
                     return
             if self.next_button is not None and self.next_button.handle_event(event) == "click":
                 self._next_page()
+                return
+            if self.prev_button is not None and self.prev_button.handle_event(event) == "click":
+                self._prev_page()
                 return
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
@@ -77,6 +83,8 @@ class LevelSelectScene(Scene):
             self._to_menu()
         if self.next_button is not None and self.next_button.handle_event(event) == "click":
             self._next_page()
+        if self.prev_button is not None and self.prev_button.handle_event(event) == "click":
+                self._prev_page()
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
@@ -87,39 +95,82 @@ class LevelSelectScene(Scene):
             self._draw_card(surface, lid, rect)
         if self.next_button is not None:
             self.next_button.draw(surface)
+        if self.prev_button is not None:
+            self.prev_button.draw(surface)
         self.menu_button.draw(surface)
 
     def _page_level_ids(self, page):
-        if page < PAGES - 1:
-            start = page * LEVELS_PER_PAGE + 1
-            return range(start, start + LEVELS_PER_PAGE)
-        start = (PAGES - 1) * LEVELS_PER_PAGE + 1
-        return range(start, start + LEVELS_PER_PAGE + 1)
+        if page == 0:
+            return range(1, LEVELS_PER_PAGE + 2)
+        if page == PAGES - 1:
+            start = (PAGES - 1) * LEVELS_PER_PAGE + 2
+            return range(start, start + LEVELS_PER_PAGE + 1 + 1)
+        start = LEVELS_PER_PAGE + 2 + (page - 1) * LEVELS_PER_PAGE
+        return range(start, start + LEVELS_PER_PAGE+1)
+
+    
+    
 
     def _rebuild_cards(self):
         grid_w = COLS * CARD_W + (COLS - 1) * GAP
         left, top = (1280 - grid_w) // 2, 200
         self.cards = []
-        for idx, lid in enumerate(self._page_level_ids(self.page)):
-            col, row = idx % COLS, idx // COLS
-            rect = pygame.Rect(px(left + col * (CARD_W + GAP)), px(top + row * (CARD_H + GAP)),
-                               px(CARD_W), px(CARD_H))
-            self.cards.append((lid, rect))
+
+        if self.page > 0:
+            self.prev_button = Button(
+                pygame.Rect(
+                    px(left), px(top), px(CARD_W), px(CARD_H)
+                ),
+                "Previous Page",
+                style="primary",
+                font_size=17,
+            )
+        else:
+            self.prev_button = None
+
         if self.page < PAGES - 1:
-            idx = LEVELS_PER_PAGE
-            col, row = idx % COLS, idx // COLS
-            rect = pygame.Rect(px(left + col * (CARD_W + GAP)), px(top + row * (CARD_H + GAP)),
-                               px(CARD_W), px(CARD_H))
-            self.next_button = Button(rect, "Next Page", style="primary", font_size=17)
+            next_rect = pygame.Rect(
+                px(left + 2 * (CARD_W + GAP)),
+                px(top + 2 * (CARD_H + GAP)),
+                px(CARD_W), px(CARD_H),
+            )
+            self.next_button = Button(
+                next_rect, "Next Page",
+                style="primary", font_size=17
+            )
         else:
             self.next_button = None
+
+        for idx, lid in enumerate(self._page_level_ids(self.page)):
+            if self.page == 0:
+                slot = idx
+            elif self.page == PAGES - 1:
+                slot = idx + 1
+            else:
+                # Middle pages: skip top-left and bottom-right.
+                slot = idx + 1
+                if slot >= 8:
+                    slot += 1
+
+            col, row = slot % COLS, slot // COLS
+            rect = pygame.Rect(
+                px(left + col * (CARD_W + GAP)),
+                px(top + row * (CARD_H + GAP)),
+                px(CARD_W), px(CARD_H),
+            )
+            self.cards.append((lid, rect))
+
 
     def _next_page(self):
         if self.page < PAGES - 1:
             self.audio.play("click")
             self.page += 1
             self._rebuild_cards()
-
+    def _prev_page(self):
+        if self.page > 0:
+            self.audio.play("click")
+            self.page -= 1
+            self._rebuild_cards()
     def _draw_card(self, surface, lid, rect):
         level = self.levels.get(lid)
         line_w = max(1, px(1))
