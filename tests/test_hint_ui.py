@@ -32,7 +32,9 @@ def no_solver(monkeypatch):
 def _manager():
     audio = SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
                             stop_loop=lambda *a: None)
-    return SceneManager(audio)
+    manager = SceneManager(audio)
+    manager.session.money.add(1000)
+    return manager
 
 
 def _scene(level_id, manager=None):

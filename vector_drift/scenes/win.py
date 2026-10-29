@@ -34,6 +34,7 @@ class WinScene(Scene):
 
     def draw(self, surface):
         s = self.session.stats
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         lines = [
             ("Last flight", f"{s.get('time', 0):.2f} s"),
             ("Total flight time", f"{s.get('total_time', 0):.2f} s"),

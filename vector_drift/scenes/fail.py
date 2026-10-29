@@ -32,6 +32,7 @@ class FailScene(Scene):
 
     def draw(self, surface):
         s = self.session.stats
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         lines = [
             ("Last result", s.get("reason", "")),
             ("Attempts", str(s.get("attempts", 0))),

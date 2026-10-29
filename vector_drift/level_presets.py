@@ -74,7 +74,7 @@ PRESET_7 = RandomPreset(
     max_place_attempts=500,
     max_level_attempts=10,
     num_direct_blockers=1,
-    pickup_groups=(("life", (1, 2), 0.5),),
+    pickup_groups=(("life", (1, 2), 0.5), ("money", (1, 2), 0.5)),
     num_holes=2,
     card_blurb="New maze every visit",
 )
@@ -98,7 +98,7 @@ PRESET_8 = RandomPreset(
     target_clearance=1.2,
     min_obstacle_gap=0.4,
     num_direct_blockers=2,
-    pickup_groups=(("shockwave", (1, 3), 0.5), ("extratime", (1, 3), 0.5), ("shield", (1, 3), 0.5), ("life", (1, 3), 0.5)),
+    pickup_groups=(("shockwave", (1, 3), 0.5), ("extratime", (1, 3), 0.5), ("shield", (1, 3), 0.5), ("life", (1, 3), 0.5), ("money", (1, 3), 0.5)),
     card_blurb="Denser maze, smaller target; shockwaves, extratime and shields",
 )
 

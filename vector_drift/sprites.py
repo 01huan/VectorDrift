@@ -542,7 +542,31 @@ def _paint_life(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "life", _render_life)
 
 
-PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life}
+def _render_money(radius):
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    # Gold coin body.
+    pygame.draw.circle(surf, (180, 140, 40), (c, c), r)
+    pygame.draw.circle(surf, (230, 190, 70), (c, c), r * 0.78)
+    shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
+    shine.center = (c - 0.30 * r, c - 0.38 * r)
+    pygame.draw.ellipse(surf, (255, 230, 140), shine)
+    # "$" sign.
+    thick = max(2, round(0.12 * r))
+    pygame.draw.line(surf, (120, 80, 20), (c, c - 0.4 * r), (c, c + 0.4 * r), thick)
+    pygame.draw.arc(surf, (120, 80, 20), (c - 0.25 * r, c - 0.35 * r, 0.5 * r, 0.35 * r), 0, 3.14, thick)
+    pygame.draw.arc(surf, (120, 80, 20), (c - 0.25 * r, c, 0.5 * r, 0.35 * r), 3.14, 6.28, thick)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def _paint_money(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "money", _render_money)
+
+
+PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life, "money": _paint_money}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 
