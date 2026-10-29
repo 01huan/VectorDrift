@@ -42,7 +42,7 @@ class PSOConfig:
     velocity_scale: float = 0.15
     time_budget_s: float | None = None
     simulation_budget: int | None = None
-    early_stop_on_success: bool = True
+    early_stop_on_success: bool = False
     seed: int | None = None
     # Stall recovery: if the global best does not improve for this many
     # iterations, re-scatter part of the swarm to escape local optima.
@@ -115,6 +115,7 @@ class PSOSolver(Solver):
         time_budget_s: float | None = None,
         simulation_budget: int | None = None,
         rng_seed: int | None = None,
+        progress_callback=None,
     ) -> SolveResult:
         cfg = self._config
         if time_budget_s is not None:
@@ -123,7 +124,8 @@ class PSOSolver(Solver):
             cfg.simulation_budget = simulation_budget
 
         seed = rng_seed if rng_seed is not None else cfg.seed
-        rng = random.Random(seed)
+        run_seed = seed
+        rng = random.Random(run_seed)
 
         template = get_template(cfg.template_key)
         bounds = list(template.param_bounds)
@@ -171,19 +173,48 @@ class PSOSolver(Solver):
         max_sim = (
             cfg.simulation_budget
             if cfg.simulation_budget is not None
-            else cfg.max_simulations
+            else (cfg.max_simulations if cfg.time_budget_s is not None else None)
         )
-        max_sim = max(0, max_sim)
 
         success_found = False
         stall_count = 0
         prev_global_best = -math.inf
 
+        def _publish_progress():
+            if progress_callback is None or global_best_pos is None:
+                return
+            try:
+                params = dict(zip(template.param_names, global_best_pos))
+                fx_text, fy_text = template.render(level, params)
+                spec = SimulationSpec(
+                    template=template.key,
+                    fx_text=fx_text,
+                    fy_text=fy_text,
+                    params=params,
+                    source="pso",
+                )
+                res = SolveResult(
+                    solver_name=self.name,
+                    solver_version=self.version,
+                    level_id=level.id,
+                    level_seed=getattr(level, "seed", None),
+                    success=False,
+                    best=spec,
+                    best_score=float(global_best_score),
+                    simulations=[],
+                    total_simulations=total_simulations,
+                    solve_time_s=time.perf_counter() - start,
+                    pso_iterations=iterations,
+                    message=f"{total_simulations} simulations; best score {global_best_score:.4f}",
+                )
+                progress_callback(res)
+            except Exception:
+                pass
         pool = None
 
         try:
             # Create the process pool once and reuse it for the entire solve.
-            if workers > 1 and max_sim > 0:
+            if workers > 1 and (max_sim is None or max_sim > 0):
                 pool = concurrent.futures.ProcessPoolExecutor(
                     max_workers=workers,
                     initializer=_init_worker,
@@ -226,7 +257,7 @@ class PSOSolver(Solver):
                 return results
 
             # Evaluate the initial swarm, respecting the simulation budget.
-            initial_count = min(len(particles), max_sim)
+            initial_count = len(particles) if max_sim is None else min(len(particles), max_sim)
             initial_particles = particles[:initial_count]
 
             initial_results = _evaluate_batch(initial_particles, 0)
@@ -239,6 +270,8 @@ class PSOSolver(Solver):
                 if score > global_best_score:
                     global_best_score = score
                     global_best_pos = list(p.pos)
+                    _publish_progress()
+                    _publish_progress()
 
                 # Note: do not mark success_found here; the optimization loop
                 # below still runs at least one iteration so the search/cap
@@ -246,7 +279,7 @@ class PSOSolver(Solver):
                 # reaches the target. Early stopping then applies from the
                 # first optimization iteration onward.
             # Run PSO iterations until success, budget exhaustion, or timeout.
-            while total_simulations < max_sim and not success_found:
+            while (max_sim is None or total_simulations < max_sim):
                 if (
                     cfg.time_budget_s is not None
                     and time.perf_counter() - start >= cfg.time_budget_s
@@ -259,8 +292,8 @@ class PSOSolver(Solver):
                 ):
                     break
 
-                remaining = max_sim - total_simulations
-                if remaining <= 0:
+                remaining = None if max_sim is None else (max_sim - total_simulations)
+                if remaining is not None and remaining <= 0:
                     break
 
                 iterations += 1
@@ -294,7 +327,8 @@ class PSOSolver(Solver):
                         p.pos[i] = max(lo, min(hi, p.pos[i]))
 
                 # Never submit more evaluations than the remaining budget.
-                batch_particles = particles[:min(len(particles), remaining)]
+                batch_particles = (particles if remaining is None
+                                   else particles[:min(len(particles), remaining)])
                 batch_results = _evaluate_batch(batch_particles, iterations)
 
                 for p, (score, rec) in zip(batch_particles, batch_results):
@@ -317,7 +351,25 @@ class PSOSolver(Solver):
                         if cfg.early_stop_on_success:
                             break
 
-                # Stall detection and recovery.
+                # When a solution is found, record best and restart PSO with a
+                # new seed to keep exploring for potentially better solutions.
+                if success_found:
+                    _publish_progress()
+                    run_seed += 1
+                    rng = random.Random(run_seed)
+                    particles = []
+                    for _ in range(cfg.n_particles):
+                        pos = [rng.uniform(lo, hi) for lo, hi in bounds]
+                        vel = [
+                            rng.uniform(-1.0, 1.0) * (hi - lo) * cfg.velocity_scale
+                            for lo, hi in bounds
+                        ]
+                        particles.append(Particle(pos, vel))
+                    stall_count = 0
+                    prev_global_best = global_best_score
+                    simulations = []
+                    success_found = False
+                    continue
                 if global_best_score > prev_global_best:
                     prev_global_best = global_best_score
                     stall_count = 0
@@ -327,8 +379,7 @@ class PSOSolver(Solver):
                     if (
                         cfg.restart_on_stall
                         and stall_count >= cfg.stall_limit
-                        and not success_found
-                    ):
+                        ):
                         elite = (
                             list(global_best_pos)
                             if global_best_pos is not None

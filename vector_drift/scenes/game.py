@@ -16,7 +16,7 @@ from ..hints import get_hint
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
-from ..solver import PSOSolver, Solver, run_solver_async
+from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
 from .hint_popup import HintPopup
@@ -177,7 +177,7 @@ class GameScene(Scene):
         # Depends on the Solver interface, not a concrete model.  Swapping the
         # backend (PSO -> regression -> NN -> GP -> RL) only requires replacing
         # self.ai_solver; no UI or event code changes needed.
-        self.ai_solver: Solver | None = None if self.hint_mode else PSOSolver()
+        self.ai_solver: Solver | None = None if self.hint_mode else PSOSolver(PSOConfig(early_stop_on_success=False))
         self.ai_job = None
         self.ai_result: SolveResult | None = None
         self.ai_status = "idle"        # idle | solving | ready | error
@@ -747,9 +747,8 @@ class GameScene(Scene):
         self.ai_job = run_solver_async(
             self.ai_solver,
             solve_level,
-            time_budget_s=120.0,
-            simulation_budget=100000,
             rng_seed=seed,
+            progress_callback=lambda r: setattr(self, "ai_result", r),
         )
 
     def _on_ai_click(self):
@@ -758,13 +757,14 @@ class GameScene(Scene):
         if key in self.ai_best_by_state:
             self.ai_result = self.ai_best_by_state[key]
             self.ai_status = "ready"
-            self.ai_popup = True
-            self._position_ai_popup_buttons()
-            return
-        if self.ai_job is not None and self.ai_job.running and self.ai_job_state_key == key:
+        elif self.ai_job is not None and self.ai_job.running and self.ai_job_state_key == key:
+            if getattr(self.ai_job, "result", None) is not None:
+                self.ai_result = self.ai_job.result
             self.ai_status = "solving"
-            return
-        self._kick_ai_for_state()
+        else:
+            self._kick_ai_for_state()
+        self.ai_popup = True
+        self._position_ai_popup_buttons()
 
     def _apply_ai_suggestion(self):
         """Write the best candidate formula into the Fx/Fy editor."""
@@ -774,7 +774,6 @@ class GameScene(Scene):
         self.editor.set_lines([best.fx_text, best.fy_text])
         self._on_text_change(self.editor)
         self.ai_popup = False
-        self.ai_status = "idle"
         try:
             self.audio.play("click")
         except Exception:  # noqa: BLE001 - audio is optional
@@ -798,10 +797,10 @@ class GameScene(Scene):
         best = self.ai_result.best if self.ai_result else None
         y = card.y + px(74)
         rows = []
-        if self.ai_status == "solving":
+        if self.ai_status == "solving" and best is None:
             rows.append(("S", "Solving… (offline PSO, no network needed)"))
         elif best is not None:
-            rows.append(("Status", "Solution found" if self.ai_result.success
+            rows.append(("Status", "Solution found" if self.ai_result.best_score >= 1.5
                          else "No feasible solution found"))
             rows.append(("Template", best.template))
             rows.append(("Fx", best.fx_text))
@@ -1039,10 +1038,9 @@ class GameScene(Scene):
             self.ai_button.label = "Hint"
         else:
             # AI assistant button (offline solver).  Disabled while a job runs.
-            self.ai_button.enabled = self.ai_status != "solving"
-            self.ai_button.label = ("Solving…" if self.ai_status == "solving"
-                                    else ("AI Solver" if self.ai_status != "error"
-                                          else "AI Solver (Failed)"))
+            self.ai_button.enabled = True
+            self.ai_button.label = ("AI Solver" if self.ai_status != "error"
+                                    else "AI Solver (Failed)")
         self.ai_button.draw(surface)
 
     def _draw_telemetry(self, surface, area):
