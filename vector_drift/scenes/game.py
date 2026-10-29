@@ -1067,8 +1067,7 @@ class GameScene(Scene):
             self.ai_button.label = "Hint"
         else:
             # AI assistant button (offline solver).  Disabled while a job runs.
-            self.ai_button.enabled = (self.ai_status != "solving"
-                                     and int(self.session.money) >= config.AI_SOLVER_COST)
+            self.ai_button.enabled = int(self.session.money) >= config.AI_SOLVER_COST
             self.ai_button.label = ("AI Solver" if self.ai_status != "error"
                                     else "AI Solver (Failed)")
         self.ai_button.draw(surface)
