@@ -87,6 +87,14 @@ MAX_STEP_M = 50.0         # single-step displacement above this is diverged
 MAX_PX_CULL = 10000       # screen-space cull margin for huge-finite coords
 MAX_ARROW_PX = 4000       # refuse to allocate arrow temp surfaces larger than this
 
+# --- Costs ---------------------------------------------------------------
+AI_SOLVER_COST = 10
+HINT_COST = 10
+AI_COST = AI_SOLVER_COST
+HINT_MONEY_COST = HINT_COST
+SOLVER_COST = AI_SOLVER_COST
+MONEY_COST_PER_USE = 10
+
 # --- Gameplay ------------------------------------------------------------
 MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)

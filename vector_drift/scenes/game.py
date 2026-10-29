@@ -136,6 +136,12 @@ class GameScene(Scene):
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
         self.pickups = [PickupState.from_spec(s) for s in specs]
+        # Whether this level was already cleared before this run started.
+        # Fixed levels only grant money rewards on a first clear; random levels
+        # always grant them (see _money_rewards_available).
+        self._cleared_before = self.session.records.get(self.level.id) is not None
+        self._money_rewards_available = is_dynamic_level(self.level.id) or not self._cleared_before
+        self.money = self.session.money
         # Black/white hole pairs (wormholes).
         self.holes = list(getattr(self.level, "holes", ()) or ())
         for alias in ("portals", "wormholes"):
@@ -348,6 +354,12 @@ class GameScene(Scene):
             return  # Modal: swallow other input while the popup is open.
 
         if self.ai_button.handle_event(event) == "click":
+            cost = config.HINT_COST if self.hint_mode else config.AI_SOLVER_COST
+            if int(self.session.money) < cost:
+                self.audio.play("error")
+                return
+            self.session.money.spend(cost)
+            self.money = self.session.money
             if self.hint_mode:
                 self._open_hint()
             else:
@@ -383,6 +395,11 @@ class GameScene(Scene):
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
             self.hint_popup = None
+            # Money reward for reaching the target (first clear on fixed levels,
+            # always on random levels).
+            if self._money_rewards_available:
+                self.session.money.add(5)
+                self.money = self.session.money
             best = self.session.records.get(self.level.id)
             if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
@@ -501,6 +518,16 @@ class GameScene(Scene):
                     self.audio.play("life")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("life sfx skipped", exc_info=True)
+            elif event.get("kind") == "money":
+                # Grant money only when the level qualifies.
+                if self._money_rewards_available:
+                    amount = event.get("amount", 1)
+                    self.session.money.add(amount)
+                    self.money = self.session.money
+                try:
+                    self.audio.play("money")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("money sfx skipped", exc_info=True)
             elif event.get("kind") == "shield_used":
                 # The protection broke on a bumper (the ship still passes it).
                 try:
@@ -630,6 +657,7 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ draw
     def draw(self, surface):
         surface.fill(config.BG)
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         self._draw_plot(surface)
         self._draw_panel(surface)
         if self.ai_popup:
@@ -1034,11 +1062,13 @@ class GameScene(Scene):
 
         if self.hint_mode:
             # Hint button (fixed levels): usable any time before the win.
-            self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
+            self.ai_button.enabled = (self.hint is not None and self.state != ARRIVED
+                                     and int(self.session.money) >= config.HINT_COST)
             self.ai_button.label = "Hint"
         else:
             # AI assistant button (offline solver).  Disabled while a job runs.
-            self.ai_button.enabled = True
+            self.ai_button.enabled = (self.ai_status != "solving"
+                                     and int(self.session.money) >= config.AI_SOLVER_COST)
             self.ai_button.label = ("AI Solver" if self.ai_status != "error"
                                     else "AI Solver (Failed)")
         self.ai_button.draw(surface)

@@ -175,6 +175,18 @@ def life_effect(pickup, ctx):
     return {"kind": "life", "center": pickup.center}
 
 
+@register_effect("money")
+def money_effect(pickup, ctx):
+    """Money: report that one money unit should be granted.
+
+    Pure: returns an event dict only. GameScene applies it to the
+    player's ``Money`` balance when the level qualifies (fixed level not
+    yet cleared, or any random level). Safe to call with ctx=None.
+    """
+    amount = getattr(pickup, "amount", 1)
+    return {"kind": "money", "center": pickup.center, "amount": amount}
+
+
 
 class _NullCtx:
     """Fallback ctx when no Flight is given (keeps shockwave testable)."""

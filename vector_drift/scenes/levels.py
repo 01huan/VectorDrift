@@ -88,6 +88,7 @@ class LevelSelectScene(Scene):
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         cx = config.WINDOW_W // 2
         draw_text(surface, "SELECT LEVEL", (cx, px(110)), 40, config.TEXT, kind="bold", anchor="center")
         draw_text(surface, "Choose a mission", (cx, px(152)), 16, config.TEXT_DIM, anchor="center")

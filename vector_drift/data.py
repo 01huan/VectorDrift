@@ -114,6 +114,7 @@ LEVELS = [
         target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
+        pickups=(PickupSpec(center=(0.0, 2.0), radius=0.45, kind="money"),),
     ),
     LevelSpec(
         id=2,
@@ -125,6 +126,7 @@ LEVELS = [
         obstacles=(
             ObstacleSpec(center=(0.0, 0.0), radius=1.2),
         ),
+        pickups=(PickupSpec(center=(0.0, 3.0), radius=0.45, kind="money"),),
     ),
     # Shockwave intro: a ring of 9 bumpers (r 2.6 m around the target, every
     # 40 deg from 180 deg) seals the target until one shockwave blasts a gap.
@@ -185,6 +187,7 @@ LEVELS = [
         # to steer into the black hole, then curve down into the target after
         # exiting, not just fly a single straight/constant-force line through
         # both legs.
+        pickups=(PickupSpec(center=(-4.0, 4.0), radius=0.45, kind="money"),),
         holes=(
             ((-3.0, 4.0), (2.0, 4.0), 0.5),
         ),
@@ -272,4 +275,9 @@ BlackHoleSpec = HoleSpec
 WhiteHoleSpec = HoleSpec
 
 
-# test insert
+# Money (currency) value object -- re-exported for convenience.
+from .money import Money
+
+MoneySpec = Money
+Coin = Money
+MoneyPickup = Money

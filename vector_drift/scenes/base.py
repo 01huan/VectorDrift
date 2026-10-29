@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import pygame
 
 from .. import config
+from ..money import Money
 from ..config import px
 from ..desktop import set_cursor
 from ..ui import Button, draw_text
@@ -21,6 +22,7 @@ class Session:
     stats: dict = field(default_factory=dict)       # last win/fail details
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
     hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
+    money: Money = field(default_factory=Money)     # player's currency balance
 
 
 class Scene:
