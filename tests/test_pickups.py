@@ -34,7 +34,7 @@ def _level_with(obstacles, pickups, start=(-7.0, 0.0)):
                      pickups=tuple(pickups))
 
 
-PICKUP_KINDS = {"shockwave", "extratime", "shield"}
+PICKUP_KINDS = {"shockwave", "extratime", "shield", "life"}
 
 
 def test_every_pickup_registry_uses_the_same_kinds():

@@ -523,7 +523,26 @@ def _render_shield(radius):
 def _paint_shield(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "shield", _render_shield)
 
-PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield}
+def _render_life(radius):
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (230, 60, 90), (c, c), r)
+    pygame.draw.circle(surf, (255, 180, 200), (c, c), r * 0.6)
+    plus = round(0.4 * r)
+    thick = max(2, round(0.12 * r))
+    pygame.draw.line(surf, (255, 255, 255), (c - plus // 2, c), (c + plus // 2, c), thick)
+    pygame.draw.line(surf, (255, 255, 255), (c, c - plus // 2), (c, c + plus // 2), thick)
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def _paint_life(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "life", _render_life)
+
+
+PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 

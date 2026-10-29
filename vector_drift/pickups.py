@@ -165,6 +165,17 @@ def shield_effect(pickup, ctx):
     """
     return {"kind": "shield", "center": pickup.center, "shield_duration": pickup.shield_duration}
 
+@register_effect("life")
+def life_effect(pickup, ctx):
+    """Life: report that a life should be restored if not full.
+
+    Pure: returns an event dict only. GameScene applies it (capped at the
+    level's max lives). Safe to call with ctx=None (headless / unit tests).
+    """
+    return {"kind": "life", "center": pickup.center}
+
+
+
 class _NullCtx:
     """Fallback ctx when no Flight is given (keeps shockwave testable)."""
 

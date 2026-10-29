@@ -78,6 +78,7 @@ for _key in ROCK_KEYS:
 register(AssetSpec("pickup.shockwave", Path("pickups/shockwave.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.extratime", Path("pickups/extratime.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.shield", Path("pickups/shield.png"), display_w=40, display_h=40))
+register(AssetSpec("pickup.life", Path("pickups/life.png"), display_w=40, display_h=40))
 # Black/white holes (key = f"black_hole.black_hole{n:02d}" / "white_hole.white_hole{n:02d}")
 for _n in range(1, 11):
     register(AssetSpec(f"black_hole.black_hole{_n:02d}", Path(f"black_holes/black_hole{_n:02d}.png"), display_w=48, display_h=48))

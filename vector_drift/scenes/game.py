@@ -493,6 +493,14 @@ class GameScene(Scene):
                     self.audio.play("shield")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("shield sfx skipped", exc_info=True)
+            elif event.get("kind") == "life":
+                # Restore one life if not already full.
+                if self.lives < self.level.lives:
+                    self.lives += 1
+                try:
+                    self.audio.play("life")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("life sfx skipped", exc_info=True)
             elif event.get("kind") == "shield_used":
                 # The protection broke on a bumper (the ship still passes it).
                 try:
