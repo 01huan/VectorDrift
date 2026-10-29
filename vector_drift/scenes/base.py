@@ -23,6 +23,40 @@ class Session:
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
     hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
     money: Money = field(default_factory=Money)     # player's currency balance
+    owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
+    purchased_items: set = field(default_factory=set)   # purchased shop item ids
+
+    @property
+    def unlocked_ships(self):
+        return self.owned_ships
+
+    @unlocked_ships.setter
+    def unlocked_ships(self, value):
+        self.owned_ships = set(value) if value is not None else {"ship01"}
+
+    @property
+    def purchased_ships(self):
+        return self.owned_ships
+
+    @purchased_ships.setter
+    def purchased_ships(self, value):
+        self.owned_ships = set(value) if value is not None else {"ship01"}
+
+    @property
+    def owned_ship_ids(self):
+        return self.owned_ships
+
+    @owned_ship_ids.setter
+    def owned_ship_ids(self, value):
+        self.owned_ships = set(value) if value is not None else {"ship01"}
+
+    @property
+    def unlocked_ship_ids(self):
+        return self.owned_ships
+
+    @unlocked_ship_ids.setter
+    def unlocked_ship_ids(self, value):
+        self.owned_ships = set(value) if value is not None else {"ship01"}
 
 
 class Scene:

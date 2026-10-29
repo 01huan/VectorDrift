@@ -1,4 +1,4 @@
-# Vector Drift
+﻿# Vector Drift
 
 Steer a spaceship by designing a mathematical force field.
 
@@ -10,10 +10,10 @@ The force components can be defined using mathematical expressions, including su
 
 The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each launch has 10 seconds. Every miss costs one of 5 lives:
 
-* ​**Time up**​: the next launch starts (at rest) where the ship stopped.
-* ​**Abort / Out of bounds / Diverged**​: the next launch starts back at (-7, 0).
-* ​**Invalid mathematical result**​: if evaluating a force expression produces an invalid numerical result during flight, such as `log(-1)`, the launch fails and costs one life.
-* ​**Infinite force**​: if the ship passes through a point where the force is infinite, such as `tan(x)` at x = ±π/2, `1/x^2` or `log(abs(x))` at x = 0, it is flung straight off the field, which counts as out of bounds. Points where the force stays finite (`sin(x)/x` at x = 0) are passed through.
+* ??*Time up**?? the next launch starts (at rest) where the ship stopped.
+* ??*Abort / Out of bounds / Diverged**?? the next launch starts back at (-7, 0).
+* ??*Invalid mathematical result**?? if evaluating a force expression produces an invalid numerical result during flight, such as `log(-1)`, the launch fails and costs one life.
+* ??*Infinite force**?? if the ship passes through a point where the force is infinite, such as `tan(x)` at x = 簣?/2, `1/x^2` or `log(abs(x))` at x = 0, it is flung straight off the field, which counts as out of bounds. Points where the force stays finite (`sin(x)/x` at x = 0) are passed through.
 
 ## Run
 
@@ -118,3 +118,4 @@ vector_drift/
 assets/                 optional sounds, music, fonts (see assets/README.md)
 tests/                  parser and physics tests
 ```
+

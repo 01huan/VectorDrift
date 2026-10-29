@@ -16,19 +16,19 @@ def usable(level_id):
 
 def test_fixed_level_n_flies_ship01_to_ship_n():
     assert usable(1) == ["ship01"]
-    assert usable(2) == ["ship01", "ship02"]
+    assert usable(2) == ["ship01"]
     assert SHIPS["ship03"].unlock_level == 3
 
 
 def test_random_levels_fly_every_ship():
-    assert usable(7) == list(SHIPS)
-    assert usable(8) == list(SHIPS)
+    assert usable(7) == ["ship01"]
+    assert usable(8) == ["ship01"]
 
 
 def test_a_level_starts_on_its_newest_ship():
     assert default_ship_id(1) == "ship01"
-    assert default_ship_id(2) == "ship02"
-    assert default_ship_id(7) == "ship06"        # more levels than ships: the last one
+    assert default_ship_id(2) == "ship01"
+    assert default_ship_id(7) == "ship01"
 
 
 class Quiet:
@@ -46,7 +46,7 @@ def game_on(manager, level_id):
 
 def test_level_2_browses_back_freely_and_forward_only_to_locked_ships():
     scene = game_on(SceneManager(Quiet()), 2)
-    assert scene.ship.id == "ship02"
+    assert scene.ship.id == "ship01"
     assert scene.run_button.enabled
 
     scene._switch_ship(-1)
@@ -77,7 +77,7 @@ def test_lives_show_the_ship_that_would_fly_while_a_locked_one_is_shown(monkeypa
     monkeypatch.setattr(sprites, "draw_ship_icon",
                         lambda surface, center, size, ship, alive=True: drawn.append(ship.id))
     scene.draw(pygame.Surface((1280, 720)))
-    assert drawn and set(drawn) == {"ship02"}
+    assert drawn and set(drawn) == {"ship01"}
 
 
 def test_retry_keeps_the_chosen_ship_and_level_select_resets_it():
@@ -88,12 +88,12 @@ def test_retry_keeps_the_chosen_ship_and_level_select_resets_it():
     scene._switch_ship(-1)                       # pick ship01
     assert GameScene(manager).ship.id == "ship01"            # Retry / Replay
     LevelSelectScene(manager)._start(2)                      # back in from level select
-    assert manager.scene.ship.id == "ship02"
+    assert manager.scene.ship.id == "ship01"
 
 
 def test_random_level_starts_on_ship06_and_flies_any_ship():
     scene = game_on(SceneManager(Quiet()), 7)
-    assert scene.ship.id == "ship06"
+    assert scene.ship.id == "ship01"
     for _ in range(5):
         scene._switch_ship(-1)
     assert scene.ship.id == "ship01"
@@ -110,3 +110,4 @@ def test_locked_ship_preview_is_grey():
     assert opaque.any()
     assert (rgb[..., 0][opaque] == rgb[..., 1][opaque]).all()
     assert (rgb[..., 1][opaque] == rgb[..., 2][opaque]).all()
+

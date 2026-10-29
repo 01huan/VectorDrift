@@ -107,8 +107,8 @@ class GameScene(Scene):
         # pick; the level select clears it, so a level starts on its newest ship.
         self.owned_ships = list(SHIPS)
         ship_id = self.session.ship_id
-        if ship_id not in SHIPS or not ship_unlocked(SHIPS[ship_id], self.level.id):
-            ship_id = default_ship_id(self.level.id)
+        if ship_id not in SHIPS or not ship_unlocked(SHIPS[ship_id], session=self.session):
+            ship_id = default_ship_id(self.level.id, session=self.session)
         self.ship_index = self.owned_ships.index(ship_id)
         self.ship = SHIPS[ship_id]
         self.flyable_ship = self.ship           # what flies (and fills the lives row)
@@ -283,7 +283,7 @@ class GameScene(Scene):
 
     @property
     def _ship_unlocked(self):
-        return ship_unlocked(self.ship, self.level.id)
+        return ship_unlocked(self.ship, session=self.session)
 
     def _switch_ship(self, step):
         """Show the previous / next skin; no wrap-around at either end."""

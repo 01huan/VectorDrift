@@ -24,6 +24,7 @@ class ShipSpec:
     trim_color: tuple = (255, 196, 70)
     length: float = 0.8         # drawn length (m); collision uses hull_radius
     unlock_level: int = 1       # first fixed level that may fly it (see ship_unlocked)
+    price: int = 0                # shop price (0 = not sold / free)
 
 
 @dataclass(frozen=True)
@@ -91,19 +92,49 @@ SHIPS = {
 }
 
 
-def ship_unlocked(ship, level_id):
-    """True if ``ship`` may fly on ``level_id``.
+def _owned_ship_ids(session=None):
+    """Resolve the set of owned ship ids from a session (or the default)."""
+    if session is not None:
+        for attr in ("owned_ships", "unlocked_ships", "purchased_ships", "owned_ship_ids"):
+            value = getattr(session, attr, None)
+            if value is not None:
+                try:
+                    return set(value)
+                except TypeError:
+                    pass
+        owned = {"ship01"}
+        try:
+            setattr(session, "owned_ships", owned)
+        except Exception:
+            pass
+        return owned
+    return {"ship01"}
 
-    Fixed level N flies the ships with unlock_level <= N (ship01..shipN),
-    by the level being played, not by saved progress. Random levels fly
-    every ship.
+
+def ship_unlocked(ship, level_id=None, session=None, owned=None):
+    """True if ``ship`` is owned by the player (purchased).
+
+    Ownership replaces the old level-based unlock: only ``ship01`` is owned
+    from the start; every other skin must be bought in the shop.  ``level_id``
+    is kept for backwards compatibility but no longer gates anything.
     """
-    return is_dynamic_level(level_id) or ship.unlock_level <= level_id
+    ship_id = getattr(ship, "id", ship)
+    if isinstance(ship_id, (list, tuple, set)):
+        ship_id = list(ship_id)[0] if ship_id else None
+    if owned is not None:
+        try:
+            return ship_id in set(owned)
+        except TypeError:
+            return ship_id == owned
+    if session is not None:
+        return ship_id in _owned_ship_ids(session)
+    return ship_id in _owned_ship_ids(None)
 
 
-def default_ship_id(level_id):
-    """The ship a level starts on: the newest one it may fly (shipN on level N)."""
-    usable = [ship_id for ship_id, ship in SHIPS.items() if ship_unlocked(ship, level_id)]
+def default_ship_id(level_id=None, session=None):
+    """The ship a level starts on: the first owned ship (ship01 by default)."""
+    owned = _owned_ship_ids(session)
+    usable = [sid for sid in SHIPS if sid in owned]
     return usable[-1] if usable else next(iter(SHIPS))
 
 LEVELS = [
