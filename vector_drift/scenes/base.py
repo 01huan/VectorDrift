@@ -23,9 +23,9 @@ class Session:
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
     hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
     money: Money = field(default_factory=Money)     # player's currency balance
-    owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
-
+    owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
+    collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
     @property
     def unlocked_ships(self):
         return self.owned_ships
@@ -115,7 +115,7 @@ class SceneManager:
 
 
 def draw_overlay_card(surface, background, title, title_color, lines, card_h=320):
-    """Dimmed snapshot + centered card with a title and (label, value) lines."""
+    'Dimmed snapshot + centered card.'
     if background is not None:
         surface.blit(background, (0, 0))
     shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
@@ -137,7 +137,7 @@ def draw_overlay_card(surface, background, title, title_color, lines, card_h=320
 
 
 def result_buttons(first_label):
-    """Three buttons under a result card: [first_label] [Levels] [Main Menu]."""
+    'Three buttons under a result card.'
     cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
     w, h, gap = px(150), px(46), px(14)
     left = cx - (3 * w + 2 * gap) // 2

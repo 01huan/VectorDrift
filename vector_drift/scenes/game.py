@@ -136,6 +136,12 @@ class GameScene(Scene):
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
         self.pickups = [PickupState.from_spec(s) for s in specs]
+        # Fixed levels: a money pickup already collected in a previous run
+        # (even an uncleared one) must not reappear / grant again.
+        if not is_dynamic_level(self.level.id):
+            for p in self.pickups:
+                if getattr(p, "kind", None) == "money" and (self.level.id, p.center) in (self.session.collected_money_pickups or set()):
+                    p.consumed = True
         # Whether this level was already cleared before this run started.
         # Fixed levels only grant money rewards on a first clear; random levels
         # always grant them (see _money_rewards_available).
@@ -525,6 +531,13 @@ class GameScene(Scene):
                     self.session.money.add(amount)
                     self.money = self.session.money
                 try:
+                    # Remember fixed-level money pickups so they never respawn.
+                    if not is_dynamic_level(self.level.id):
+                        center = event.get("center")
+                        try:
+                            self.session.collected_money_pickups.add((self.level.id, tuple(center)))
+                        except Exception:
+                            pass
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("money sfx skipped", exc_info=True)
