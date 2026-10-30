@@ -26,6 +26,14 @@ class Session:
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
     owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
     collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
+    # --- account (optional, Supabase) -------------------------------------
+    user_id: str | None = None
+    email: str | None = None
+    display_name: str | None = None
+    auth_status: str = "guest"          # guest | pending_verification | authenticated
+    profile_loaded: bool = False
+    sync_status: str = "idle"           # idle | syncing | error
+    last_sync_error: str | None = None
     @property
     def unlocked_ships(self):
         return self.owned_ships
@@ -82,8 +90,9 @@ class Scene:
 
 
 class SceneManager:
-    def __init__(self, audio):
+    def __init__(self, audio, account_manager=None):
         self.audio = audio
+        self.account = account_manager
         self.session = Session()
         self.scene = None
         self.running = True
@@ -108,6 +117,11 @@ class SceneManager:
 
     def update(self, dt):
         self.time += dt
+        if self.account is not None:
+            try:
+                self.account.poll()
+            except Exception:
+                pass
         self.scene.update(dt)
 
     def draw(self, surface):

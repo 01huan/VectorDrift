@@ -409,6 +409,21 @@ class GameScene(Scene):
             best = self.session.records.get(self.level.id)
             if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
+            # Sync progress to cloud when authenticated.
+            account = self.manager.account
+            if account is not None and account.is_authenticated() and account.current_user is not None:
+                try:
+                    from vector_drift.account.integration import session_to_profile
+                    profile = session_to_profile(self.session, account.current_user.id)
+                    self.session.sync_status = "syncing"
+                    def _on_saved():
+                        self.session.sync_status = "idle"
+                    def _on_save_error(exc):
+                        self.session.sync_status = "error"
+                        self.session.last_sync_error = str(exc)
+                    account.save_profile_async(profile, on_success=_on_saved, on_error=_on_save_error)
+                except Exception:
+                    pass
             self.audio.play("win")
             self._refresh_buttons()
             return

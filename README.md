@@ -119,3 +119,29 @@ assets/                 optional sounds, music, fonts (see assets/README.md)
 tests/                  parser and physics tests
 ```
 
+
+
+## Online account system (Supabase)
+
+The game can optionally use a Supabase project for accounts and cloud saves.
+
+1. Create a Supabase project and create the `profiles` table (see integration plan) with RLS enabled.
+2. Enable Email/Password auth in the Supabase dashboard.
+3. Fill in `.env`:
+
+```
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_KEY=<publishable/anon key>
+```
+
+Only the publishable (anon) key may be shipped to clients.
+
+### Test the account flow
+
+- Run `python main.py`.
+- Click **Login** on the main menu.
+- Register a new account; verify email if required, then log in.
+- Complete a level and buy an item; check the `profiles` row in Supabase.
+- Use **Forgot password** to trigger a reset email.
+- Logout from the **Account** screen and confirm progress resets to guest defaults.
+- Remove `.env` to verify guest/offline mode still works.

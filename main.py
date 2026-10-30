@@ -72,8 +72,25 @@ def main():
 
     audio = SoundBank()
     audio.start_music()
-    manager = SceneManager(audio)
+
+    from vector_drift.account import AccountManager
+    account_manager = AccountManager()
+    manager = SceneManager(audio, account_manager=account_manager)
     manager.screen = screen
+
+    if account_manager.is_configured():
+        def _on_restored(_user):
+            profile = account_manager.profile
+            if profile is not None and account_manager.current_user is not None:
+                from vector_drift.account.integration import apply_profile_to_session
+                apply_profile_to_session(
+                    manager.session, profile,
+                    account_manager.current_user.id,
+                    account_manager.current_user.email,
+                )
+
+        account_manager.restore_session_async(on_success=_on_restored, on_error=lambda _e: None)
+
     manager.switch(MenuScene(manager))
 
     while manager.running:
