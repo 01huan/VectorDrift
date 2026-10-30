@@ -192,8 +192,24 @@ class LoginScene(Scene):
         self.register_button = Button((cx + px(10), px(340), px(170), px(44)), "Register", style="plain", font_size=17)
         self.forgot_button = Button((cx - px(180), px(400), px(170), px(36)), "Forgot password", style="plain", font_size=14)
         self.back_button = Button((cx + px(10), px(400), px(170), px(36)), "Back", style="plain", font_size=14)
+        self.delete_local_button = Button((cx - px(180), px(460), px(360), px(36)), "Delete local data", style="danger", font_size=14)
+        self.clear_local_button = self.delete_local_button
+        self.delete_guest_data_button = self.delete_local_button
         self.status = ""
         self._busy = False
+
+    def _delete_local(self):
+        account = self.manager.account
+        if account is not None:
+            try:
+                account.delete_local_data(self.session)
+            except Exception:
+                from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+                clear_guest_profile(self.session)
+        else:
+            from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+            clear_guest_profile(self.session)
+        self._set_status("Local data deleted.")
 
     def _set_status(self, msg):
         self.status = msg
@@ -215,6 +231,9 @@ class LoginScene(Scene):
             if self.back_button.handle_event(event) == "click":
                 from .menu import MenuScene
                 self.manager.switch(MenuScene(self.manager))
+                return
+            if self.delete_local_button.handle_event(event) == "click":
+                self._delete_local()
                 return
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
             self._try_login()
@@ -290,6 +309,7 @@ class LoginScene(Scene):
         self.register_button.draw(surface)
         self.forgot_button.draw(surface)
         self.back_button.draw(surface)
+        self.delete_local_button.draw(surface)
         if self.status:
             msg = self.status
             if self._busy:

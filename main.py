@@ -78,6 +78,12 @@ def main():
     manager = SceneManager(audio, account_manager=account_manager)
     manager.screen = screen
 
+    try:
+        from vector_drift.account.integration import load_guest_profile_into_session
+        load_guest_profile_into_session(manager.session)
+    except Exception:
+        pass
+
     if account_manager.is_configured():
         def _on_restored(_user):
             profile = account_manager.profile

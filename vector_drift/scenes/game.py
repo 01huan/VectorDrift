@@ -424,6 +424,12 @@ class GameScene(Scene):
                     account.save_profile_async(profile, on_success=_on_saved, on_error=_on_save_error)
                 except Exception:
                     pass
+            else:
+                try:
+                    from vector_drift.account.integration import save_guest_profile
+                    save_guest_profile(self.session)
+                except Exception:
+                    pass
             self.audio.play("win")
             self._refresh_buttons()
             return

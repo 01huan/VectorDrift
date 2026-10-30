@@ -19,6 +19,9 @@ class AccountScene(Scene):
         self.back_button = Button((px(40), px(20), px(140), px(40)), "Back", style="plain", font_size=17)
         self.logout_button = Button((cx - px(110), px(520), px(220), px(46)), "Logout", style="danger", font_size=17)
         self.refresh_button = Button((cx - px(110), px(460), px(220), px(40)), "Refresh profile", style="plain", font_size=15)
+        self.delete_local_button = Button((cx - px(110), px(390), px(220), px(40)), "Delete local data", style="danger", font_size=14)
+        self.clear_local_button = self.delete_local_button
+        self.delete_guest_data_button = self.delete_local_button
         self.status = ""
 
     def handle_event(self, event):
@@ -29,6 +32,9 @@ class AccountScene(Scene):
                 return
             if self.refresh_button.handle_event(event) == "click":
                 self._refresh()
+                return
+            if self.delete_local_button.handle_event(event) == "click":
+                self._delete_local()
                 return
             if self.logout_button.handle_event(event) == "click":
                 self._logout()
@@ -76,6 +82,19 @@ class AccountScene(Scene):
 
         account.sign_out_async(on_success=ok, on_error=err)
 
+    def _delete_local(self):
+        account = self.manager.account
+        if account is not None:
+            try:
+                account.delete_local_data(self.session)
+            except Exception:
+                from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+                clear_guest_profile(self.session)
+        else:
+            from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+            clear_guest_profile(self.session)
+        self.status = "Local data deleted."
+
     def update(self, dt):
         pass
 
@@ -102,5 +121,6 @@ class AccountScene(Scene):
             y += px(32)
         if self.status:
             draw_text(surface, self.status, (cx, px(430)), 15, config.WARNING, anchor="center")
+        self.delete_local_button.draw(surface)
         self.refresh_button.draw(surface)
         self.logout_button.draw(surface)

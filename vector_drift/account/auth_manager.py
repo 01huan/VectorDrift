@@ -1,4 +1,4 @@
-"""Authentication and account orchestration (async, non-blocking)."""
+﻿"""Authentication and account orchestration (async, non-blocking)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional
 from .errors import AccountError, AuthenticationError
 from .models import AccountUser, PlayerProfile
 from .profile_manager import ProfileManager
+from .local_profile_manager import LocalProfileManager
 from .session_manager import SessionManager
 from .supabase_client import get_client, is_configured
 
@@ -375,3 +376,23 @@ class AccountManager:
                 on_error(exc)
 
         self._run_async("save_profile", fn, success, error)
+
+
+    # --------------------------------------------------------------- guest/local
+    def load_guest_profile(self):
+        return self.local_profile_manager.load()
+
+    def save_guest_profile(self, profile_or_session=None):
+        self.local_profile_manager.save(profile_or_session)
+
+    def clear_guest_profile(self):
+        self.local_profile_manager.clear()
+
+    def delete_local_data(self, session=None):
+        self.local_profile_manager.clear()
+        if session is not None:
+            from .integration import reset_session_to_guest
+            reset_session_to_guest(session)
+
+    def delete_local_records(self, session=None):
+        self.delete_local_data(session)
