@@ -39,7 +39,7 @@ class LevelSelectScene(Scene):
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,
                                                        star_count=260)
         self.levels = {lv.id: lv for lv in all_levels()}
-        self.pages = paginate(max(self.levels, default=0))
+        self.pages = paginate(max(max(self.levels, default=0), config.PLANNED_LEVELS))
         self.page = 0
         self.hover = None
         self.cards = []

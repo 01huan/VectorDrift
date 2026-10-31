@@ -100,6 +100,11 @@ MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)
 WIN_DELAY = 0.8                     # pause on target before Win screen (s)
 
+# --- Level select ------------------------------------------------------------
+# Level numbers shown even before they exist (as "Coming soon" cards).  The
+# list always reaches the highest real level id, whichever is larger.
+PLANNED_LEVELS = 24
+
 # --- Random levels -----------------------------------------------------------
 # All tunables live in level_presets.py (one RandomPreset per dynamic level).
 # Tweak difficulty or add a new random level by editing PRESETS only.

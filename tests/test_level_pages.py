@@ -54,14 +54,34 @@ def _assert_covers(pages, highest):
     assert flat == list(range(1, highest + 1))
 
 
-def test_real_levels_fit_on_one_page_without_page_buttons():
+def test_real_levels_show_up_to_the_planned_count():
     highest = max(lv.id for lv in all_levels())
     scene = _scene()
     pages = _walk_pages(scene)
-    _assert_covers(pages, highest)
-    if highest <= 9:
-        assert len(pages) == 1
-        assert scene.next_button is None and scene.prev_button is None
+    _assert_covers(pages, max(highest, config.PLANNED_LEVELS))
+
+
+def test_planned_count_of_24_gives_four_pages():
+    assert config.PLANNED_LEVELS == 24
+    pages = _walk_pages(_scene())
+    assert [p[0] for p in pages] == [1, 9, 16, 23]
+
+
+@pytest.mark.parametrize("planned, highest, shown", [
+    (0, 8, 8), (24, 8, 24), (24, 30, 30), (5, 8, 8), (9, 4, 9),
+])
+def test_planned_count_and_highest_id_both_extend_the_range(monkeypatch, planned, highest, shown):
+    fake = [SimpleNamespace(id=i, name=f"Level {i}") for i in range(1, highest + 1)]
+    monkeypatch.setattr(levels_module, "all_levels", lambda: fake)
+    monkeypatch.setattr(config, "PLANNED_LEVELS", planned)
+    _assert_covers(_walk_pages(_scene()), shown)
+
+
+def test_single_page_has_no_page_buttons(monkeypatch):
+    monkeypatch.setattr(config, "PLANNED_LEVELS", 0)
+    scene = _scene()
+    assert len(_walk_pages(scene)) == 1
+    assert scene.next_button is None and scene.prev_button is None
 
 
 @pytest.mark.parametrize("highest", [1, 8, 9, 10, 16, 17, 20, 30])
@@ -69,6 +89,7 @@ def test_pages_cover_every_id_once(monkeypatch, highest):
     fake = [SimpleNamespace(id=i, name=f"Level {i}") for i in range(1, highest + 1) if i % 4]
     fake.append(SimpleNamespace(id=highest, name="Last"))
     monkeypatch.setattr(levels_module, "all_levels", lambda: fake)
+    monkeypatch.setattr(config, "PLANNED_LEVELS", 0)
     scene = _scene()
     pages = _walk_pages(scene)
     _assert_covers(pages, highest)
