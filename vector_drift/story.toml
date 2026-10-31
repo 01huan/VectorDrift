@@ -1,0 +1,60 @@
+# Story text: the opening crawl and Poland's lines in each fixed level.
+#
+# [intro]      the crawl shown the first time Start is pressed.
+# [level.N]    planet  : which planet the target is drawn as (see sprites.PLANETS)
+#              intro   : lines Poland says the first time the level opens
+#              win     : lines Poland says the first time the level is cleared
+# [fail]       lines   : one is picked at random each time a life is lost
+
+[intro]
+title = "VECTOR DRIFT"
+subtitle = "Cannot Into Space"
+paragraphs = [
+    "For years, the other balls laughed. “Poland cannot into space,” they said, and the words echoed across every corner of the map.",
+    "So Poland built a ship. It had no engine, no wheel, no pilot seat — only a strange machine that bends space itself with mathematics.",
+    "Armed with two formulas and a stubborn heart, Poland now sets out for the Moon, to prove the whole world wrong...",
+]
+
+[level.1]
+planet = "moon"
+intro = [
+    "They say Poland cannot into space.",
+    "Today Poland go to Moon. Is right over there. Easy.",
+    "Ship has no engine. Only F(x, y). Poland write numbers, space push ship.",
+]
+win = ["MOON! Poland is into space! ...Small step, but is step."]
+
+[level.2]
+planet = "mars"
+intro = [
+    "Next stop: Mars. Red like bottom half of Poland. Good sign.",
+    "But rock is in the way. Phobos, they call it. Rude moon.",
+]
+win = ["Mars reached. Poland is now two-planet country."]
+
+[level.3]
+planet = "saturn"
+intro = [
+    "Saturn. Has beautiful ring. Ring is also wall.",
+    "“Poland cannot into Saturn,” they will say. Already Poland hears it.",
+    "Maybe something out there can make door...",
+]
+win = ["Ring has door now. Poland made door."]
+
+[level.4]
+planet = "exoplanet"
+intro = [
+    "End of Solar System. Wall of rocks, top to bottom. No way around.",
+    "But look, black hole. Go in here... come out there?",
+    "Beyond is planet nobody visited. Not even them.",
+]
+win = ["Poland is not only into space. Poland is FAR into space."]
+
+[fail]
+lines = [
+    "Nobody saw that. Again.",
+    "Is fine. Poland has much practice of losing.",
+    "Physics is conspiracy against Poland.",
+    "They are laughing. Poland can hear.",
+    "Ship is fine. Pride is not.",
+]

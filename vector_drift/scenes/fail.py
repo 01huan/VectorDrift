@@ -33,11 +33,11 @@ class FailScene(Scene):
 
     def draw(self, surface):
         s = self.session.stats
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         lines = [
             ("Last result", s.get("reason", "")),
             ("Attempts", str(s.get("attempts", 0))),
         ]
         draw_overlay_card(surface, self.background, "MISSION FAILED", config.DANGER, lines, card_h=280)
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         for b in (self.retry_button, self.levels_button, self.menu_button):
             b.draw(surface)

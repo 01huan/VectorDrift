@@ -13,12 +13,14 @@ from ..coords import Viewport
 from ..data import SHIPS, default_ship_id, get_level, ship_unlocked
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
+from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
+from .dialogue import DialogueBox
 from .hint_popup import HintPopup
 
 log = logging.getLogger(__name__)
@@ -92,6 +94,8 @@ def fmt_clock(seconds):
 
 
 class GameScene(Scene):
+    music = "level"
+
     def __init__(self, manager):
         super().__init__(manager)
         if is_dynamic_level(self.session.level_id):
@@ -207,6 +211,17 @@ class GameScene(Scene):
         if not self.hint_mode:
             self._kick_ai_for_state()
 
+        # --- Story (fixed levels, story.toml) ---------------------------------
+        # Poland's intro lines play the first time a level opens, the win line
+        # the first time it is cleared, a fail line on every life lost.
+        self.story = None if is_dynamic_level(self.level.id) else get_level_story(self.level.id)
+        self.planet = self.story.planet if self.story else None
+        self.dialogue = None
+        self._dialogue_seen_key = None      # story_seen key to record when the box closes
+        self._win_pending = False           # WinScene waits for the win line
+        if self.story is not None:
+            self._say(self.story.intro, level_intro_key(self.level.id))
+
     def _heading_to_target(self):
         tx = self.level.target_center[0] - self.launch_pos[0]
         ty = self.level.target_center[1] - self.launch_pos[1]
@@ -311,6 +326,11 @@ class GameScene(Scene):
         if event.type == pygame.MOUSEMOTION:
             self._mouse_pos = event.pos
             self._update_cursor()
+        if self.dialogue is not None:
+            self.dialogue.handle_event(event)
+            if self.dialogue.done:
+                self._close_dialogue()
+            return                      # modal: nothing behind it takes input
         if self.hint_popup is not None:
             self._handle_hint_event(event)
             return                      # modal: nothing behind it takes input
@@ -382,6 +402,8 @@ class GameScene(Scene):
                              pickups=self.pickups, holes=self.holes)
         self.trail.clear()
         self._trail_count = 0
+        self._bounces_heard = 0
+        self._teleports_heard = 0
         self.state = FLIGHT
         self.banner = None
         self._refresh_buttons()
@@ -444,6 +466,8 @@ class GameScene(Scene):
             return
 
         self.audio.play("life_lost")
+        if self.story is not None:
+            self._say((random_fail_line(),))
         noun = "life" if self.lives == 1 else "lives"
         if outcome in RESUME_OUTCOMES:
             # Keep this leg visible (dimmed) and continue from where the ship stopped.
@@ -492,6 +516,18 @@ class GameScene(Scene):
         except _RENDER_ERRORS as exc:
             log.warning("trail extend contained: %r", exc)
         self._trail_count = len(pts)
+
+    def _play_flight_sounds(self):
+        """Bounce off a rock / pass through a black hole since the last frame."""
+        flight = self.flight
+        bounces = getattr(flight, "bounces", 0)
+        if bounces > self._bounces_heard:
+            self._bounces_heard = bounces
+            self.audio.play("bounce")
+        teleports = getattr(flight, "teleports", 0)
+        if teleports > self._teleports_heard:
+            self._teleports_heard = teleports
+            self.audio.play("warp")
 
     def _drain_pickup_events(self):
         """Sync scene state and play sounds for new pickup events (once each).
@@ -613,6 +649,8 @@ class GameScene(Scene):
             log.warning("editor update contained: %r", exc)
         except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
             log.exception("unexpected editor failure")
+        if self.dialogue is not None:
+            self.dialogue.update(dt)
         self._update_flight(dt)
 
     def _update_ai(self):
@@ -664,6 +702,7 @@ class GameScene(Scene):
                 log.warning("trail sync contained: %r", exc)
             except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
                 log.exception("unexpected trail-sync failure")
+            self._play_flight_sounds()
             try:
                 self._drain_pickup_events()
             except _RENDER_ERRORS as exc:
@@ -674,7 +713,13 @@ class GameScene(Scene):
                 self._safe_end_flight(outcome)
         elif self.state == ARRIVED:
             self.arrive_timer -= dt
-            if self.arrive_timer <= 0:
+            if self.arrive_timer <= 0 and self.dialogue is None and not self._win_pending:
+                key = level_win_key(self.level.id)
+                if self.story is not None and key not in self.session.story_seen:
+                    self._win_pending = True
+                    self._say(self.story.win, key)
+                    return
+            if self.arrive_timer <= 0 and self.dialogue is None:
                 self.session.stats = {
                     "time": self.flight.time,
                     "total_time": self.total_time,
@@ -698,6 +743,8 @@ class GameScene(Scene):
         if self.hint_popup is not None:
             self.hint_popup.draw(surface)
         self._draw_coins(surface)
+        if self.dialogue is not None:
+            self.dialogue.draw(surface)
 
     def _draw_coins(self, surface):
         """Available balance, top-right of the plot, above every other layer."""
@@ -705,6 +752,22 @@ class GameScene(Scene):
                   (config.WINDOW_W - px(14), px(12)), 16, config.WARNING,
                   kind="bold", anchor="topright")
 
+    # ------------------------------------------------------------------ Story
+    def _say(self, lines, seen_key=None):
+        """Open the dialogue box; ``seen_key`` is recorded once it closes."""
+        if seen_key is not None and seen_key in self.session.story_seen:
+            return
+        self.dialogue = DialogueBox(lines, self.viewport.rect, self.audio)
+        self._dialogue_seen_key = seen_key
+
+    def _close_dialogue(self):
+        self.dialogue = None
+        key, self._dialogue_seen_key = self._dialogue_seen_key, None
+        if key is not None:
+            self.session.story_seen.add(key)
+            from vector_drift.account.integration import save_progress
+            save_progress(self.manager.account, self.session)
+            
     # ------------------------------------------------------------------ Hint
     def _open_hint(self):
         if self.hint is None or self.state == ARRIVED:
@@ -962,7 +1025,7 @@ class GameScene(Scene):
             if self.state == ARRIVED:
                 flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
             sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
-                                vp.length(self.level.target_radius), self.t, flash)
+                                vp.length(self.level.target_radius), self.t, flash, planet=self.planet)
 
             for obstacle in getattr(self.level, "obstacles", ()) or ():
                 sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),

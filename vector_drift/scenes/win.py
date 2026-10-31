@@ -34,7 +34,6 @@ class WinScene(Scene):
 
     def draw(self, surface):
         s = self.session.stats
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         lines = [
             ("Last flight", f"{s.get('time', 0):.2f} s"),
             ("Total flight time", f"{s.get('total_time', 0):.2f} s"),
@@ -45,6 +44,7 @@ class WinScene(Scene):
         ]
         card = draw_overlay_card(surface, self.background, "MISSION COMPLETE", config.SUCCESS, lines,
                                  card_h=410)
+        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         if s.get("solution_used"):
             # Below the stat lines (they start at card.y + 104, 30 apart).
             draw_text(surface, "Solution used · not counted as a best time",

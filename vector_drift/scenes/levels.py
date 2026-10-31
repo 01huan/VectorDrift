@@ -34,6 +34,8 @@ def paginate(highest):
 
 
 class LevelSelectScene(Scene):
+    music = "menu"
+
     def __init__(self, manager):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,

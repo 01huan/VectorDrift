@@ -71,7 +71,6 @@ def main():
     clock = pygame.time.Clock()
 
     audio = SoundBank()
-    audio.start_music()
 
     from vector_drift.account import AccountManager
     account_manager = AccountManager()

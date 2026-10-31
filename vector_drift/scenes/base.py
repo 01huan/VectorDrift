@@ -26,6 +26,7 @@ class Session:
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
     owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
     collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
+    story_seen: set = field(default_factory=set)    # story.py keys: the crawl and level lines already shown
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None
@@ -68,6 +69,9 @@ class Session:
 
 
 class Scene:
+    # Music track for this scene (audio.MUSIC_SLOTS); None keeps whatever plays.
+    music = None
+
     def __init__(self, manager):
         self.manager = manager
 
@@ -108,6 +112,8 @@ class SceneManager:
             self._exit_scene()
         self.scene = scene
         set_cursor("arrow")
+        if scene.music is not None and hasattr(self.audio, "set_music"):
+            self.audio.set_music(scene.music)
 
     def quit(self):
         self._exit_scene()
@@ -129,6 +135,8 @@ class SceneManager:
 
     def update(self, dt):
         self.time += dt
+        if hasattr(self.audio, "update"):
+            self.audio.update(dt)
         if self.account is not None:
             try:
                 self.account.poll()

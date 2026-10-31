@@ -11,11 +11,23 @@ from typing import Any
 
 from .models import PlayerProfile
 
+# The story keys already shown ride along in the profile's stats so the
+# cloud schema needs no new column; Session keeps them apart (session.stats
+# is overwritten by every win / fail).
+STORY_SEEN_KEY = "story_seen"
+
 
 def _session_class():
     from vector_drift.scenes.base import Session
 
     return Session
+
+
+def _apply_profile_stats(session: Any, stats: dict | None) -> None:
+    stats = dict(stats or {})
+    session.story_seen = set(stats.pop(STORY_SEEN_KEY, None) or ())
+    if stats:
+        session.stats = stats
 
 
 def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str, email: str | None = None) -> None:
@@ -26,7 +38,7 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
     session.purchased_items = set(profile.purchased_items)
     session.records = dict(profile.records)
     session.collected_money_pickups = set(profile.collected_money_pickups)
-    session.stats = dict(profile.stats) if profile.stats else session.stats
+    _apply_profile_stats(session, profile.stats)
     session.display_name = profile.display_name
     session.user_id = user_id
     session.email = email
@@ -45,7 +57,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         purchased_items=set(session.purchased_items or set()),
         records=dict(session.records or {}),
         collected_money_pickups=set(session.collected_money_pickups or set()),
-        stats=dict(session.stats or {}),
+        stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ())},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -59,6 +71,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.records = {}
     session.collected_money_pickups = set()
     session.stats = {}
+    session.story_seen = set()
     session.user_id = None
     session.email = None
     session.display_name = None
@@ -82,7 +95,7 @@ def apply_guest_profile_to_session(session, profile):
     session.purchased_items = set(profile.purchased_items)
     session.records = dict(profile.records)
     session.collected_money_pickups = set(profile.collected_money_pickups)
-    session.stats = dict(profile.stats) if profile.stats else session.stats
+    _apply_profile_stats(session, profile.stats)
     session.display_name = profile.display_name
     session.user_id = None
     session.email = None
@@ -114,6 +127,27 @@ def save_guest_profile(session):
     except Exception:
         return
     LocalProfileManager().save(profile)
+
+
+def save_progress(account: Any, session: Any) -> None:
+    """Save the session: to the cloud when signed in, else to the guest file."""
+    try:
+        if account is not None and account.is_authenticated() and account.current_user is not None:
+            profile = session_to_profile(session, account.current_user.id)
+            session.sync_status = "syncing"
+
+            def _on_saved():
+                session.sync_status = "idle"
+
+            def _on_error(exc):
+                session.sync_status = "error"
+                session.last_sync_error = str(exc)
+
+            account.save_profile_async(profile, on_success=_on_saved, on_error=_on_error)
+        else:
+            save_guest_profile(session)
+    except Exception:
+        pass
 
 
 def clear_guest_profile(session=None):

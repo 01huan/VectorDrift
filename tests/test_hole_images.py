@@ -57,11 +57,13 @@ def test_pair_number_stands_out_on_both_holes():
     from vector_drift import config
     from vector_drift.scenes.base import SceneManager
     from vector_drift.scenes.game import GameScene
+    from vector_drift.story import all_seen_keys
 
     image_assets.clear_cache()
     manager = SceneManager(SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
                                            stop_loop=lambda *a: None))
     manager.session.level_id = 4
+    manager.session.story_seen = all_seen_keys()     # no story dialogue over the holes
     scene = GameScene(manager)
     manager.switch(scene)
     screen = pygame.Surface((config.WINDOW_W, config.WINDOW_H))

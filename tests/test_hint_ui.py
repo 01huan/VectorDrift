@@ -8,6 +8,7 @@ import pytest
 
 from vector_drift import config
 from vector_drift.hints import get_hint
+from vector_drift.story import all_seen_keys
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
@@ -34,6 +35,7 @@ def _manager():
                             stop_loop=lambda *a: None)
     manager = SceneManager(audio)
     manager.session.money.add(1000)
+    manager.session.story_seen = all_seen_keys()     # no story dialogue in the way
     return manager
 
 

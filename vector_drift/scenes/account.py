@@ -12,6 +12,8 @@ from ..account.integration import session_to_profile, reset_session_to_guest
 
 
 class AccountScene(Scene):
+    music = "menu"
+
     def __init__(self, manager):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=11, star_count=220)

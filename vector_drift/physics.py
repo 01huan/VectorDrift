@@ -311,6 +311,7 @@ class Flight:
         self._accumulator = 0.0
         self.shield_remaining = 0.0  # seconds of shield effect remaining (ship ignores bumpers)
         self.hole_teleported = False  # True if this step's hole teleport moved the ship
+        self.teleports = 0            # black-hole passes so far (the scene plays "warp" per pass)
 
     @property
     def time(self):
@@ -482,6 +483,7 @@ class Flight:
                     self.x, self.y = white[0], white[1]
                     self.trail.append((self.x, self.y))
                     self.hole_teleported = True
+                    self.teleports += 1
                     return
             except (TypeError, ValueError, OverflowError):
                 continue

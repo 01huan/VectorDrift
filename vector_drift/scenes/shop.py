@@ -10,6 +10,8 @@ from .. import shop as shop_module
 
 
 class ShopScene(Scene):
+    music = "menu"
+
     def __init__(self, manager):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=7,
@@ -75,7 +77,7 @@ class ShopScene(Scene):
                     if btn.enabled:
                         ok = shop_module.purchase_item(item, self.session)
                         if ok:
-                            self.audio.play("click")
+                            self.audio.play("purchase")
                             account = self.manager.account
                             if account is not None and account.is_authenticated() and account.current_user is not None:
                                 try:
