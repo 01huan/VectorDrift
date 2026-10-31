@@ -691,13 +691,19 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ draw
     def draw(self, surface):
         surface.fill(config.BG)
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
         self._draw_plot(surface)
         self._draw_panel(surface)
         if self.ai_popup:
             self._draw_ai_popup(surface)
         if self.hint_popup is not None:
             self.hint_popup.draw(surface)
+        self._draw_coins(surface)
+
+    def _draw_coins(self, surface):
+        """Available balance, top-right of the plot, above every other layer."""
+        draw_text(surface, f"Coins: {int(self.session.money)}",
+                  (config.WINDOW_W - px(14), px(12)), 16, config.WARNING,
+                  kind="bold", anchor="topright")
 
     # ------------------------------------------------------------------ Hint
     def _open_hint(self):
