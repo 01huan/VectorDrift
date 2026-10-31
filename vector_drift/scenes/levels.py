@@ -9,11 +9,28 @@ from ..level_presets import get_preset, is_dynamic_level
 from ..ui import Button, draw_text, icon_surface, wrap_text
 from .base import Scene
 
-PAGES = 3                    # number of level-select pages (extensible)
-LEVELS_PER_PAGE = 7          # playable level cards on a non-final page
-CARDS_PER_PAGE = 9           # 3x3 grid; last slot is "next page" on non-final pages
+CARDS_PER_PAGE = 9           # 3x3 grid; page buttons take a slot when shown
 COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
+
+
+def paginate(highest):
+    """Split level numbers 1..highest into pages that fit the 3x3 grid.
+
+    One page holds all nine slots.  With more levels, the first page keeps
+    its last slot for "Next", the last page its first slot for "Previous",
+    and middle pages give up both.
+    """
+    ids = list(range(1, highest + 1))
+    if len(ids) <= CARDS_PER_PAGE:
+        return [ids]
+    pages = [ids[:CARDS_PER_PAGE - 1]]
+    rest = ids[CARDS_PER_PAGE - 1:]
+    while len(rest) > CARDS_PER_PAGE - 1:
+        pages.append(rest[:CARDS_PER_PAGE - 2])
+        rest = rest[CARDS_PER_PAGE - 2:]
+    pages.append(rest)
+    return pages
 
 
 class LevelSelectScene(Scene):
@@ -22,6 +39,7 @@ class LevelSelectScene(Scene):
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,
                                                        star_count=260)
         self.levels = {lv.id: lv for lv in all_levels()}
+        self.pages = paginate(max(self.levels, default=0))
         self.page = 0
         self.hover = None
         self.cards = []
@@ -115,22 +133,15 @@ class LevelSelectScene(Scene):
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)
 
-    def _page_level_ids(self, page):
-        if page == 0:
-            return range(1, LEVELS_PER_PAGE + 2)
-        if page == PAGES - 1:
-            start = (PAGES - 1) * LEVELS_PER_PAGE + 2
-            return range(start, start + LEVELS_PER_PAGE + 1 + 1)
-        start = LEVELS_PER_PAGE + 2 + (page - 1) * LEVELS_PER_PAGE
-        return range(start, start + LEVELS_PER_PAGE+1)
-
-    
-    
+    @property
+    def page_count(self):
+        return len(self.pages)
 
     def _rebuild_cards(self):
         grid_w = COLS * CARD_W + (COLS - 1) * GAP
         left, top = (1280 - grid_w) // 2, 200
         self.cards = []
+        self.page = max(0, min(self.page, self.page_count - 1))
 
         if self.page > 0:
             self.prev_button = Button(
@@ -144,7 +155,7 @@ class LevelSelectScene(Scene):
         else:
             self.prev_button = None
 
-        if self.page < PAGES - 1:
+        if self.page < self.page_count - 1:
             next_rect = pygame.Rect(
                 px(left + 2 * (CARD_W + GAP)),
                 px(top + 2 * (CARD_H + GAP)),
@@ -157,17 +168,8 @@ class LevelSelectScene(Scene):
         else:
             self.next_button = None
 
-        for idx, lid in enumerate(self._page_level_ids(self.page)):
-            if self.page == 0:
-                slot = idx
-            elif self.page == PAGES - 1:
-                slot = idx + 1
-            else:
-                # Middle pages: skip top-left and bottom-right.
-                slot = idx + 1
-                if slot >= 8:
-                    slot += 1
-
+        first_slot = 1 if self.prev_button is not None else 0
+        for slot, lid in enumerate(self.pages[self.page], start=first_slot):
             col, row = slot % COLS, slot // COLS
             rect = pygame.Rect(
                 px(left + col * (CARD_W + GAP)),
@@ -178,7 +180,7 @@ class LevelSelectScene(Scene):
 
 
     def _next_page(self):
-        if self.page < PAGES - 1:
+        if self.page < self.page_count - 1:
             self.audio.play("click")
             self.page += 1
             self._rebuild_cards()
