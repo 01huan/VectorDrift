@@ -14,7 +14,8 @@ class ShopScene(Scene):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=7,
                                                        star_count=220)
-        self.back_button = Button((px(40), px(20), px(140), px(40)), "Back",
+        # Bottom-left, like Main Menu on level select, clear of the Money label.
+        self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Back",
                                  style="plain", font_size=17)
         # Aliases for callers/tests that expect other names.
         self.levels_button = self.back_button
@@ -25,12 +26,12 @@ class ShopScene(Scene):
         self.cards = []
         self.buy_buttons = []
         items = shop_module.all_items()
+        # Design coordinates on the 1280x720 layout; px() is applied once below.
         cols = 3
         card_w, card_h = 260, 180
         gap = 24
         grid_w = cols * card_w + (cols - 1) * gap
-        left = (config.WINDOW_W - grid_w) // 2
-        top = px(150)
+        left, top = (config.BASE_W - grid_w) // 2, 150
         for idx, item in enumerate(items):
             col = idx % cols
             row = idx // cols
