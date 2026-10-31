@@ -1,4 +1,4 @@
-"""AI Solver jobs always stop: on budget, on leaving GameScene, and on quit."""
+"""AI Solver jobs keep optimizing while the level is open and stop on leave/quit."""
 
 import functools
 import multiprocessing
@@ -7,12 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from vector_drift.data import get_level
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.menu import MenuScene
-from vector_drift.solver import PSOConfig, PSOSolver, run_solver_async
+from vector_drift.solver import PSOConfig, run_solver_async
 from vector_drift.solver import pso as pso_module
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
@@ -72,7 +71,7 @@ def test_leaving_game_scene_stops_solver_and_workers(small_pool, leave):
     assert not (set(multiprocessing.active_children()) - before)
 
 
-def test_game_scene_solver_job_has_budgets(monkeypatch):
+def test_game_scene_solver_job_has_no_budgets(monkeypatch):
     calls = []
 
     def fake_run(solver, level, **kwargs):
@@ -81,16 +80,9 @@ def test_game_scene_solver_job_has_budgets(monkeypatch):
 
     monkeypatch.setattr(game_module, "run_solver_async", fake_run)
     _random_scene(_manager())
-    assert calls and calls[0]["time_budget_s"] == 120.0
-    assert calls[0]["simulation_budget"] == 100000
-
-
-def test_uncancelled_job_ends_when_budget_runs_out():
-    solver = PSOSolver(PSOConfig(n_workers=1, n_particles=10))
-    job = run_solver_async(solver, get_level(7), time_budget_s=0.5,
-                           simulation_budget=100000, rng_seed=1)
-    assert _stops_within(job, 30.0)
-    assert job.error is None and job.result is not None
+    assert calls
+    assert "time_budget_s" not in calls[0]
+    assert "simulation_budget" not in calls[0]
 
 
 def test_worker_watchdog_exits_when_parent_is_gone():
