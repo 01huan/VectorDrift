@@ -96,7 +96,20 @@ def purchase_item(item: ShopItem, session) -> bool:
     try:
         session.money.spend(item.price)
     except Exception:
-        session.money.amount = _coerce_money(session.money) - int(item.price)
+        new_amount = _coerce_money(session.money) - int(item.price)
+        money = session.money
+        updated = False
+        if hasattr(money, "amount") and not isinstance(money, (int, float, bool, str, bytes)):
+            try:
+                money.amount = new_amount
+                updated = True
+            except Exception:
+                updated = False
+        if not updated:
+            try:
+                session.money = new_amount
+            except Exception:
+                pass
     try:
         item.purchase(session)
     except Exception:

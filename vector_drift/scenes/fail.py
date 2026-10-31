@@ -4,6 +4,7 @@ import pygame
 
 from .. import config
 from ..config import px
+from ..ui import draw_text
 from .base import Scene, draw_overlay_card, result_buttons
 
 
