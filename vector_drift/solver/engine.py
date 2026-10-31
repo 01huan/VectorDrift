@@ -67,7 +67,7 @@ def _time_budget_steps(level: LevelSpec, base_steps: int, dt: float) -> int:
 
 
 def _score(outcome: Outcome, steps: int, max_steps: int,
-           min_dist: float, money: int = 0) -> float:
+           min_dist: float) -> float:
     """Score a finished flight.
 
     Any REACHED outranks any non-REACHED.  Among REACHED, faster is better:
@@ -78,7 +78,7 @@ def _score(outcome: Outcome, steps: int, max_steps: int,
     if max_steps <= 0:
         max_steps = 1
     if outcome is Outcome.REACHED:
-        return 1.5 + float(money) + (1.0 - steps / max_steps) * 0.5  # (1.5, ...)
+        return 1.5 + (1.0 - steps / max_steps) * 0.5  # (1.5, 2.0]
     # Non-reached: partial credit in [0, 0.5).
     closeness = max(0.0, 1.0 - min(min_dist, WORLD_DIAGONAL) / WORLD_DIAGONAL)
     return 0.5 * closeness
@@ -149,14 +149,8 @@ def evaluate_candidate(
             # Defensive: Flight already caps via max_steps/time_limit, but be safe.
             break
 
-    money_collected = sum(
-        int(e.get("amount", 1)) for e in getattr(flight, "pickup_events", ())
-        if e.get("kind") == "money"
-    )
-
     score = _score(flight.outcome, flight.steps,
-                   _time_budget_steps(level, max_steps, dt), min_dist,
-                   money_collected)
+                   _time_budget_steps(level, max_steps, dt), min_dist)
 
     import uuid as _uuid
     record = record_from_flight(

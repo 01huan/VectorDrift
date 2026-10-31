@@ -96,6 +96,33 @@ def test_score_faster_reached_is_better():
     assert fast > slow
 
 
+def test_faster_arrival_beats_slower_one_that_collects_money():
+    """Money never outweighs time: the solver must not detour for coins."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from vector_drift.data import PickupSpec
+
+    def run(level, fx, fy):
+        tpl = SimpleNamespace(key="test", render=lambda lv, p: (fx, fy))
+        return evaluate_candidate(level, tpl, {}).record
+
+    straight = ("3", "0")
+    detour = ("1.5", "0.3*sin(0.4488*(x+7))")
+    bare = replace(LEVEL, pickups=())
+    peak = max(run(bare, *detour).trajectory, key=lambda pt: abs(pt.y))
+    coin = PickupSpec(center=(peak.x, peak.y), radius=0.1, kind="money")
+    level = replace(LEVEL, pickups=(coin,))
+
+    fast, slow = run(level, *straight), run(level, *detour)
+    reach = coin.radius + fast.ship_hull_radius
+    assert fast.outcome == slow.outcome == SimulationOutcome.REACHED
+    assert fast.steps < slow.steps
+    assert min(math.dist((p.x, p.y), coin.center) for p in fast.trajectory) > reach
+    assert min(math.dist((p.x, p.y), coin.center) for p in slow.trajectory) < reach
+    assert fast.score > slow.score
+    assert 1.5 < slow.score < fast.score <= 2.0
+
+
 # --------------------------------------------------------------------------- #
 # Store
 # --------------------------------------------------------------------------- #
