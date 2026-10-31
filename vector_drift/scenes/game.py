@@ -809,9 +809,20 @@ class GameScene(Scene):
         self.ai_job = run_solver_async(
             self.ai_solver,
             solve_level,
+            time_budget_s=120.0,
+            simulation_budget=100000,
             rng_seed=seed,
             progress_callback=lambda r: setattr(self, "ai_result", r),
         )
+
+    def on_exit(self):
+        """Leaving the level: stop the background solve and its workers."""
+        job, self.ai_job = self.ai_job, None
+        if job is not None and job.running:
+            try:
+                job.stop()
+            except Exception:
+                pass
 
     def _on_ai_click(self):
         """User tapped the AI button: return best verified solution or wait."""

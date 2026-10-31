@@ -10,12 +10,13 @@ Design notes:
   acceptable for stage 1 and keeps the implementation simple and deterministic.
   A later stage can swap the execution backend to ``multiprocessing`` behind
   the same ``SolverJob`` API without touching solvers.
-* Cancellation is cooperative: the job sets a flag; solvers that honour it
-  (PSO does via budget checks) stop early.
+* Cancellation is cooperative: the job sets a flag and hands it to solvers
+  whose ``solve`` takes a ``cancel_event`` (PSO does); those stop early.
 """
 
 from __future__ import annotations
 
+import inspect
 import threading
 import time
 from dataclasses import dataclass, field
@@ -45,8 +46,10 @@ class SolverJob:
 
         def _target() -> None:
             try:
-                # Inject cancellation hook into budgets if caller supplied one.
+                # Inject the cancellation flag if the solver can honour it.
                 kwargs = dict(self.kwargs)
+                if "cancel_event" in inspect.signature(self.solver.solve).parameters:
+                    kwargs["cancel_event"] = self._cancel
                 self.result = self.solver.solve(self.level, **kwargs)
             except BaseException as exc:  # noqa: BLE001 - surface to caller
                 self.error = exc
@@ -71,6 +74,15 @@ class SolverJob:
         """Request cooperative cancellation (best effort)."""
         self._cancel.set()
 
+    def stop(self, timeout_s: Optional[float] = 10.0) -> bool:
+        """Cancel and wait for the solver (and its worker processes) to end.
+
+        Returns ``True`` once the job is no longer running.
+        """
+        self.cancel()
+        self._finished.wait(timeout=timeout_s)
+        return not self.running
+
     def result_wait(self, timeout_s: Optional[float] = None) -> Optional[SolveResult]:
         """Block until the result is ready or ``timeout_s`` elapses."""
         self._finished.wait(timeout=timeout_s)
@@ -81,8 +93,7 @@ class SolverJob:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.running:
-            self.cancel()
-            self._finished.wait(timeout=5.0)
+            self.stop(timeout_s=5.0)
 
 
 def run_solver_async(solver: Solver, level: LevelSpec,

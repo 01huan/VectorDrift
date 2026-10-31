@@ -88,6 +88,10 @@ class Scene:
     def draw(self, surface):
         pass
 
+    def on_exit(self):
+        """Called once when this scene is replaced or the game quits."""
+        pass
+
 
 class SceneManager:
     def __init__(self, audio, account_manager=None):
@@ -100,11 +104,19 @@ class SceneManager:
         self.screen = None          # the surface the game draws on (set by main)
 
     def switch(self, scene):
+        if self.scene is not scene:
+            self._exit_scene()
         self.scene = scene
         set_cursor("arrow")
 
     def quit(self):
+        self._exit_scene()
         self.running = False
+
+    def _exit_scene(self):
+        on_exit = getattr(self.scene, "on_exit", None)
+        if on_exit is not None:
+            on_exit()
 
     def handle_event(self, event):
         if event.type == pygame.QUIT:

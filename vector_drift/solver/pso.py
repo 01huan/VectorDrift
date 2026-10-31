@@ -10,8 +10,10 @@ are compared.
 from __future__ import annotations
 
 import math
+import multiprocessing
 import os
 import random
+import threading
 import time
 import concurrent.futures
 from dataclasses import dataclass
@@ -69,12 +71,29 @@ _WORKER_TEMPLATE_KEY = None
 _WORKER_TEMPLATE = None
 
 
+class _Cancelled(Exception):
+    """Raised inside a solve when its job is cancelled."""
+
+
+def _watch_parent(is_alive, exit_fn=os._exit, interval_s: float = 1.0):
+    """Block until ``is_alive()`` turns false, then call ``exit_fn(0)``."""
+    while is_alive():
+        time.sleep(interval_s)
+    exit_fn(0)
+
+
 def _init_worker(level, template_key):
     global _WORKER_LEVEL, _WORKER_TEMPLATE_KEY, _WORKER_TEMPLATE
     _WORKER_LEVEL = level
     _WORKER_TEMPLATE_KEY = template_key
     from .templates import get_template
     _WORKER_TEMPLATE = get_template(template_key)
+    # If the game is killed outright it cannot shut the pool down, so each
+    # worker ends itself once its parent process is gone.
+    parent = multiprocessing.parent_process()
+    if parent is not None:
+        threading.Thread(target=_watch_parent, args=(parent.is_alive,),
+                         name="solver-parent-watchdog", daemon=True).start()
 
 
 def _eval_worker(payload):
@@ -116,8 +135,13 @@ class PSOSolver(Solver):
         simulation_budget: int | None = None,
         rng_seed: int | None = None,
         progress_callback=None,
+        cancel_event: threading.Event | None = None,
     ) -> SolveResult:
         cfg = self._config
+
+        def _check_cancel():
+            if cancel_event is not None and cancel_event.is_set():
+                raise _Cancelled
         if time_budget_s is not None:
             cfg.time_budget_s = time_budget_s
         if simulation_budget is not None:
@@ -244,14 +268,20 @@ class PSOSolver(Solver):
                 ]
 
                 if pool is not None:
-                    chunk_results = list(pool.map(_eval_chunk, chunk_payloads))
-                    records = [rec for chunk in chunk_results for rec in chunk]
+                    futures = [pool.submit(_eval_chunk, payload) for payload in chunk_payloads]
+                    # Wait in short slices so a cancel does not sit behind the batch.
+                    pending = set(futures)
+                    while pending:
+                        _check_cancel()
+                        _, pending = concurrent.futures.wait(pending, timeout=0.1)
+                    records = [rec for f in futures for rec in f.result()]
                     simulations.extend(records)
                     total_simulations += len(records)
                     return [(rec.score, rec) for rec in records]
 
                 results = []
                 for p in batch_particles:
+                    _check_cancel()
                     score, rec = _evaluate(p, iteration)
                     results.append((score, rec))
                 return results
@@ -280,6 +310,7 @@ class PSOSolver(Solver):
                 # first optimization iteration onward.
             # Run PSO iterations until success, budget exhaustion, or timeout.
             while (max_sim is None or total_simulations < max_sim):
+                _check_cancel()
                 if (
                     cfg.time_budget_s is not None
                     and time.perf_counter() - start >= cfg.time_budget_s
@@ -407,6 +438,8 @@ class PSOSolver(Solver):
 
                         stall_count = 0
 
+        except _Cancelled:
+            pass        # keep the best found so far
         finally:
             if pool is not None:
                 pool.shutdown(wait=True, cancel_futures=True)
