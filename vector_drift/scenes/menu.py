@@ -24,7 +24,6 @@ class MenuScene(Scene):
         cx = config.WINDOW_W // 2
         self.start_button = Button((cx - px(110), px(400), px(220), px(54)), "Start", font_size=22)
         self.quit_button = Button((cx - px(110), px(470), px(220), px(54)), "Quit", style="plain", font_size=22)
-        self.account_button = Button((config.WINDOW_W - px(180), px(20), px(160), px(40)), "Account", style="plain", font_size=15)
         self.login_menu_button = Button((cx - px(110), px(540), px(220), px(46)), "Login", style="primary", font_size=18)
         self.t = 0.0
 
@@ -37,7 +36,6 @@ class MenuScene(Scene):
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEMOTION:
-            self.account_button.handle_event(event)
             self.login_menu_button.handle_event(event)
         if self.start_button.handle_event(event) == "click" or (
                 event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN):
@@ -53,15 +51,6 @@ class MenuScene(Scene):
             self.audio.play("click")
             self.manager.quit()
         elif self.login_menu_button.handle_event(event) == "click":
-            self.audio.play("click")
-            account = self.manager.account
-            if account is not None and account.is_authenticated():
-                from .account import AccountScene
-                self.manager.switch(AccountScene(self.manager))
-            else:
-                from .auth import LoginScene
-                self.manager.switch(LoginScene(self.manager))
-        elif self.account_button.handle_event(event) == "click":
             self.audio.play("click")
             account = self.manager.account
             if account is not None and account.is_authenticated():
@@ -112,13 +101,6 @@ class MenuScene(Scene):
         if account is not None:
             self.login_menu_button.enabled = not account.is_busy
         self.login_menu_button.draw(surface)
-        if account is not None and account.is_authenticated():
-            self.account_button.label = "Account"
-        else:
-            self.account_button.label = "Login"
-        if account is not None:
-            self.account_button.enabled = not account.is_busy
-        self.account_button.draw(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:
             draw_text(surface, account.current_user.email or "", (config.WINDOW_W - px(10), px(68)), 13,
                       config.TEXT_DIM, anchor="midright")
