@@ -1,4 +1,5 @@
-import os
+﻿import os
+import gc
 
 import pytest
 
@@ -14,14 +15,30 @@ def guest_save_in_tmp(tmp_path, monkeypatch):
     monkeypatch.setattr(local_profile_manager, "_storage_path", lambda: tmp_path / "guest_profile.json")
 
 
+@pytest.fixture(autouse=True)
+def no_solver(monkeypatch, request):
+    """Keep the heavy offline AI solver (PSO + process pool) out of scene tests."""
+    from types import SimpleNamespace
+
+    module_name = getattr(getattr(request, "module", None), "__name__", "")
+    if "solver_lifecycle" in module_name:
+        yield []
+        return
+
+    calls = []
+
+    def fake_run(solver, level, **kwargs):
+        calls.append(getattr(level, "id", None))
+        return SimpleNamespace(running=True, cancel=lambda: None, error=None, result=None)
+
+    from vector_drift.scenes import game as game_module
+    monkeypatch.setattr(game_module, "run_solver_async", fake_run)
+    yield calls
+
+
 @pytest.fixture(scope="module")
 def pygame_display():
-    """pygame with a tiny display for one test module.
-
-    Fonts cached during another module's pygame session die with its
-    pygame.quit(); using them again is an access violation, so the font
-    cache is cleared on the way in and out.
-    """
+    """pygame with a tiny display for one test module."""
     import pygame
     from vector_drift import ui
     ui._font_cache.clear()
@@ -30,3 +47,10 @@ def pygame_display():
     yield
     ui._font_cache.clear()
     pygame.quit()
+
+
+@pytest.fixture(autouse=True)
+def _collect_garbage_after_test():
+    """Reclaim scenes/solvers promptly so background work cannot accumulate."""
+    yield
+    gc.collect()
