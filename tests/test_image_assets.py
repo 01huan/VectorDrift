@@ -145,8 +145,21 @@ def test_planet_has_a_512px_image():
     assert pygame.image.load(str(path)).get_size() == (512, 512)
 
 
-@pytest.mark.parametrize("kind", ["shockwave", "extratime", "shield", "life"])
+@pytest.mark.parametrize("kind", ["shockwave", "extratime", "shield", "life", "money"])
 def test_every_pickup_has_a_256px_image(kind):
     # Real assets/ on purpose: each pickup kind ships its icon.
     path = image_assets.IMAGES_DIR / image_assets.get_spec(f"pickup.{kind}").path
     assert pygame.image.load(str(path)).get_size() == (256, 256)
+
+
+@pytest.mark.parametrize("key", [image_assets.COIN_BALANCE, image_assets.COIN_TRADE])
+def test_coin_icons_are_small_256px_images(key):
+    # Real assets/ on purpose: coin_1 (balance) and coin_2 (map, prices, rewards).
+    path = image_assets.IMAGES_DIR / image_assets.get_spec(key).path
+    assert pygame.image.load(str(path)).get_size() == (256, 256)
+    assert path.stat().st_size < 30_000
+
+
+def test_map_coin_and_price_coin_are_the_same_picture():
+    assert (image_assets.get_spec(image_assets.COIN_TRADE).path
+            == image_assets.get_spec("pickup.money").path)

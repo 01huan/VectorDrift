@@ -14,6 +14,9 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `pickup.shockwave` | `pickups/shockwave.png` | Shockwave pickup icon, 256 x 256 |
 | `pickup.extratime` | `pickups/extratime.png` | Extratime pickup icon (stopwatch), 256 x 256 |
 | `pickup.shield` | `pickups/shield.png` | Shield pickup icon, 256 x 256 |
+| `pickup.money` | `pickups/money.png` | Coin pickup on the map, 256 x 256 (coin_2) |
+| `ui.coin_1` | `ui/coin_1.png` | Coin icon next to the player's balance, 256 x 256 |
+| `ui.coin_2` | `pickups/money.png` | Coin icon next to prices and coins earned (same picture as the map coin) |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
 
@@ -27,6 +30,7 @@ full-colour original.
 Pickups are small on screen (a 0.45-0.5 m radius, under 150 px even at
 4K), so their icons are 256 x 256, fitted to 95% of the canvas and stored
 the same way (about 10-15 KB each).
+The two coin icons are stored the same way.
 
 ## Sizing
 

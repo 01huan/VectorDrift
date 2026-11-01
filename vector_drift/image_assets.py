@@ -86,6 +86,12 @@ for _n in range(1, 11):
     register(AssetSpec(f"white_hole.white_hole{_n:02d}", Path(f"white_holes/white_hole{_n:02d}.png"), display_w=48, display_h=48))
 # UI
 register(AssetSpec("ui.start_marker", Path("ui/start_marker.png"), display_w=36, display_h=36))
+# Coins: coin_1 marks the player's balance; coin_2 (the map coin's picture)
+# marks prices and coins earned.
+COIN_BALANCE = "ui.coin_1"
+COIN_TRADE = "ui.coin_2"
+register(AssetSpec(COIN_BALANCE, Path("ui/coin_1.png"), display_w=20, display_h=20))
+register(AssetSpec(COIN_TRADE, Path("pickups/money.png"), display_w=20, display_h=20))
 
 
 # Background (tiled full-screen backdrop)
