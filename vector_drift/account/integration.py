@@ -15,6 +15,8 @@ from .models import PlayerProfile
 # cloud schema needs no new column; Session keeps them apart (session.stats
 # is overwritten by every win / fail).
 STORY_SEEN_KEY = "story_seen"
+# Fixed levels whose clear reward was paid ride along the same way.
+CLEAR_REWARDED_KEY = "clear_rewarded_levels"
 
 
 def _session_class():
@@ -26,6 +28,13 @@ def _session_class():
 def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     stats = dict(stats or {})
     session.story_seen = set(stats.pop(STORY_SEEN_KEY, None) or ())
+    rewarded = set()
+    for lid in stats.pop(CLEAR_REWARDED_KEY, None) or ():
+        try:
+            rewarded.add(int(lid))
+        except (TypeError, ValueError):
+            continue
+    session.clear_rewarded_levels = rewarded
     if stats:
         session.stats = stats
 
@@ -57,7 +66,8 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         purchased_items=set(session.purchased_items or set()),
         records=dict(session.records or {}),
         collected_money_pickups=set(session.collected_money_pickups or set()),
-        stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ())},
+        stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ()),
+               CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ())},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -72,6 +82,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.collected_money_pickups = set()
     session.stats = {}
     session.story_seen = set()
+    session.clear_rewarded_levels = set()
     session.user_id = None
     session.email = None
     session.display_name = None

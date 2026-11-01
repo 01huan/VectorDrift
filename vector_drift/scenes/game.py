@@ -426,6 +426,7 @@ class GameScene(Scene):
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
             self.hint_popup = None
+            self._pay_clear_reward()
             best = self.session.records.get(self.level.id)
             if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
@@ -891,6 +892,24 @@ class GameScene(Scene):
         self._run_coins = []
         self.money = self.session.money
         self.solution_used = True
+
+    def _pay_clear_reward(self):
+        """Reaching the target pays once per fixed level (saved) or random map.
+
+        A run that used a solution pays nothing and leaves the reward for a
+        later clean clear.
+        """
+        if self.solution_used:
+            return
+        if is_dynamic_level(self.level.id):
+            paid, key = self.session.clear_rewarded_maps, (self.level.id, self.session.random_seed)
+        else:
+            paid, key = self.session.clear_rewarded_levels, self.level.id
+        if key in paid:
+            return
+        paid.add(key)
+        self.session.money.add(config.CLEAR_REWARD)
+        self.money = self.session.money
 
     def _hide_collected_coins(self):
         collected = self._collected_coins()

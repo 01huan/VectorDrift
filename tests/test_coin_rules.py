@@ -1,4 +1,6 @@
-"""Where coins come from: pickups only, once per fixed coin, once per random map."""
+"""Where coins come from: pickups (once per fixed coin, once per random map) and
+the clear reward (once per fixed level, once per random map, never for a run
+that used a solution)."""
 
 from types import SimpleNamespace
 
@@ -6,8 +8,12 @@ import pygame
 import pytest
 
 from vector_drift import config
+from vector_drift.account.integration import (apply_profile_to_session, reset_session_to_guest,
+                                              session_to_profile)
+from vector_drift.account.models import PlayerProfile
 from vector_drift.data import get_level
 from vector_drift.hints import get_hint
+from vector_drift.physics import Outcome
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import GameScene
@@ -74,20 +80,102 @@ def test_level_one_has_no_coin():
     assert not _coins(_scene(1))
 
 
+def _arrive(scene):
+    """End a flight on the target (random maps have no stored answer to fly)."""
+    scene.flight = SimpleNamespace(time=1.0, trail=[])
+    scene._end_flight(Outcome.REACHED)
+
+
+def test_clear_reward_is_five():
+    assert config.CLEAR_REWARD == 5
+
+
 @pytest.mark.parametrize("level_id", [1, 3])
-def test_clearing_a_level_gives_no_coins(level_id):
+def test_first_clear_pays_the_clear_reward(level_id):
     scene = _scene(level_id)
     before = _balance(scene)
     _win(scene)
-    assert _balance(scene) == before
+    assert _balance(scene) == before + config.CLEAR_REWARD
 
 
-def test_clearing_again_gives_no_coins():
+def test_second_clear_of_a_fixed_level_pays_nothing():
     manager = _manager()
-    manager.session.records[1] = 50.0
-    scene = _scene(1, manager)
+    _win(_scene(1, manager))
+    _win(_scene(1, manager))
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+
+def test_clear_reward_does_not_come_from_records():
+    manager = _manager()
+    manager.session.records[1] = 50.0       # an old best time is not a paid reward
+    _win(_scene(1, manager))
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+
+def test_clear_reward_survives_a_save_and_load():
+    manager = _manager()
+    _win(_scene(1, manager))
+    row = session_to_profile(manager.session, "u1").to_row()
+
+    loaded = _manager()
+    apply_profile_to_session(loaded.session, PlayerProfile.from_row(row, "u1"), "u1")
+    assert int(loaded.session.money) == config.CLEAR_REWARD
+    _win(_scene(1, loaded))
+    assert int(loaded.session.money) == config.CLEAR_REWARD
+
+
+def test_logging_out_forgets_the_paid_clear_rewards():
+    manager = _manager()
+    _win(_scene(1, manager))
+    reset_session_to_guest(manager.session)
+    manager.session.story_seen = all_seen_keys()
+    _win(_scene(1, manager))
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+
+def test_random_map_clear_pays_once_per_seed():
+    manager = _manager()
+    _arrive(_scene(7, manager, seed=123))
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+    _arrive(_scene(7, manager, seed=123))                  # Retry, same map
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+    _arrive(_scene(7, manager, seed=456))                  # a new map pays again
+    assert int(manager.session.money) == 2 * config.CLEAR_REWARD
+
+
+def test_random_map_clear_reward_is_not_saved():
+    manager = _manager()
+    _arrive(_scene(7, manager, seed=123))
+    row = session_to_profile(manager.session, "u1").to_row()
+
+    loaded = _manager()
+    apply_profile_to_session(loaded.session, PlayerProfile.from_row(row, "u1"), "u1")
+    _arrive(_scene(7, loaded, seed=123))
+    assert int(loaded.session.money) == 2 * config.CLEAR_REWARD
+
+
+def test_solution_used_clear_pays_nothing_and_keeps_the_fixed_reward():
+    manager = _manager()
+    scene = _scene(3, manager)
+    scene._reveal_solution()
     _win(scene)
     assert int(manager.session.money) == 0
+
+    _win(_scene(3, manager))                                # a clean clear still pays
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+
+def test_solution_used_clear_keeps_the_random_map_reward():
+    manager = _manager()
+    scene = _scene(7, manager, seed=123)
+    scene._reveal_solution()
+    _arrive(scene)
+    assert int(manager.session.money) == 0
+
+    _arrive(_scene(7, manager, seed=123))
+    assert int(manager.session.money) == config.CLEAR_REWARD
 
 
 def test_fixed_coin_pays_once_and_stays_gone_after_reset_and_reentry():

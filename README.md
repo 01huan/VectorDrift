@@ -52,9 +52,12 @@ but those cannot launch until their level. Random levels allow every ship.
 
 Coins are collectibles. Their only use is buying a full answer.
 
-* **Where they come from:** coin pickups only; clearing a level pays nothing.
-  A coin on a fixed level pays once, ever. A coin on a random level pays once
-  per map, so a new layout brings new coins.
+* **Coin pickups:** a coin on a fixed level pays once, ever. A coin on a
+  random level pays once per map, so a new layout brings new coins.
+* **Clearing a level:** reaching the target pays 5 coins. On a fixed level
+  this happens once, ever, on the first clear that qualifies, and it is kept in
+  your saved progress. On a random level it pays once per map: Retry on the
+  same map pays nothing, a new map pays again.
 * **Hint answers (fixed levels):** opening Hint and reading every step is free.
   The answer page is free on levels 1 and 2 and costs 10 coins from level 3 on.
   You pay when you confirm, once per level per game launch.
@@ -66,10 +69,11 @@ Coins are collectibles. Their only use is buying a full answer.
   so a clear won't count as a best time. Coins collected earlier in that run
   are taken back and cannot pay for it; on a fixed level they reappear when the
   level resets. Coins picked up after the reveal pay nothing and stay for a
-  later run.
+  later run. A "Solution used" clear gets no clear reward and does not use it
+  up: a later clear of the same level (or map) without a solution still pays.
 
-Prices and free levels live in `config.py`: `HINT_ANSWER_COST`,
-`AI_SOLVER_COST` and `FREE_ANSWER_LEVELS`.
+Prices, the clear reward and free levels live in `config.py`:
+`HINT_ANSWER_COST`, `AI_SOLVER_COST`, `CLEAR_REWARD` and `FREE_ANSWER_LEVELS`.
 
 ## Controls
 

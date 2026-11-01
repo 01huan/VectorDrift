@@ -27,3 +27,5 @@ def test_readme_documents_the_coin_rules():
     assert f"Reveal ({config.AI_SOLVER_COST} coins)" in coins
     assert "levels 1 and 2" in coins
     assert "taken back" in coins
+    assert f"pays {config.CLEAR_REWARD} coins" in coins
+    assert "clearing a level pays nothing" not in coins
