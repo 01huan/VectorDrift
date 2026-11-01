@@ -8,6 +8,11 @@ from ..ui import Button, draw_text
 from .base import Scene
 from .. import shop as shop_module
 
+# Layout constants (design coordinates on the 1280x720 layout).
+CARDS_PER_PAGE = 9          # 3x3 grid, matching level select
+COLS = 3
+CARD_W, CARD_H, GAP = 220, 150, 30
+
 
 class ShopScene(Scene):
     music = "menu"
@@ -22,24 +27,29 @@ class ShopScene(Scene):
         # Aliases for callers/tests that expect other names.
         self.levels_button = self.back_button
         self.menu_button = self.back_button
-        self._build()
-
-    def _build(self):
+        self.page = 0
+        self.prev_button = None
+        self.next_button = None
         self.cards = []
         self.buy_buttons = []
         items = shop_module.all_items()
-        # Design coordinates on the 1280x720 layout; px() is applied once below.
-        cols = 3
-        card_w, card_h = 260, 180
-        gap = 24
-        grid_w = cols * card_w + (cols - 1) * gap
+        self.pages = [items[i:i + CARDS_PER_PAGE]
+                      for i in range(0, max(1, len(items)), CARDS_PER_PAGE)]
+        self._rebuild_cards()
+
+    def _rebuild_cards(self):
+        self.cards = []
+        self.buy_buttons = []
+        self.page = max(0, min(self.page, self.page_count - 1))
+        page_items = self.pages[self.page] if self.page < len(self.pages) else []
+        grid_w = COLS * CARD_W + (COLS - 1) * GAP
         left, top = (config.BASE_W - grid_w) // 2, 150
-        for idx, item in enumerate(items):
-            col = idx % cols
-            row = idx // cols
-            rect = pygame.Rect(px(left + col * (card_w + gap)),
-                               px(top + row * (card_h + gap)),
-                               px(card_w), px(card_h))
+        for idx, item in enumerate(page_items):
+            col = idx % COLS
+            row = idx // COLS
+            rect = pygame.Rect(px(left + col * (CARD_W + GAP)),
+                               px(top + row * (CARD_H + GAP)),
+                               px(CARD_W), px(CARD_H))
             buy_rect = pygame.Rect(rect.x + px(16), rect.bottom - px(44),
                                    rect.w - px(32), px(34))
             btn = Button(buy_rect, "Buy", style="primary", font_size=16)
@@ -48,6 +58,41 @@ class ShopScene(Scene):
                 btn.enabled = False
             self.cards.append((item, rect))
             self.buy_buttons.append((item, btn))
+
+        if self.page_count > 1:
+            if self.page > 0:
+                self.prev_button = Button(
+                    (px(config.BASE_W // 2 - 190), config.WINDOW_H - px(50), px(180), px(46)),
+                    "Previous", style="primary", font_size=17)
+            else:
+                self.prev_button = None
+            if self.page < self.page_count - 1:
+                self.next_button = Button(
+                    (px(config.BASE_W // 2 + 10), config.WINDOW_H - px(50), px(180), px(46)),
+                    "Next", style="primary", font_size=17)
+            else:
+                self.next_button = None
+        else:
+            self.prev_button = None
+            self.next_button = None
+
+    @property
+    def page_count(self):
+        return max(1, len(self.pages))
+
+    def _next_page(self):
+        if self.page < self.page_count - 1:
+            self.audio.play("click")
+            self.page += 1
+            self._rebuild_cards()
+
+    def _prev_page(self):
+        if self.page > 0:
+            self.audio.play("click")
+            self.page -= 1
+            self._rebuild_cards()
+
+
 
     def _refresh_buttons(self):
         for item, btn in self.buy_buttons:
@@ -68,6 +113,10 @@ class ShopScene(Scene):
             self.back_button.handle_event(event)
             for _item, btn in self.buy_buttons:
                 btn.handle_event(event)
+            if self.prev_button is not None:
+                self.prev_button.handle_event(event)
+            if self.next_button is not None:
+                self.next_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.back_button.handle_event(event) == "click":
                 self._to_levels()
@@ -108,6 +157,12 @@ class ShopScene(Scene):
                     else:
                         self.audio.play("error")
                     return
+            if self.prev_button is not None and self.prev_button.handle_event(event) == "click":
+                self._prev_page()
+                return
+            if self.next_button is not None and self.next_button.handle_event(event) == "click":
+                self._next_page()
+                return
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self._to_levels()
 
@@ -134,6 +189,10 @@ class ShopScene(Scene):
                       config.ACCENT, kind="bold")
         for _item, btn in self.buy_buttons:
             btn.draw(surface)
+        if self.prev_button is not None:
+            self.prev_button.draw(surface)
+        if self.next_button is not None:
+            self.next_button.draw(surface)
         self.back_button.draw(surface)
 
 

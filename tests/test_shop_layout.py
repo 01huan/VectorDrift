@@ -64,7 +64,7 @@ def test_cards_are_centred_and_scale_once(scale):
     right = max(r.right for r in rects)
     assert abs((left + right) / 2 - config.WINDOW_W / 2) <= 2
     assert rects[0].top == config.px(150)
-    assert rects[0].size == (config.px(260), config.px(180))
+    assert rects[0].size == (config.px(220), config.px(150))
 
 
 def test_back_does_not_cover_money_or_cards(scale, monkeypatch):
