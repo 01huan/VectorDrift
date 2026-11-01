@@ -4,7 +4,8 @@ import pygame
 
 from .. import config
 from ..config import px
-from ..ui import draw_text
+from ..image_assets import COIN_BALANCE
+from ..ui import draw_coins, draw_text
 from .base import Scene, draw_overlay_card, result_buttons
 
 
@@ -45,7 +46,7 @@ class WinScene(Scene):
         ]
         card = draw_overlay_card(surface, self.background, "MISSION COMPLETE", config.SUCCESS, lines,
                                  card_h=410)
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
+        draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT, icon=COIN_BALANCE)
         if s.get("solution_used"):
             # Below the stat lines (they start at card.y + 104, 30 apart).
             draw_text(surface, "Solution used · not counted as a best time",

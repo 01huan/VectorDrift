@@ -4,7 +4,8 @@ import pygame
 
 from .. import config
 from ..config import px
-from ..ui import draw_text
+from ..image_assets import COIN_BALANCE
+from ..ui import draw_coins, draw_text
 from .base import Scene, draw_overlay_card, result_buttons
 
 
@@ -38,6 +39,6 @@ class FailScene(Scene):
             ("Attempts", str(s.get("attempts", 0))),
         ]
         draw_overlay_card(surface, self.background, "MISSION FAILED", config.DANGER, lines, card_h=280)
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16, config.TEXT, kind="bold")
+        draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT, icon=COIN_BALANCE)
         for b in (self.retry_button, self.levels_button, self.menu_button):
             b.draw(surface)

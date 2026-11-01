@@ -16,7 +16,9 @@ from ..hints import get_hint
 from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
-from ..ui import Button, CodeEditor, IconButton, draw_panel_box, draw_text, icon_surface
+from ..image_assets import COIN_BALANCE
+from ..ui import (Button, CodeEditor, IconButton, draw_coins, draw_panel_box, draw_text,
+                  icon_surface)
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
@@ -747,9 +749,8 @@ class GameScene(Scene):
 
     def _draw_coins(self, surface):
         """Available balance, top-right of the plot, above every other layer."""
-        draw_text(surface, f"Coins: {int(self.session.money)}",
-                  (config.WINDOW_W - px(14), px(12)), 16, config.WARNING,
-                  kind="bold", anchor="topright")
+        draw_coins(surface, int(self.session.money), (config.WINDOW_W - px(14), px(12)), 16,
+                   config.WARNING, icon=COIN_BALANCE, anchor="topright")
 
     # ------------------------------------------------------------------ Story
     def _say(self, lines, seen_key=None):

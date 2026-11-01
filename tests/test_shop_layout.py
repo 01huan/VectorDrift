@@ -6,6 +6,7 @@ import pygame
 import pytest
 
 from vector_drift import config, ui
+from vector_drift.image_assets import COIN_BALANCE
 from vector_drift.scenes import shop as shop_scene_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.shop import ShopScene
@@ -32,15 +33,15 @@ def _scene():
 
 def _money_rect(scene, monkeypatch):
     rects = []
-    real = shop_scene_module.draw_text
+    real = shop_scene_module.draw_coins
 
-    def spy(surface, text, *args, **kwargs):
-        rect = real(surface, text, *args, **kwargs)
-        if text.startswith("Money:"):
+    def spy(surface, amount, *args, **kwargs):
+        rect = real(surface, amount, *args, **kwargs)
+        if kwargs.get("icon") == COIN_BALANCE:
             rects.append(rect)
         return rect
 
-    monkeypatch.setattr(shop_scene_module, "draw_text", spy)
+    monkeypatch.setattr(shop_scene_module, "draw_coins", spy)
     scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
     assert len(rects) == 1
     return rects[0]

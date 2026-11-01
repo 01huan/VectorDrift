@@ -4,7 +4,8 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..ui import Button, draw_text
+from ..image_assets import COIN_BALANCE
+from ..ui import Button, draw_coins, draw_text
 from .base import Scene
 from .. import shop as shop_module
 
@@ -21,7 +22,7 @@ class ShopScene(Scene):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=7,
                                                        star_count=220)
-        # Bottom-left, like Main Menu on level select, clear of the Money label.
+        # Bottom-left, like Main Menu on level select, clear of the coin balance.
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Back",
                                  style="plain", font_size=17)
         # Aliases for callers/tests that expect other names.
@@ -171,8 +172,8 @@ class ShopScene(Scene):
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
-        draw_text(surface, f"Money: {int(self.session.money)}", (px(12), px(12)), 16,
-                  config.TEXT, kind="bold")
+        draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT,
+                   icon=COIN_BALANCE)
         cx = config.WINDOW_W // 2
         draw_text(surface, "SHOP", (cx, px(90)), 40, config.TEXT, kind="bold", anchor="center")
         draw_text(surface, "Spend money to unlock items", (cx, px(132)), 16,

@@ -58,6 +58,47 @@ def wrap_text(text, size, max_width, kind="ui"):
     return lines
 
 
+COIN_GOLD = (240, 190, 60)         # stand-in disc when a coin picture is missing
+
+
+def _icon(key, side):
+    """The picture for ``key`` at ``side`` x ``side`` real px, or a plain gold disc."""
+    from .image_assets import load_image
+    img = load_image(key, size_px=(side, side))
+    if img is None:
+        img = pygame.Surface((side, side), pygame.SRCALPHA)
+        pygame.draw.circle(img, COIN_GOLD, (side / 2, side / 2), side / 2)
+    return img
+
+
+def draw_icon_row(surface, parts, pos, size=16, kind="bold", anchor="topleft", gap=5):
+    """Draw text pieces and icons side by side, placed together by ``anchor``.
+
+    ``parts`` holds ``(text, color)`` pairs and image keys (str) for icons,
+    which are drawn at the font's height.  Returns the rect of the whole row.
+    """
+    font = get_font(size, kind)
+    side = font.get_height()
+    pieces = [_icon(p, side) if isinstance(p, str) else font.render(str(p[0]), True, p[1])
+              for p in parts]
+    space = px(gap)
+    rect = pygame.Rect(0, 0, sum(s.get_width() for s in pieces) + space * (len(pieces) - 1),
+                       max((s.get_height() for s in pieces), default=0))
+    setattr(rect, anchor, pos)
+    x = rect.x
+    for s in pieces:
+        surface.blit(s, s.get_rect(midleft=(x, rect.centery)))
+        x += s.get_width() + space
+    return rect
+
+
+def draw_coins(surface, amount, pos, size=16, color=config.TEXT, icon=None, kind="bold",
+               anchor="topleft"):
+    """A coin picture followed by ``amount``; coin_2 (prices, rewards) unless ``icon``."""
+    from .image_assets import COIN_TRADE
+    return draw_icon_row(surface, [icon or COIN_TRADE, (amount, color)], pos, size, kind, anchor)
+
+
 def draw_panel_box(surface, rect, fill=config.PANEL_BG, edge=config.PANEL_EDGE, radius=4):
     pygame.draw.rect(surface, fill, rect, border_radius=px(radius))
     pygame.draw.rect(surface, edge, rect, width=max(1, px(1)), border_radius=px(radius))

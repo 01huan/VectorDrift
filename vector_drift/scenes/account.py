@@ -6,7 +6,8 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..ui import Button, draw_text
+from ..image_assets import COIN_BALANCE
+from ..ui import Button, draw_icon_row, draw_text
 from .base import Scene
 from ..account.integration import session_to_profile, reset_session_to_guest
 
@@ -111,14 +112,17 @@ class AccountScene(Scene):
             ("User", s.email or "Guest"),
             ("Status", s.auth_status),
             ("Display name", s.display_name or "-"),
-            ("Money", str(int(s.money))),
+            (COIN_BALANCE, str(int(s.money))),
             ("Records", str(len(s.records))),
             ("Owned ships", ", ".join(sorted(s.owned_ships))),
             ("Sync", s.sync_status),
         ]
         y = px(160)
         for label, value in lines:
-            draw_text(surface, label, (cx - px(160), y), 16, config.TEXT_DIM, anchor="midleft")
+            if label == COIN_BALANCE:           # the coin picture stands for the word
+                draw_icon_row(surface, [COIN_BALANCE], (cx - px(160), y), 16, anchor="midleft")
+            else:
+                draw_text(surface, label, (cx - px(160), y), 16, config.TEXT_DIM, anchor="midleft")
             draw_text(surface, value, (cx + px(160), y), 16, config.TEXT, anchor="midright")
             y += px(32)
         if self.status:
