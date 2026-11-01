@@ -196,6 +196,9 @@ class GameScene(Scene):
                                       style="primary", font_size=15)
         self.ai_close_button = Button((0, 0, px(100), px(40)), "Close",
                                       style="plain", font_size=15)
+        self.ai_reveal_button = Button((0, 0, px(160), px(40)),
+                                       f"Reveal ({config.AI_SOLVER_COST} coins)",
+                                       style="primary", font_size=15)
         self.ai_job_state_key = None
         self.ai_best_by_state = {}
         self._last_state_key = None
@@ -360,9 +363,13 @@ class GameScene(Scene):
 
         if self.ai_popup:
             self._position_ai_popup_buttons()
-            if self.ai_apply_button.handle_event(event) == "click":
-                self.audio.play("click")
-                self._apply_ai_suggestion()
+            if self._ai_revealed():
+                if self.ai_apply_button.handle_event(event) == "click":
+                    self.audio.play("click")
+                    self._apply_ai_suggestion()
+                    return
+            elif self.ai_reveal_button.handle_event(event) == "click":
+                self._buy_ai_reveal()
                 return
             if self.ai_close_button.handle_event(event) == "click":
                 self.audio.play("click")
@@ -371,16 +378,11 @@ class GameScene(Scene):
             return  # Modal: swallow other input while the popup is open.
 
         if self.ai_button.handle_event(event) == "click":
+            # Free to open; only the full answer costs (answer page / Reveal).
             if self.hint_mode:
-                self._open_hint()               # free; only the answer page costs
-                return
-            cost = config.AI_SOLVER_COST
-            if int(self.session.money) < cost:
-                self.audio.play("error")
-                return
-            self.session.money.spend(cost)
-            self.money = self.session.money
-            self._on_ai_click()
+                self._open_hint()
+            else:
+                self._on_ai_click()
             return
 
     # ------------------------------------------------------------------ flow
@@ -628,6 +630,7 @@ class GameScene(Scene):
         self.t += dt
         if not self.hint_mode:
             self._update_ai()
+            self._note_ai_answer_shown()
         try:
             self.editor.update(dt)
         except _RENDER_ERRORS as exc:
@@ -887,15 +890,42 @@ class GameScene(Scene):
 
     # ------------------------------------------------------------------ AI assistant
     def _position_ai_popup_buttons(self):
-        """Center the Apply/Close buttons under the standard popup card."""
+        """Center Apply (or Reveal) and Close under the standard popup card."""
         card = pygame.Rect(0, 0, px(560), px(320))
         card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
         bw, bh, gap = px(110), px(40), px(14)
-        total = bw * 2 + gap
-        x0 = card.centerx - total // 2
+        first_w = bw if self._ai_revealed() else px(160)
+        x0 = card.centerx - (first_w + gap + bw) // 2
         by = card.bottom - px(56)
         self.ai_apply_button.rect = pygame.Rect(x0, by, bw, bh)
-        self.ai_close_button.rect = pygame.Rect(x0 + bw + gap, by, bw, bh)
+        self.ai_reveal_button.rect = pygame.Rect(x0, by, px(160), bh)
+        self.ai_reveal_button.enabled = self._available_coins() >= config.AI_SOLVER_COST
+        self.ai_close_button.rect = pygame.Rect(x0 + first_w + gap, by, bw, bh)
+
+    def _solver_map_key(self):
+        """The unit an AI Solver reveal is paid for: this random map."""
+        return (self.level.id, self.session.random_seed)
+
+    def _ai_revealed(self):
+        return self._solver_map_key() in self.session.revealed_solver_maps
+
+    def _buy_ai_reveal(self):
+        """Pay for this map's AI answers; paying is the reveal."""
+        cost = config.AI_SOLVER_COST
+        if self._available_coins() < cost:
+            self.audio.play("error")
+            return
+        self.audio.play("click")
+        self._reveal_solution()
+        self.session.money.spend(cost)
+        self.money = self.session.money
+        self.session.revealed_solver_maps.add(self._solver_map_key())
+
+    def _note_ai_answer_shown(self):
+        """A paid map's answer on screen counts as using the solution."""
+        if (self.ai_popup and not self.solution_used and self._ai_revealed()
+                and self.ai_result is not None and self.ai_result.best is not None):
+            self._reveal_solution()
 
     def _state_key(self):
         obstacles = tuple(getattr(self.level, "obstacles", ()) or ())
@@ -959,6 +989,7 @@ class GameScene(Scene):
             self._kick_ai_for_state()
         self.ai_popup = True
         self._position_ai_popup_buttons()
+        self._note_ai_answer_shown()
 
     def _apply_ai_suggestion(self):
         """Write the best candidate formula into the Fx/Fy editor."""
@@ -989,6 +1020,7 @@ class GameScene(Scene):
                   config.TEXT, kind="bold", anchor="center")
 
         best = self.ai_result.best if self.ai_result else None
+        revealed = self._ai_revealed()
         y = card.y + px(74)
         rows = []
         if self.ai_status == "solving" and best is None:
@@ -997,8 +1029,9 @@ class GameScene(Scene):
             rows.append(("Status", "Solution found" if self.ai_result.best_score >= 1.5
                          else "No feasible solution found"))
             rows.append(("Template", best.template))
-            rows.append(("Fx", best.fx_text))
-            rows.append(("Fy", best.fy_text))
+            if revealed:                    # Fx / Fy stay hidden until this map is paid
+                rows.append(("Fx", best.fx_text))
+                rows.append(("Fy", best.fy_text))
             rows.append(("Score", f"{self.ai_result.best_score:.3f}"))
         else:
             rows.append(("Status", self.ai_message or "Ready"))
@@ -1011,8 +1044,16 @@ class GameScene(Scene):
             y += px(30)
 
         self._position_ai_popup_buttons()
-        self.ai_apply_button.enabled = best is not None
-        self.ai_apply_button.draw(surface)
+        if revealed:
+            self.ai_apply_button.enabled = best is not None
+            self.ai_apply_button.draw(surface)
+        else:
+            cost, available = config.AI_SOLVER_COST, self._available_coins()
+            if available < cost:
+                draw_text(surface, f"Need {cost} coins (you have {available}).",
+                          (card.centerx, self.ai_reveal_button.rect.y - px(14)), 15,
+                          config.WARNING, kind="bold", anchor="midbottom")
+            self.ai_reveal_button.draw(surface)
         self.ai_close_button.draw(surface)
 
     def _ship_state(self):
@@ -1231,8 +1272,8 @@ class GameScene(Scene):
             self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
             self.ai_button.label = "Hint"
         else:
-            # AI assistant button (offline solver).  Disabled while a job runs.
-            self.ai_button.enabled = int(self.session.money) >= config.AI_SOLVER_COST
+            # AI assistant button (offline solver): always open, solving is free.
+            self.ai_button.enabled = True
             self.ai_button.label = ("AI Solver" if self.ai_status != "error"
                                     else "AI Solver (Failed)")
         self.ai_button.draw(surface)
