@@ -71,6 +71,9 @@ Coins are collectibles. Their only use is buying a full answer.
   level resets. Coins picked up after the reveal pay nothing and stay for a
   later run. A "Solution used" clear gets no clear reward and does not use it
   up: a later clear of the same level (or map) without a solution still pays.
+* **Mission Complete** shows the coins the run earned (pickups plus the clear
+  reward) and says why there are none: a solution was used, or the clear
+  reward for that level or map was already collected.
 
 Prices, the clear reward and free levels live in `config.py`:
 `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `CLEAR_REWARD` and `FREE_ANSWER_LEVELS`.

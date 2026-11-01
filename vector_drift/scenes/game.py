@@ -187,6 +187,7 @@ class GameScene(Scene):
         self.hint_popup = None
         self.solution_used = False
         self._run_coins = []            # (coin key, amount) paid out this run, before any reveal
+        self._clear_reward = 0          # coins the clear paid (shown on Mission Complete)
 
         # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
@@ -730,6 +731,9 @@ class GameScene(Scene):
                     "fx": self.editor.lines[0].strip() or "0",
                     "fy": self.editor.lines[1].strip() or "0",
                     "solution_used": self.solution_used,
+                    "clear_reward": self._clear_reward,
+                    "coins_earned": (sum(amount for _key, amount in self._run_coins)
+                                     + self._clear_reward),
                 }
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
@@ -900,6 +904,7 @@ class GameScene(Scene):
         A run that used a solution pays nothing and leaves the reward for a
         later clean clear.
         """
+        self._clear_reward = 0
         if self.solution_used:
             return
         if is_dynamic_level(self.level.id):
@@ -909,7 +914,8 @@ class GameScene(Scene):
         if key in paid:
             return
         paid.add(key)
-        self.session.money.add(config.CLEAR_REWARD)
+        self._clear_reward = config.CLEAR_REWARD
+        self.session.money.add(self._clear_reward)
         self.money = self.session.money
 
     def _hide_collected_coins(self):

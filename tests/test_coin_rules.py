@@ -207,3 +207,50 @@ def test_random_coin_pays_once_per_map():
     fresh = [p for p in _coins(other) if not p.consumed][0]
     _collect(other, fresh)
     assert int(manager.session.money) == 2
+
+
+# --- Mission Complete: coins earned this run ---------------------------------
+
+def _finish(scene):
+    """Let an arrived run reach the Win screen; return the stats it shows."""
+    for _ in range(60 * 5):
+        if not isinstance(scene.manager.scene, GameScene):
+            break
+        scene.update(1 / 60)
+    assert isinstance(scene.manager.scene, WinScene)
+    return scene.manager.session.stats
+
+
+def test_win_stats_count_coins_picked_up_plus_the_clear_reward():
+    manager = _manager()
+    scene = _scene(2, manager)
+    _collect(scene, _coins(scene)[0])
+    _win(scene)
+    stats = manager.session.stats
+    assert stats["coins_earned"] == 1 + config.CLEAR_REWARD
+    assert stats["clear_reward"] == config.CLEAR_REWARD
+
+
+def test_win_stats_on_a_second_clear_count_no_reward():
+    manager = _manager()
+    _win(_scene(1, manager))
+    _win(_scene(1, manager))
+    assert manager.session.stats["coins_earned"] == 0
+    assert manager.session.stats["clear_reward"] == 0
+
+
+def test_win_stats_after_a_reveal_count_nothing():
+    manager = _manager()
+    scene = _scene(2, manager)
+    _collect(scene, _coins(scene)[0])                       # taken back by the reveal
+    scene._reveal_solution()
+    _win(scene)
+    assert manager.session.stats["coins_earned"] == 0
+    assert manager.session.stats["solution_used"] is True
+
+
+def test_win_stats_on_a_random_map():
+    manager = _manager()
+    scene = _scene(7, manager, seed=123)
+    _arrive(scene)
+    assert _finish(scene)["coins_earned"] == config.CLEAR_REWARD
