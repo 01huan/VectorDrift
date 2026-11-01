@@ -22,6 +22,7 @@ class Session:
     stats: dict = field(default_factory=dict)       # last win/fail details
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
     hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
+    paid_answer_levels: set = field(default_factory=set)  # fixed levels whose answer was paid this launch
     money: Money = field(default_factory=Money)     # player's currency balance
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
     owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins

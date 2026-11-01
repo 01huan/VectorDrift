@@ -34,7 +34,6 @@ def _manager():
     audio = SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
                             stop_loop=lambda *a: None)
     manager = SceneManager(audio)
-    manager.session.money.add(1000)
     manager.session.story_seen = all_seen_keys()     # no story dialogue in the way
     return manager
 
@@ -165,6 +164,7 @@ def test_reaching_the_answer_page_counts_even_without_apply():
 
 def test_apply_fills_the_editor_with_that_answer():
     scene = _scene(3)
+    scene.session.money.add(config.HINT_ANSWER_COST)      # level 3's answer is paid
     _show_answer(scene)
     _click(scene, scene.hint_popup.apply_buttons[1].rect)
 
@@ -213,6 +213,7 @@ def test_answer_confirmation_is_asked_once_per_game_launch():
 
 def test_showing_the_answer_resets_the_level_but_keeps_the_lives():
     scene = _scene(3)
+    scene.session.money.add(config.HINT_ANSWER_COST)      # level 3's answer is paid
     start, specs = scene.level.start, scene.level.obstacles
     scene.lives = 3
     scene.launch_pos = (-2.0, 1.0)
@@ -326,3 +327,147 @@ def test_losing_lives_never_pops_a_hint_reminder(monkeypatch, level_id):
 
     assert scene.hint_popup is None
     assert not any("Hint" in t and t != "Hint" for t in texts)
+
+
+# --- 7. Paying for the answer -------------------------------------------------------
+
+def _collect(scene, pickup):
+    """What a flight does when the ship touches a coin."""
+    pickup.consumed = True
+    scene.flight = SimpleNamespace(pickup_events=[
+        {"kind": "money", "center": pickup.center, "amount": 1}])
+    scene._drain_pickup_events()
+    scene.flight = None
+
+
+def _coin(scene):
+    return next(p for p in scene.pickups if p.kind == "money")
+
+
+def _ask_for_answer(scene):
+    if scene.hint_popup is None:
+        _open_hint(scene)
+    _to_last_step(scene)
+    _key(scene, pygame.K_RIGHT)
+    return scene.hint_popup
+
+
+def _texts_drawn(scene, monkeypatch):
+    from vector_drift.scenes import hint_popup as popup_module
+    texts = []
+    real = popup_module.draw_text
+    monkeypatch.setattr(popup_module, "draw_text", lambda surface, text, *a, **k:
+                        (texts.append(text), real(surface, text, *a, **k))[1])
+    _draw(scene)
+    return " ".join(texts)
+
+
+def test_answer_settings_live_in_config():
+    assert config.FREE_ANSWER_LEVELS == (1, 2)
+    assert config.HINT_ANSWER_COST == 10
+
+
+@pytest.mark.parametrize("level_id", [1, 2, 3])
+def test_hint_button_works_with_no_coins(level_id):
+    scene = _scene(level_id)
+    _draw(scene)
+    assert int(scene.session.money) == 0
+    assert scene.ai_button.enabled
+    _open_hint(scene)
+    assert int(scene.session.money) == 0
+
+
+def test_new_player_sees_every_step_and_the_free_answer_on_level_one():
+    scene = _scene(1)
+    _open_hint(scene)
+    popup = scene.hint_popup
+    seen = {popup.page}
+    while popup.page < popup.answer_page - 1:
+        _key(scene, pygame.K_RIGHT)
+        seen.add(popup.page)
+    assert seen == set(range(popup.answer_page))
+    _show_answer(scene)
+    assert int(scene.session.money) == 0
+
+
+def test_no_coins_on_level_three_shows_steps_but_not_the_answer(monkeypatch):
+    scene = _scene(3)
+    popup = _ask_for_answer(scene)
+
+    assert not popup.on_answer_page and not popup.confirming
+    assert popup.page == popup.answer_page - 1
+    assert int(scene.session.money) == 0
+    assert not scene.solution_used
+    assert "Need 10 coins (you have 0)." in _texts_drawn(scene, monkeypatch)
+
+
+def test_paying_on_level_three_charges_once_per_game_launch(monkeypatch):
+    manager = _manager()
+    manager.session.money.add(12)
+    scene = _scene(3, manager)
+    popup = _ask_for_answer(scene)
+    assert popup.confirming
+    assert "Show the answer for 10 coins? You have 12." in _texts_drawn(scene, monkeypatch)
+    assert int(manager.session.money) == 12                # nothing taken yet
+
+    _click(scene, popup.confirm_button.rect)
+    assert popup.on_answer_page and scene.solution_used
+    assert int(manager.session.money) == 2
+
+    _key(scene, pygame.K_ESCAPE)                            # close, reopen: no charge, no question
+    again = _ask_for_answer(scene)
+    assert again.on_answer_page and not again.confirming
+    later = _ask_for_answer(_scene(3, manager))             # also on a new attempt
+    assert later.on_answer_page and not later.confirming
+    assert int(manager.session.money) == 2
+
+
+def test_cancelling_the_payment_takes_nothing():
+    manager = _manager()
+    manager.session.money.add(10)
+    scene = _scene(3, manager)
+    popup = _ask_for_answer(scene)
+    _click(scene, popup.cancel_button.rect)
+    assert int(manager.session.money) == 10 and not scene.solution_used
+
+
+def test_revealing_takes_back_this_runs_coins_and_they_return():
+    manager = _manager()
+    scene = _scene(2, manager)                              # free answer, one coin
+    coin_center = _coin(scene).center
+    _collect(scene, _coin(scene))
+    assert int(manager.session.money) == 1
+
+    _show_answer(scene)
+
+    assert int(manager.session.money) == 0
+    assert (2, coin_center) not in manager.session.collected_money_pickups
+    assert not _coin(scene).consumed                        # back on the reset map
+
+    _collect(scene, _coin(scene))                           # after the reveal: no pay
+    assert int(manager.session.money) == 0
+    assert (2, coin_center) not in manager.session.collected_money_pickups
+    assert not _coin(_scene(2, manager)).consumed           # still there next time
+
+
+def test_this_runs_coins_do_not_count_toward_the_price(monkeypatch):
+    manager = _manager()
+    manager.session.money.add(9)
+    scene = _scene(4, manager)
+    _collect(scene, _coin(scene))                           # 10 on screen, 9 to spend
+    popup = _ask_for_answer(scene)
+    assert not popup.on_answer_page and not popup.confirming
+    assert "Need 10 coins (you have 9)." in _texts_drawn(scene, monkeypatch)
+    assert int(manager.session.money) == 10
+
+
+def test_paying_with_this_runs_coins_counts_only_earlier_coins():
+    manager = _manager()
+    manager.session.money.add(10)
+    scene = _scene(4, manager)
+    _collect(scene, _coin(scene))
+    popup = _ask_for_answer(scene)
+    assert popup.confirming
+    _click(scene, popup.confirm_button.rect)
+    assert int(manager.session.money) == 0                  # 11 - 1 returned - 10 paid
+    assert not _coin(scene).consumed

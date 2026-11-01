@@ -21,7 +21,7 @@ from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
 from .dialogue import DialogueBox
-from .hint_popup import HintPopup
+from .hint_popup import HintPopup, confirm_text
 
 log = logging.getLogger(__name__)
 
@@ -178,6 +178,7 @@ class GameScene(Scene):
         self.hint = get_hint(self.level.id) if self.hint_mode else None
         self.hint_popup = None
         self.solution_used = False
+        self._run_coins = []            # (coin key, amount) paid out this run, before any reveal
 
         # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
@@ -370,16 +371,16 @@ class GameScene(Scene):
             return  # Modal: swallow other input while the popup is open.
 
         if self.ai_button.handle_event(event) == "click":
-            cost = config.HINT_COST if self.hint_mode else config.AI_SOLVER_COST
+            if self.hint_mode:
+                self._open_hint()               # free; only the answer page costs
+                return
+            cost = config.AI_SOLVER_COST
             if int(self.session.money) < cost:
                 self.audio.play("error")
                 return
             self.session.money.spend(cost)
             self.money = self.session.money
-            if self.hint_mode:
-                self._open_hint()
-            else:
-                self._on_ai_click()
+            self._on_ai_click()
             return
 
     # ------------------------------------------------------------------ flow
@@ -568,13 +569,16 @@ class GameScene(Scene):
                     log.debug("life sfx skipped", exc_info=True)
             elif event.get("kind") == "money":
                 # Each coin pays once: once ever on a fixed level, once per
-                # map on a random level.
+                # map on a random level.  After a reveal coins pay nothing
+                # and stay collectable for a later run.
                 key = self._coin_key(event.get("center"))
                 collected = self._collected_coins()
-                if key not in collected:
+                if not self.solution_used and key not in collected:
                     collected.add(key)
-                    self.session.money.add(event.get("amount", 1))
+                    amount = event.get("amount", 1)
+                    self.session.money.add(amount)
                     self.money = self.session.money
+                    self._run_coins.append((key, amount))
                 try:
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -765,16 +769,20 @@ class GameScene(Scene):
         if action == "next":
             if popup.page + 1 < popup.answer_page:
                 popup.page += 1
-            elif self.session.hint_answer_confirmed:
-                self._show_hint_answer()
             else:
-                popup.confirming = True
+                self._request_hint_answer()
         elif action == "prev":
+            popup.message = None
             popup.page = max(0, popup.page - 1)
         elif action == "confirm":
-            self.session.hint_answer_confirmed = True
             popup.confirming = False
-            self._show_hint_answer()
+            price = self._answer_price()
+            if price > self._available_coins():
+                self._request_hint_answer()     # balance changed: explain instead
+                return
+            if not price:
+                self.session.hint_answer_confirmed = True
+            self._show_hint_answer(price)
         elif action == "cancel":
             popup.confirming = False
         elif action == "close":
@@ -785,10 +793,37 @@ class GameScene(Scene):
             self._on_text_change(self.editor)
             self.hint_popup = None
 
-    def _show_hint_answer(self):
-        """Open the answer page: this run now counts as "solution used"."""
+    def _answer_price(self):
+        """Coins the answer page costs now: 0 on free levels or once paid."""
+        lid = self.level.id
+        if lid in config.FREE_ANSWER_LEVELS or lid in self.session.paid_answer_levels:
+            return 0
+        return config.HINT_ANSWER_COST
+
+    def _request_hint_answer(self):
+        """Player asked for the answer page: show it, ask first, or explain why not."""
+        popup = self.hint_popup
+        price = self._answer_price()
+        free_level = self.level.id in config.FREE_ANSWER_LEVELS
+        if not price and (not free_level or self.session.hint_answer_confirmed):
+            self._show_hint_answer()            # already paid, or free and confirmed
+            return
+        available = self._available_coins()
+        if price > available:
+            popup.message = f"Need {price} coins (you have {available})."
+            return
+        popup.message = None
+        popup.confirm_text = confirm_text(price, available, len(self._run_coins))
+        popup.confirming = True
+
+    def _show_hint_answer(self, price=0):
+        """Open the answer page: a reveal, paid with ``price`` coins."""
+        self._reveal_solution()
+        if price:
+            self.session.money.spend(price)
+            self.money = self.session.money
+            self.session.paid_answer_levels.add(self.level.id)
         self.hint_popup.page = self.hint_popup.answer_page
-        self.solution_used = True
         self._reset_level()
 
     def _reset_level(self):
@@ -825,6 +860,24 @@ class GameScene(Scene):
         if is_dynamic_level(self.level.id):
             return self.session.collected_random_coins
         return self.session.collected_money_pickups
+
+    def _available_coins(self):
+        """Balance once this run's coins are taken back: what a reveal can spend."""
+        return int(self.session.money) - sum(amount for _key, amount in self._run_coins)
+
+    def _reveal_solution(self):
+        """A full answer is shown (Hint answer page or AI Solver reveal).
+
+        This run's coins are taken back and become collectable again, and the
+        run is marked "solution used" so a clear won't set a best time.
+        """
+        collected = self._collected_coins()
+        for key, amount in self._run_coins:
+            self.session.money.spend(amount)
+            collected.discard(key)
+        self._run_coins = []
+        self.money = self.session.money
+        self.solution_used = True
 
     def _hide_collected_coins(self):
         collected = self._collected_coins()
@@ -1175,8 +1228,7 @@ class GameScene(Scene):
 
         if self.hint_mode:
             # Hint button (fixed levels): usable any time before the win.
-            self.ai_button.enabled = (self.hint is not None and self.state != ARRIVED
-                                     and int(self.session.money) >= config.HINT_COST)
+            self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
             self.ai_button.label = "Hint"
         else:
             # AI assistant button (offline solver).  Disabled while a job runs.

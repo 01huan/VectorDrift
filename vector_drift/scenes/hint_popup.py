@@ -12,10 +12,25 @@ TEXT_SIZE = 17
 LINE_H = 26
 BUTTON_W, BUTTON_H = 120, 40
 
-CONFIRM_TEXT = ("Showing the answer marks this run as \"Solution used\": clearing the "
-                "level now won't count toward your best time. The level also goes back "
-                "to its start (your lives stay). You won't be asked again until you "
-                "restart the game.")
+SOLUTION_USED_TEXT = ("Showing the answer marks this run as \"Solution used\": clearing the "
+                      "level now won't count toward your best time. The level also goes back "
+                      "to its start (your lives stay).")
+CONFIRM_TEXT = SOLUTION_USED_TEXT + " You won't be asked again until you restart the game."
+
+
+def confirm_text(price=0, available=0, returned=0):
+    """Body of the "Show the answer?" question.
+
+    ``available`` is the balance once this run's ``returned`` coins are taken
+    back; a free answer keeps the once-per-launch wording.
+    """
+    if price:
+        text = f"Show the answer for {price} coins? You have {available}. " + SOLUTION_USED_TEXT
+    else:
+        text = CONFIRM_TEXT
+    if returned:
+        text += f" The {returned} {'coin' if returned == 1 else 'coins'} collected this run will be taken back."
+    return text
 
 
 class HintPopup:
@@ -30,6 +45,8 @@ class HintPopup:
         self.hint = hint
         self.page = 0
         self.confirming = False         # "Show the answer?" question is up
+        self.confirm_text = CONFIRM_TEXT
+        self.message = None             # why the answer can't open (e.g. not enough coins)
         self.card = pygame.Rect(0, 0, px(CARD_W), px(CARD_H))
         self.card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
 
@@ -128,7 +145,7 @@ class HintPopup:
         y = card.y + px(78)
 
         if self.confirming:
-            self._draw_paragraph(surface, CONFIRM_TEXT, y)
+            self._draw_paragraph(surface, self.confirm_text, y)
             for button in (self.cancel_button, self.confirm_button):
                 button.draw(surface)
             return
@@ -142,6 +159,9 @@ class HintPopup:
             self._draw_paragraph(surface, self.hint.steps[self.page], y)
             self.next_button.label = "Answer" if self.page + 1 == self.answer_page else "Next"
             self.next_button.draw(surface)
+            if self.message:
+                draw_text(surface, self.message, (card.x + px(PAD), self.next_button.rect.y - px(12)),
+                          15, config.WARNING, kind="bold", anchor="bottomleft")
         self.prev_button.enabled = self.page > 0
         self.prev_button.draw(surface)
         self.close_button.draw(surface)
