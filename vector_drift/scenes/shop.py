@@ -4,8 +4,8 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..image_assets import COIN_BALANCE
-from ..ui import Button, draw_coins, draw_text
+from ..image_assets import COIN_BALANCE, COIN_TRADE
+from ..ui import Button, draw_coins, draw_icon_row, draw_text
 from .base import Scene
 from .. import shop as shop_module
 
@@ -176,7 +176,7 @@ class ShopScene(Scene):
                    icon=COIN_BALANCE)
         cx = config.WINDOW_W // 2
         draw_text(surface, "SHOP", (cx, px(90)), 40, config.TEXT, kind="bold", anchor="center")
-        draw_text(surface, "Spend money to unlock items", (cx, px(132)), 16,
+        draw_text(surface, "Spend coins to unlock items", (cx, px(132)), 16,
                   config.TEXT_DIM, anchor="center")
         for item, rect in self.cards:
             pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
@@ -186,8 +186,10 @@ class ShopScene(Scene):
                       config.TEXT, kind="bold")
             draw_text(surface, item.description, (rect.x + px(16), rect.y + px(44)), 13,
                       config.TEXT_DIM)
-            draw_text(surface, f"Price: {item.price}", (rect.x + px(16), rect.y + px(74)), 15,
-                      config.ACCENT, kind="bold")
+            short = not item.owned(self.session) and item.price > int(self.session.money)
+            draw_icon_row(surface, [("Price", config.TEXT_DIM), COIN_TRADE,
+                                    (item.price, config.DANGER if short else config.TEXT)],
+                          (rect.x + px(16), rect.y + px(74)), 15)
         for _item, btn in self.buy_buttons:
             btn.draw(surface)
         if self.prev_button is not None:

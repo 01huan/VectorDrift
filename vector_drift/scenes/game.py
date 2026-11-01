@@ -17,8 +17,8 @@ from ..story import get_level_story, level_intro_key, level_win_key, random_fail
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..image_assets import COIN_BALANCE
-from ..ui import (Button, CodeEditor, IconButton, draw_coins, draw_panel_box, draw_text,
-                  icon_surface)
+from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
+                  draw_panel_box, draw_text, icon_surface)
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
@@ -205,9 +205,9 @@ class GameScene(Scene):
                                       style="primary", font_size=15)
         self.ai_close_button = Button((0, 0, px(100), px(40)), "Close",
                                       style="plain", font_size=15)
-        self.ai_reveal_button = Button((0, 0, px(160), px(40)),
-                                       f"Reveal ({config.AI_SOLVER_COST} coins)",
+        self.ai_reveal_button = Button((0, 0, px(160), px(40)), "Reveal",
                                        style="primary", font_size=15)
+        self.ai_reveal_button.price = config.AI_SOLVER_COST
         self.ai_job_state_key = None
         self.ai_best_by_state = {}
         self._last_state_key = None
@@ -746,6 +746,8 @@ class GameScene(Scene):
         if self.ai_popup:
             self._draw_ai_popup(surface)
         if self.hint_popup is not None:
+            self.hint_popup.answer_price = self._answer_price()
+            self.hint_popup.available = self._available_coins()
             self.hint_popup.draw(surface)
         if self.dialogue is not None:
             self.dialogue.draw(surface)
@@ -829,10 +831,11 @@ class GameScene(Scene):
             return
         available = self._available_coins()
         if price > available:
-            popup.message = f"Need {price} coins (you have {available})."
+            popup.message = coin_price_parts(price, available, "Need", config.WARNING)
             return
         popup.message = None
-        popup.confirm_text = confirm_text(price, available, len(self._run_coins))
+        popup.confirm_text = confirm_text(price, len(self._run_coins))
+        popup.confirm_price = coin_price_parts(price, available) if price else None
         popup.confirming = True
 
     def _show_hint_answer(self, price=0):
@@ -936,6 +939,7 @@ class GameScene(Scene):
         self.ai_apply_button.rect = pygame.Rect(x0, by, bw, bh)
         self.ai_reveal_button.rect = pygame.Rect(x0, by, px(160), bh)
         self.ai_reveal_button.enabled = self._available_coins() >= config.AI_SOLVER_COST
+        self.ai_reveal_button.price_short = not self.ai_reveal_button.enabled
         self.ai_close_button.rect = pygame.Rect(x0 + first_w + gap, by, bw, bh)
 
     def _solver_map_key(self):
@@ -1086,9 +1090,9 @@ class GameScene(Scene):
         else:
             cost, available = config.AI_SOLVER_COST, self._available_coins()
             if available < cost:
-                draw_text(surface, f"Need {cost} coins (you have {available}).",
-                          (card.centerx, self.ai_reveal_button.rect.y - px(14)), 15,
-                          config.WARNING, kind="bold", anchor="midbottom")
+                draw_icon_row(surface, coin_price_parts(cost, available, "Need", config.WARNING),
+                              (card.centerx, self.ai_reveal_button.rect.y - px(14)), 15,
+                              anchor="midbottom")
             self.ai_reveal_button.draw(surface)
         self.ai_close_button.draw(surface)
 

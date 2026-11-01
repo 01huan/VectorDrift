@@ -24,7 +24,8 @@ def test_readme_documents_the_coin_rules():
     assert "\n## Coins" in text.replace("\r\n", "\n")
     coins = text.split("## Coins", 1)[1].split("\n## ", 1)[0]
     assert f"{config.HINT_ANSWER_COST} coins" in coins
-    assert f"Reveal ({config.AI_SOLVER_COST} coins)" in coins
+    assert f"**Reveal** ({config.AI_SOLVER_COST} coins)" in coins
+    assert "red" in coins                           # prices you can't afford
     assert "levels 1 and 2" in coins
     assert "taken back" in coins
     assert f"pays {config.CLEAR_REWARD} coins" in coins

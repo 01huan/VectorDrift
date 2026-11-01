@@ -52,6 +52,10 @@ but those cannot launch until their level. Random levels allow every ship.
 
 Coins are collectibles. Their only use is buying a full answer.
 
+Your balance is shown with the round coin picture in a corner of the screen.
+Prices (the Hint **Answer** button, **Reveal**, shop items) and coins earned
+use the coin-pair picture; a price you can't afford yet is shown in red.
+
 * **Coin pickups:** a coin on a fixed level pays once, ever. A coin on a
   random level pays once per map, so a new layout brings new coins.
 * **Clearing a level:** reaching the target pays 5 coins. On a fixed level
@@ -62,7 +66,7 @@ Coins are collectibles. Their only use is buying a full answer.
   The answer page is free on levels 1 and 2 and costs 10 coins from level 3 on.
   You pay when you confirm, once per level per game launch.
 * **AI Solver (random levels):** opening it and solving in the background are
-  free. Fx / Fy stay hidden until you press **Reveal (10 coins)**. One payment
+  free. Fx / Fy stay hidden until you press **Reveal** (10 coins). One payment
   covers that map, including every later answer on it, for the game launch; a
   new map needs a new payment.
 * **Revealing an answer** (answer page or Reveal) marks the run "Solution used",

@@ -12,7 +12,9 @@ from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.win import WinScene
 from vector_drift.solver.interface import SimulationSpec, SolveResult
+from vector_drift.image_assets import COIN_TRADE
 from vector_drift.story import all_seen_keys
+from vector_drift.ui import coin_price_parts
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -65,6 +67,22 @@ def _draw(scene, monkeypatch=None):
     return texts
 
 
+def _rows(scene, monkeypatch):
+    """Every icon row (text and coin pictures) drawn in one frame."""
+    from vector_drift import ui
+    rows = []
+    real = ui.draw_icon_row
+
+    def spy(surface, parts, *a, **k):
+        rows.append(list(parts))
+        return real(surface, parts, *a, **k)
+
+    monkeypatch.setattr(ui, "draw_icon_row", spy)
+    monkeypatch.setattr(game_module, "draw_icon_row", spy)
+    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    return rows
+
+
 def _open(scene):
     _draw(scene)
     _click(scene, scene.ai_button.rect)
@@ -90,7 +108,7 @@ def _collect(scene, pickup):
 def test_reveal_label_uses_the_config_price():
     scene = _scene(_manager())
     assert config.AI_SOLVER_COST == 10
-    assert scene.ai_reveal_button.label == "Reveal (10 coins)"
+    assert (scene.ai_reveal_button.label, scene.ai_reveal_button.price) == ("Reveal", 10)
 
 
 def test_no_coins_opens_the_window_but_hides_the_answer(monkeypatch):
@@ -102,7 +120,7 @@ def test_no_coins_opens_the_window_but_hides_the_answer(monkeypatch):
 
     assert FX not in texts and FY not in texts
     assert not scene.ai_reveal_button.enabled
-    assert "Need 10 coins (you have 0)." in texts
+    assert coin_price_parts(10, 0, "Need", config.WARNING) in _rows(scene, monkeypatch)
     _click(scene, scene.ai_apply_button.rect)               # hidden Apply does nothing
     assert scene.editor.lines == ["", ""]
     assert int(scene.session.money) == 0 and not scene.solution_used
@@ -144,7 +162,7 @@ def test_new_map_needs_a_new_payment(monkeypatch):
     texts = _draw(other, monkeypatch)
     assert FX not in texts
     assert not other.ai_reveal_button.enabled
-    assert "Need 10 coins (you have 0)." in texts
+    assert coin_price_parts(10, 0, "Need", config.WARNING) in _rows(other, monkeypatch)
 
 
 def test_reveal_takes_back_this_runs_coins_without_respawning_them():
@@ -169,7 +187,7 @@ def test_this_runs_coins_do_not_count_toward_the_price(monkeypatch):
     _open(scene)
     texts = _draw(scene, monkeypatch)
     assert not scene.ai_reveal_button.enabled
-    assert "Need 10 coins (you have 9)." in texts
+    assert coin_price_parts(10, 9, "Need", config.WARNING) in _rows(scene, monkeypatch)
 
 
 def test_a_win_after_the_reveal_is_marked_and_not_recorded(monkeypatch):
@@ -197,3 +215,14 @@ def test_a_win_after_the_reveal_is_marked_and_not_recorded(monkeypatch):
                             (texts.append(text), _real(surface, text, *a, **k))[1])
     manager.scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
     assert any("Solution used" in t for t in texts)
+
+
+@pytest.mark.parametrize("coins, short", [(12, False), (9, True)])
+def test_reveal_price_is_white_or_red_when_short(monkeypatch, coins, short):
+    scene = _scene(_manager(coins))
+    _open(scene)
+    rows = _rows(scene, monkeypatch)
+    assert scene.ai_reveal_button.price_short is short
+    label_colour = config.TEXT_FAINT if short else (255, 255, 255)   # disabled when short
+    colour = config.DANGER if short else (255, 255, 255)
+    assert [("Reveal", label_colour), COIN_TRADE, (10, colour)] in rows

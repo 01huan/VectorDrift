@@ -99,6 +99,16 @@ def draw_coins(surface, amount, pos, size=16, color=config.TEXT, icon=None, kind
     return draw_icon_row(surface, [icon or COIN_TRADE, (amount, color)], pos, size, kind, anchor)
 
 
+def coin_price_parts(price, available, lead="Price", color=config.TEXT):
+    """Icon row parts: ``lead`` and the price (coin_2), then what the player has (coin_1).
+
+    The price turns red when the player can't afford it.
+    """
+    from .image_assets import COIN_BALANCE, COIN_TRADE
+    return [(lead, color), COIN_TRADE, (price, config.DANGER if price > available else color),
+            ("· You have", color), COIN_BALANCE, (available, color)]
+
+
 def draw_panel_box(surface, rect, fill=config.PANEL_BG, edge=config.PANEL_EDGE, radius=4):
     pygame.draw.rect(surface, fill, rect, border_radius=px(radius))
     pygame.draw.rect(surface, edge, rect, width=max(1, px(1)), border_radius=px(radius))
@@ -119,6 +129,8 @@ class Button:
         self.font_size = font_size
         self.enabled = True
         self.hover = False
+        self.price = None           # coins it costs, shown after the label with coin_2
+        self.price_short = False    # the player can't afford it: the price turns red
 
     def handle_event(self, event):
         """Return 'click', 'disabled' (clicked while disabled) or None."""
@@ -139,8 +151,14 @@ class Button:
         pygame.draw.rect(surface, bg, self.rect, border_radius=px(3))
         if not self.enabled:
             pygame.draw.rect(surface, config.PANEL_EDGE, self.rect, width=max(1, px(1)), border_radius=px(3))
-        draw_text(surface, self.label, self.rect.center, self.font_size, text_color,
-                  kind="bold", anchor="center")
+        if self.price is None:
+            draw_text(surface, self.label, self.rect.center, self.font_size, text_color,
+                      kind="bold", anchor="center")
+            return
+        from .image_assets import COIN_TRADE
+        price_color = config.DANGER if self.price_short else text_color
+        draw_icon_row(surface, [(self.label, text_color), COIN_TRADE, (self.price, price_color)],
+                      self.rect.center, self.font_size, anchor="center")
 
 
 # --- code editor ------------------------------------------------------------------

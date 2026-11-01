@@ -7,8 +7,10 @@ import pygame
 import pytest
 
 from vector_drift import config
+from vector_drift.image_assets import COIN_TRADE
 from vector_drift.hints import get_hint
 from vector_drift.story import all_seen_keys
+from vector_drift.ui import coin_price_parts
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
@@ -352,6 +354,23 @@ def _ask_for_answer(scene):
     return scene.hint_popup
 
 
+def _rows_drawn(scene, monkeypatch):
+    """Every icon row (text and coin pictures) drawn in one frame."""
+    from vector_drift import ui
+    from vector_drift.scenes import hint_popup as popup_module
+    rows = []
+    real = ui.draw_icon_row
+
+    def spy(surface, parts, *a, **k):
+        rows.append(list(parts))
+        return real(surface, parts, *a, **k)
+
+    monkeypatch.setattr(ui, "draw_icon_row", spy)
+    monkeypatch.setattr(popup_module, "draw_icon_row", spy)
+    _draw(scene)
+    return rows
+
+
 def _texts_drawn(scene, monkeypatch):
     from vector_drift.scenes import hint_popup as popup_module
     texts = []
@@ -398,7 +417,7 @@ def test_no_coins_on_level_three_shows_steps_but_not_the_answer(monkeypatch):
     assert popup.page == popup.answer_page - 1
     assert int(scene.session.money) == 0
     assert not scene.solution_used
-    assert "Need 10 coins (you have 0)." in _texts_drawn(scene, monkeypatch)
+    assert coin_price_parts(10, 0, "Need", config.WARNING) in _rows_drawn(scene, monkeypatch)
 
 
 def test_paying_on_level_three_charges_once_per_game_launch(monkeypatch):
@@ -407,7 +426,8 @@ def test_paying_on_level_three_charges_once_per_game_launch(monkeypatch):
     scene = _scene(3, manager)
     popup = _ask_for_answer(scene)
     assert popup.confirming
-    assert "Show the answer for 10 coins? You have 12." in _texts_drawn(scene, monkeypatch)
+    assert coin_price_parts(10, 12) in _rows_drawn(scene, monkeypatch)
+    assert "coins?" not in _texts_drawn(scene, monkeypatch)
     assert int(manager.session.money) == 12                # nothing taken yet
 
     _click(scene, popup.confirm_button.rect)
@@ -457,7 +477,7 @@ def test_this_runs_coins_do_not_count_toward_the_price(monkeypatch):
     _collect(scene, _coin(scene))                           # 10 on screen, 9 to spend
     popup = _ask_for_answer(scene)
     assert not popup.on_answer_page and not popup.confirming
-    assert "Need 10 coins (you have 9)." in _texts_drawn(scene, monkeypatch)
+    assert coin_price_parts(10, 9, "Need", config.WARNING) in _rows_drawn(scene, monkeypatch)
     assert int(manager.session.money) == 10
 
 
@@ -471,3 +491,43 @@ def test_paying_with_this_runs_coins_counts_only_earlier_coins():
     _click(scene, popup.confirm_button.rect)
     assert int(manager.session.money) == 0                  # 11 - 1 returned - 10 paid
     assert not _coin(scene).consumed
+
+
+# --- the answer's price on the last step -----------------------------------------
+
+@pytest.mark.parametrize("coins, short", [(12, False), (0, True)])
+def test_answer_button_shows_the_price_red_when_short(monkeypatch, coins, short):
+    manager = _manager()
+    manager.session.money.add(coins)
+    scene = _scene(3, manager)
+    _open_hint(scene)
+    _to_last_step(scene)
+    rows = _rows_drawn(scene, monkeypatch)
+    button = scene.hint_popup.next_button
+    assert (button.label, button.price, button.price_short) == ("Answer", 10, short)
+    colour = config.DANGER if short else (255, 255, 255)
+    assert [("Answer", (255, 255, 255)), COIN_TRADE, (10, colour)] in rows
+
+
+def test_free_or_paid_answer_shows_no_price():
+    manager = _manager()
+    scene = _scene(1, manager)                              # free level
+    _open_hint(scene)
+    _to_last_step(scene)
+    _draw(scene)
+    assert scene.hint_popup.next_button.price is None
+
+    manager.session.paid_answer_levels.add(3)               # already paid this launch
+    scene = _scene(3, manager)
+    _open_hint(scene)
+    _to_last_step(scene)
+    _draw(scene)
+    assert scene.hint_popup.next_button.price is None
+
+
+def test_steps_before_the_last_show_no_price():
+    scene = _scene(3)
+    _open_hint(scene)
+    _draw(scene)
+    assert scene.hint_popup.page < scene.hint_popup.answer_page - 1
+    assert scene.hint_popup.next_button.price is None

@@ -4,7 +4,7 @@ import pygame
 
 from .. import config
 from ..config import px
-from ..ui import Button, draw_text, wrap_text
+from ..ui import Button, draw_icon_row, draw_text, wrap_text
 
 CARD_W, CARD_H = 620, 420
 PAD = 28
@@ -18,16 +18,14 @@ SOLUTION_USED_TEXT = ("Showing the answer marks this run as \"Solution used\": c
 CONFIRM_TEXT = SOLUTION_USED_TEXT + " You won't be asked again until you restart the game."
 
 
-def confirm_text(price=0, available=0, returned=0):
+def confirm_text(price=0, returned=0):
     """Body of the "Show the answer?" question.
 
-    ``available`` is the balance once this run's ``returned`` coins are taken
-    back; a free answer keeps the once-per-launch wording.
+    A paid answer's price sits above it with the coin pictures
+    (``HintPopup.confirm_price``); a free answer keeps the once-per-launch
+    wording.
     """
-    if price:
-        text = f"Show the answer for {price} coins? You have {available}. " + SOLUTION_USED_TEXT
-    else:
-        text = CONFIRM_TEXT
+    text = SOLUTION_USED_TEXT if price else CONFIRM_TEXT
     if returned:
         text += f" The {returned} {'coin' if returned == 1 else 'coins'} collected this run will be taken back."
     return text
@@ -46,7 +44,10 @@ class HintPopup:
         self.page = 0
         self.confirming = False         # "Show the answer?" question is up
         self.confirm_text = CONFIRM_TEXT
-        self.message = None             # why the answer can't open (e.g. not enough coins)
+        self.confirm_price = None       # icon row parts with the price, above confirm_text
+        self.message = None             # icon row parts: why the answer can't open (too few coins)
+        self.answer_price = 0           # what the answer page costs now (set by GameScene)
+        self.available = 0              # coins the player can spend on it
         self.card = pygame.Rect(0, 0, px(CARD_W), px(CARD_H))
         self.card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
 
@@ -145,6 +146,9 @@ class HintPopup:
         y = card.y + px(78)
 
         if self.confirming:
+            if self.confirm_price:
+                draw_icon_row(surface, self.confirm_price, (card.x + px(PAD), y), TEXT_SIZE)
+                y += px(LINE_H) + px(10)
             self._draw_paragraph(surface, self.confirm_text, y)
             for button in (self.cancel_button, self.confirm_button):
                 button.draw(surface)
@@ -157,11 +161,14 @@ class HintPopup:
                 self._draw_answer(surface, answer, button, label_y, row)
         else:
             self._draw_paragraph(surface, self.hint.steps[self.page], y)
-            self.next_button.label = "Answer" if self.page + 1 == self.answer_page else "Next"
+            last = self.page + 1 == self.answer_page
+            self.next_button.label = "Answer" if last else "Next"
+            self.next_button.price = self.answer_price if last and self.answer_price else None
+            self.next_button.price_short = self.answer_price > self.available
             self.next_button.draw(surface)
             if self.message:
-                draw_text(surface, self.message, (card.x + px(PAD), self.next_button.rect.y - px(12)),
-                          15, config.WARNING, kind="bold", anchor="bottomleft")
+                draw_icon_row(surface, self.message, (card.x + px(PAD), self.next_button.rect.y - px(12)),
+                              15, anchor="bottomleft")
         self.prev_button.enabled = self.page > 0
         self.prev_button.draw(surface)
         self.close_button.draw(surface)
