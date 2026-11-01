@@ -81,6 +81,7 @@ Prices and free levels live in `config.py`: `HINT_ANSWER_COST`,
 | Mouse drag, double-click, Shift+arrows/Home/End | Select text in a line |
 | Ctrl+A / Ctrl+C / Ctrl+X / Ctrl+V | Select line / copy / cut / paste |
 | Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Undo / redo in the line with the cursor (Fx and Fy each keep their own history) |
+| `(` with text selected | Wrap the selection in parentheses; it stays selected, so pressing `(` again adds another pair |
 | Ctrl+M | Mute / unmute |
 
 ## Formula format

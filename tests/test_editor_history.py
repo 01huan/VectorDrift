@@ -315,3 +315,62 @@ def test_replay_after_a_win_starts_a_new_history():
     assert isinstance(replay, GameScene) and replay.editor.lines == ["", ""]
     undo(replay.editor)
     assert replay.editor.lines == ["", ""]
+
+
+# --- wrapping a selection in parentheses --------------------------------------------
+
+def _select(ed, start, end):
+    key(ed, pygame.K_HOME)
+    for _ in range(start):
+        key(ed, pygame.K_RIGHT)
+    for _ in range(end - start):
+        key(ed, pygame.K_RIGHT, SHIFT)
+
+
+def test_open_paren_wraps_the_selection_and_keeps_it_selected(ed):
+    type_text(ed, "2*x+1")
+    _select(ed, 2, 5)
+    type_text(ed, "(")
+    assert ed.lines[0] == "2*(x+1)"
+    assert ed.selected_text() == "x+1"
+
+
+def test_two_open_parens_wrap_twice(ed):
+    type_text(ed, "x+1")
+    _select(ed, 0, 3)
+    type_text(ed, "((")
+    assert ed.lines[0] == "((x+1))"
+    assert ed.selected_text() == "x+1"
+
+
+def test_wrapping_is_one_undo_step(ed):
+    type_text(ed, "x+1")
+    _select(ed, 0, 3)
+    type_text(ed, "(")
+    type_text(ed, "(")
+    undo(ed)
+    assert ed.lines[0] == "(x+1)" and ed.selected_text() == "x+1"
+    undo(ed)
+    assert ed.lines[0] == "x+1" and ed.selected_text() == "x+1"
+    redo(ed)
+    assert ed.lines[0] == "(x+1)" and ed.selected_text() == "x+1"
+
+
+def test_open_paren_without_a_selection_only_inserts_it(ed):
+    type_text(ed, "2(")
+    assert ed.lines[0] == "2(" and ed.col == 2
+
+
+def test_close_paren_still_replaces_the_selection(ed):
+    type_text(ed, "x+1")
+    _select(ed, 0, 3)
+    type_text(ed, ")")
+    assert ed.lines[0] == ")"
+
+
+def test_wrapping_respects_the_length_limit(ed):
+    ed.max_len = 4
+    type_text(ed, "x+1")
+    _select(ed, 0, 3)
+    type_text(ed, "(")
+    assert ed.lines[0] == "x+1"

@@ -458,8 +458,24 @@ class CodeEditor:
                 return True
         return self.rect.collidepoint(pos)
 
+    def _wrap_selection(self):
+        """"(" over a selection: wrap it in parentheses and keep it selected."""
+        start, end = self.selection()
+        text = self.lines[self.line]
+        if len(text) + 2 > self.max_len:
+            return
+        before = self._state()
+        forward = self.col > self.anchor
+        self.lines[self.line] = text[:start] + "(" + text[start:end] + ")" + text[end:]
+        self._changed()
+        self.anchor, self.col = (start + 1, end + 1) if forward else (end + 1, start + 1)
+        self._record(before)
+
     def _type(self, chars):
         """Typed text: one character grows the open "insert" step."""
+        if chars == "(" and self.selection():
+            self._wrap_selection()
+            return
         before = self._state()
         replacing = self.selection() is not None
         self._insert(chars)
