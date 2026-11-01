@@ -168,7 +168,13 @@ class GameScene(Scene):
         self.field_layer = None
         self.max_force = 0.0
         self.valid = True
-        self.editor.set_lines([self.session.fx_text, self.session.fy_text])
+        # Undo history follows the formulas: a Retry keeps both, while entering
+        # from level select or Replay clears the text and with it the history.
+        saved = self.session.editor_history
+        self.editor.set_lines([self.session.fx_text, self.session.fy_text], record=False)
+        if saved is not None and saved[:2] == (self.level.id, tuple(self.editor.lines)):
+            self.editor.history = saved[2]
+        self._remember_editor_history()
 
         # --- Hint (fixed levels) ----------------------------------------------
         # Fixed levels show hand-written hints (hints.toml) in place of the AI
@@ -224,7 +230,11 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ input
     def _on_text_change(self, editor):
         self.session.fx_text, self.session.fy_text = editor.lines
+        self._remember_editor_history()
         self._validate()
+
+    def _remember_editor_history(self):
+        self.session.editor_history = (self.level.id, tuple(self.editor.lines), self.editor.history)
 
     def _validate(self):
         """Re-check both formulas against the current launch point."""

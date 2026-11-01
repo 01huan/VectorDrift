@@ -168,10 +168,36 @@ def clipboard_put(text):
         pass
 
 
+HISTORY_LIMIT = 100            # undo steps kept per editor line
+STEP_BREAKERS = " +-*/"        # typing one of these ends the current undo step
+
+
+class _Step:
+    """One undo step on one line: (text, col, anchor) before and after it."""
+    __slots__ = ("before", "after")
+
+    def __init__(self, before, after):
+        self.before, self.after = before, after
+
+
+class LineHistory:
+    """Undo / redo stacks of one editor line."""
+
+    def __init__(self):
+        self.undo = []
+        self.redo = []
+        self.open = None       # "insert" / "delete" while the top step can still grow
+
+
 class CodeEditor:
     """A small IDE-style panel: a header bar, one code line per prefix (line
     numbers, syntax colors, error squiggles), a PROBLEMS list and an optional
-    footer section whose rows the owner draws (see `footer_body`)."""
+    footer section whose rows the owner draws (see `footer_body`).
+
+    Each line keeps its own undo history (Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y).
+    Typing groups into one step until the cursor moves, typing turns into
+    deleting (or back), or a space / operator is typed; paste, cut,
+    deleting a selection and set_lines() are steps of their own."""
 
     def __init__(self, pos, width, prefixes=("Fx", "Fy"), title="Vector_field",
                  footer_title=None, footer_rows_h=0, max_len=config.MAX_EXPR_LEN, on_change=None):
@@ -192,6 +218,7 @@ class CodeEditor:
         self.line = 0
         self.col = 0
         self.anchor = None                   # selection anchor column on the current line
+        self.history = [LineHistory() for _ in prefixes]
         self._dragging = False
         self._last_click = (0, None)         # (ticks, (line, col)) for double-click
         self.focused = True
@@ -235,12 +262,64 @@ class CodeEditor:
         return pygame.Rect(f.x, f.y + self.PROB_HEADER_H, f.w, f.h - self.PROB_HEADER_H)
 
     # -- editing ---------------------------------------------------------------
-    def set_lines(self, texts):
+    def set_lines(self, texts, record=True):
+        """Replace the text (cursor to the end of Fx).
+
+        With ``record`` every line that changes gets one undo step; pass False
+        when loading a starting text that should not be undoable.
+        """
+        old, old_state = list(self.lines), self._state()
         self.lines = [t[: self.max_len] for t in texts]
         self.line = 0
         self.col = len(self.lines[0])
         self.anchor = None
+        if record:
+            for i, (was, now) in enumerate(zip(old, self.lines)):
+                if was != now:
+                    before = old_state if i == old_state[3] else (was, len(was), None, i)
+                    self._push(i, before[:3], (now, len(now), None))
         self._changed()
+
+    # -- undo history ------------------------------------------------------------
+    def _state(self):
+        """(text, col, anchor, line) of the current line."""
+        return self.lines[self.line], self.col, self.anchor, self.line
+
+    def _push(self, i, before, after, kind=None, join=False):
+        """Add an undo step on line `i`, or grow the open one of the same kind."""
+        h = self.history[i]
+        h.redo.clear()
+        if join and kind is not None and h.open == kind and h.undo:
+            h.undo[-1].after = after
+        else:
+            h.undo.append(_Step(before, after))
+            del h.undo[:-HISTORY_LIMIT]
+        h.open = kind
+
+    def _record(self, before, kind=None, join=True):
+        """Store the edit that turned `before` (from _state) into the current line."""
+        text, col, anchor, line = self._state()
+        if text != before[0]:
+            self._push(line, before[:3], (text, col, anchor), kind, join)
+
+    def _end_step(self):
+        """The cursor moved: the next edit starts a new undo step."""
+        for h in self.history:
+            h.open = None
+
+    def _undo(self, redo=False):
+        h = self.history[self.line]
+        src, dst = (h.redo, h.undo) if redo else (h.undo, h.redo)
+        if not src:
+            return
+        step = src.pop()
+        dst.append(step)
+        h.open = None
+        text, col, anchor = step.after if redo else step.before
+        self.lines[self.line] = text
+        self.col = col
+        self._changed()                 # same path as typing: owner re-checks the text
+        self.anchor = anchor
 
     def set_errors(self, errors):
         self.errors = list(errors)
@@ -296,6 +375,7 @@ class CodeEditor:
         self.line = line
         self.col = max(0, min(len(self.lines[line]), col))
         self._blink = 0.0
+        self._end_step()
 
     def _word_bounds(self, i, col):
         """Columns of the word (number / name) at `col`, for double-click."""
@@ -338,12 +418,13 @@ class CodeEditor:
             if self._dragging:
                 self.col = self._col_from_x(self.line, event.pos[0])
                 self._blink = 0.0
+                self._end_step()
             return False
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self._dragging = False
             return False
         if event.type == pygame.TEXTINPUT:
-            self._insert(event.text)
+            self._type(event.text)
             return True
         if event.type == pygame.KEYDOWN:
             return self._key_down(event)
@@ -360,6 +441,7 @@ class CodeEditor:
                 start, end = self._word_bounds(i, col)
                 self.line, self.anchor, self.col = i, start, end
                 self._dragging = False
+                self._end_step()
             else:
                 shift = pygame.key.get_mods() & pygame.KMOD_SHIFT
                 self._goto(i, col, extend=bool(shift))
@@ -376,26 +458,41 @@ class CodeEditor:
                 return True
         return self.rect.collidepoint(pos)
 
+    def _type(self, chars):
+        """Typed text: one character grows the open "insert" step."""
+        before = self._state()
+        replacing = self.selection() is not None
+        self._insert(chars)
+        single = len(chars) == 1
+        self._record(before, "insert" if single else None, join=not replacing)
+        if single and chars in STEP_BREAKERS:
+            self.history[self.line].open = None
+
     def _key_down(self, event):
         ctrl = event.mod & pygame.KMOD_CTRL
         shift = bool(event.mod & pygame.KMOD_SHIFT)
         text = self.lines[self.line]
         sel = self.selection()
         key = event.key
+        before = self._state()
         if key == pygame.K_BACKSPACE:
             if self._delete_selection():
                 self._changed()
+                self._record(before)
             elif self.col:
                 cut = 0 if ctrl else self.col - 1
                 self.lines[self.line] = text[:cut] + text[self.col:]
                 self.col = cut
                 self._changed()
+                self._record(before, None if ctrl else "delete")
         elif key == pygame.K_DELETE:
             if self._delete_selection():
                 self._changed()
+                self._record(before)
             elif self.col < len(text):
                 self.lines[self.line] = text[: self.col] + text[self.col + 1:]
                 self._changed()
+                self._record(before, "delete")
         elif key == pygame.K_LEFT:
             if sel and not shift:
                 self._goto(self.line, sel[0])
@@ -423,6 +520,7 @@ class CodeEditor:
             self._goto(self.line, len(text), extend=shift)
         elif ctrl and key == pygame.K_a:
             self.anchor, self.col = 0, len(text)
+            self._end_step()
         elif ctrl and key == pygame.K_c:
             if sel:
                 clipboard_put(self.selected_text())
@@ -431,10 +529,15 @@ class CodeEditor:
                 clipboard_put(self.selected_text())
                 self._delete_selection()
                 self._changed()
+                self._record(before)
         elif ctrl and key == pygame.K_v:
             clip = clipboard_get()
             if clip:
                 self._insert(clip)
+                self._record(before)
+        elif ctrl and key in (pygame.K_z, pygame.K_y):
+            if self.focused:            # Ctrl+Z undo; Ctrl+Shift+Z / Ctrl+Y redo
+                self._undo(redo=key == pygame.K_y or shift)
         else:
             return False
         self._blink = 0.0

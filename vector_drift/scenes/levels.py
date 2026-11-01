@@ -58,6 +58,7 @@ class LevelSelectScene(Scene):
         self.audio.play("click")
         self.session.level_id = level_id
         self.session.fx_text = self.session.fy_text = ""
+        self.session.editor_history = None      # a new start: no undo into another run
         self.session.ship_id = None             # start on the level's newest ship
         # Fresh solvable layout for dynamic levels on every entry; static
         # levels always come from get_level().

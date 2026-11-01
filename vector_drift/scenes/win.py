@@ -22,6 +22,7 @@ class WinScene(Scene):
             self.audio.play("click")
             from .game import GameScene
             self.session.fx_text = self.session.fy_text = ""     # replay starts clean
+            self.session.editor_history = None
             self.manager.switch(GameScene(self.manager))
         elif self.levels_button.handle_event(event) == "click":
             self.audio.play("click")
