@@ -11,12 +11,12 @@ def test_soundbank_enabled_missing_slots(monkeypatch, tmp_path):
     bank = audio.SoundBank()
     assert bank.enabled is True
     assert bank.sounds == {}
-    assert bank.music_path is None
+    assert bank.music_paths == {}
     # exercise no-op methods
     bank.play("click")
     bank.start_loop("thruster_loop")
     bank.stop_loop("thruster_loop")
-    bank.start_music()
+    bank.set_music(None)
     bank.toggle_mute()
     assert bank.muted is True
 

@@ -18,7 +18,7 @@ def test_soundbank_disabled_when_no_mixer(monkeypatch):
     bank.play("click")
     bank.start_loop("click")
     bank.stop_loop("click")
-    bank.start_music()
+    bank.set_music(None)
     bank.toggle_mute()
     assert bank.muted is True
 
@@ -34,6 +34,9 @@ def test_soundbank_toggle_mute_enabled(monkeypatch):
     bank.muted = False
     bank.enabled = True
     bank._loop_channels = {}
+    bank._fade = 1.0
+    bank.music = None
+    bank._next_music = None
     bank.toggle_mute()
     assert bank.muted is True
     # second toggle
