@@ -26,6 +26,7 @@ class Session:
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
     owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
     collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
+    collected_random_coins: set = field(default_factory=set)   # (level_id, seed, (cx, cy)); this launch only, not saved
     story_seen: set = field(default_factory=set)    # story.py keys: the crawl and level lines already shown
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None

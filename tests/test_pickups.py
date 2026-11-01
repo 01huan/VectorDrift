@@ -138,7 +138,7 @@ def test_discs_overlap_shared_rule():
 
 def test_fixed_levels_declare_pickups_like_obstacles():
     lv1, lv2 = get_level(1), get_level(2)
-    assert len(lv1.pickups) == 1       # LV1 declares one money pickup
+    assert lv1.pickups == ()           # LV1 has no pickups (no coin on the first level)
     assert len(lv2.pickups) == 1       # LV2 declares one money pickup
     discs = [(o.center, o.radius) for o in lv2.obstacles]
     discs += [(lv2.start, 0.0), (lv2.target_center, lv2.target_radius)]
@@ -147,8 +147,8 @@ def test_fixed_levels_declare_pickups_like_obstacles():
 
 
 def test_fixed_levels_owned_by_data():
-    # LV1 declares one money pickup.
-    assert len(get_level(1).pickups) == 1
+    # LV2 declares one money pickup.
+    assert len(get_level(2).pickups) == 1
     bare = LevelSpec(id=901, name="Bare", start=(-7.0, 0.0),
                      target_center=(7.0, 0.0), target_radius=1.0,
                      ship_id="ship01")

@@ -145,7 +145,6 @@ LEVELS = [
         target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
-        pickups=(PickupSpec(center=(0.0, 2.0), radius=0.45, kind="money"),),
     ),
     LevelSpec(
         id=2,

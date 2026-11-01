@@ -140,17 +140,7 @@ class GameScene(Scene):
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
         self.pickups = [PickupState.from_spec(s) for s in specs]
-        # Fixed levels: a money pickup already collected in a previous run
-        # (even an uncleared one) must not reappear / grant again.
-        if not is_dynamic_level(self.level.id):
-            for p in self.pickups:
-                if getattr(p, "kind", None) == "money" and (self.level.id, p.center) in (self.session.collected_money_pickups or set()):
-                    p.consumed = True
-        # Whether this level was already cleared before this run started.
-        # Fixed levels only grant money rewards on a first clear; random levels
-        # always grant them (see _money_rewards_available).
-        self._cleared_before = self.session.records.get(self.level.id) is not None
-        self._money_rewards_available = is_dynamic_level(self.level.id) or not self._cleared_before
+        self._hide_collected_coins()
         self.money = self.session.money
         # Black/white hole pairs (wormholes).
         self.holes = list(getattr(self.level, "holes", ()) or ())
@@ -423,11 +413,6 @@ class GameScene(Scene):
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
             self.hint_popup = None
-            # Money reward for reaching the target (first clear on fixed levels,
-            # always on random levels).
-            if self._money_rewards_available:
-                self.session.money.add(5)
-                self.money = self.session.money
             best = self.session.records.get(self.level.id)
             if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
@@ -582,19 +567,15 @@ class GameScene(Scene):
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("life sfx skipped", exc_info=True)
             elif event.get("kind") == "money":
-                # Grant money only when the level qualifies.
-                if self._money_rewards_available:
-                    amount = event.get("amount", 1)
-                    self.session.money.add(amount)
+                # Each coin pays once: once ever on a fixed level, once per
+                # map on a random level.
+                key = self._coin_key(event.get("center"))
+                collected = self._collected_coins()
+                if key not in collected:
+                    collected.add(key)
+                    self.session.money.add(event.get("amount", 1))
                     self.money = self.session.money
                 try:
-                    # Remember fixed-level money pickups so they never respawn.
-                    if not is_dynamic_level(self.level.id):
-                        center = event.get("center")
-                        try:
-                            self.session.collected_money_pickups.add((self.level.id, tuple(center)))
-                        except Exception:
-                            pass
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("money sfx skipped", exc_info=True)
@@ -822,6 +803,7 @@ class GameScene(Scene):
             self.state = SETUP
         self.level = get_level(self.level.id)
         self.pickups = [PickupState.from_spec(s) for s in self.level.pickups]
+        self._hide_collected_coins()
         self.launch_pos = self.level.start
         self.trail.clear()
         self._trail_count = 0
@@ -830,6 +812,25 @@ class GameScene(Scene):
         self.banner = None
         self.heading = self._heading_to_target()
         self._validate()
+
+    # ------------------------------------------------------------------ Coins
+    def _coin_key(self, center):
+        """A coin's identity: its level on fixed levels, its map on random ones."""
+        if is_dynamic_level(self.level.id):
+            return (self.level.id, self.session.random_seed, tuple(center))
+        return (self.level.id, tuple(center))
+
+    def _collected_coins(self):
+        """Keys of coins already paid out (fixed: saved; random: this launch)."""
+        if is_dynamic_level(self.level.id):
+            return self.session.collected_random_coins
+        return self.session.collected_money_pickups
+
+    def _hide_collected_coins(self):
+        collected = self._collected_coins()
+        for p in self.pickups:
+            if p.kind == "money" and self._coin_key(p.center) in collected:
+                p.consumed = True
 
     # ------------------------------------------------------------------ AI assistant
     def _position_ai_popup_buttons(self):
