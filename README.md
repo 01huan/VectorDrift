@@ -48,6 +48,29 @@ On level N you can fly `ship01` to `shipN`, and the level starts on `shipN`.
 The arrows beside the ship also show the later ones, in grey with "LvN+",
 but those cannot launch until their level. Random levels allow every ship.
 
+## Coins
+
+Coins are collectibles. Their only use is buying a full answer.
+
+* **Where they come from:** coin pickups only; clearing a level pays nothing.
+  A coin on a fixed level pays once, ever. A coin on a random level pays once
+  per map, so a new layout brings new coins.
+* **Hint answers (fixed levels):** opening Hint and reading every step is free.
+  The answer page is free on levels 1 and 2 and costs 10 coins from level 3 on.
+  You pay when you confirm, once per level per game launch.
+* **AI Solver (random levels):** opening it and solving in the background are
+  free. Fx / Fy stay hidden until you press **Reveal (10 coins)**. One payment
+  covers that map, including every later answer on it, for the game launch; a
+  new map needs a new payment.
+* **Revealing an answer** (answer page or Reveal) marks the run "Solution used",
+  so a clear won't count as a best time. Coins collected earlier in that run
+  are taken back and cannot pay for it; on a fixed level they reappear when the
+  level resets. Coins picked up after the reveal pay nothing and stay for a
+  later run.
+
+Prices and free levels live in `config.py`: `HINT_ANSWER_COST`,
+`AI_SOLVER_COST` and `FREE_ANSWER_LEVELS`.
+
 ## Controls
 
 | Input | Action |
