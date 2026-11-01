@@ -42,8 +42,8 @@ class _TextInput:
 
     def _delete_before(self):
         if self.cursor > 0:
-            self.text = self.text[:self.cursor - 1] + self.text[self.cursor:]
             self.cursor -= 1
+            self.text = self.text[:self.cursor] + self.text[self.cursor+1:]
         elif self.text:
             self.text = self.text[:-1]
             self.cursor = len(self.text)
