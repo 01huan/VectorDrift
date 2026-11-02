@@ -54,8 +54,19 @@ class AccountScene(Scene):
         self.status = "Refreshing..."
 
         def ok(profile):
-            from vector_drift.account.integration import apply_profile_to_session
-            apply_profile_to_session(self.session, profile, account.current_user.id, account.current_user.email)
+            from vector_drift.account.integration import (
+                apply_best_profile,
+                save_guest_profile,
+                save_progress,
+            )
+            # 先將目前未登入賺的進度寫入本地，避免被雲端舊資料覆蓋。
+            save_guest_profile(self.session)
+            chosen = apply_best_profile(
+                self.session, profile, account.current_user.id, account.current_user.email
+            )
+            # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
+            if chosen is not None and chosen is not profile and profile is not None:
+                save_progress(account, self.session)
             self.status = "Profile refreshed."
 
         def err(exc):
@@ -65,24 +76,42 @@ class AccountScene(Scene):
 
     def _logout(self):
         account = self.manager.account
-        if account is None:
-            reset_session_to_guest(self.session)
-            from .menu import MenuScene
-            self.manager.switch(MenuScene(self.manager))
-            return
         self.status = "Logging out..."
 
-        def ok():
-            reset_session_to_guest(self.session)
+        def _to_guest():
+            # 切換為 Guest 狀態，但保留同一份遊戲進度：不重置 session、
+            # 不載入舊的 guest_profile.json，只改變帳號認證相關欄位。
+            session = self.session
+            session.user_id = None
+            session.email = None
+            session.display_name = None
+            session.auth_status = "guest"
+            session.profile_loaded = False
+            session.sync_status = "idle"
+            session.last_sync_error = None
             from .menu import MenuScene
             self.manager.switch(MenuScene(self.manager))
+
+        def ok():
+            _to_guest()
 
         def err(exc):
-            reset_session_to_guest(self.session)
+            _to_guest()
             self.status = f"Logout finished with warning: {exc}"
-            from .menu import MenuScene
-            self.manager.switch(MenuScene(self.manager))
 
+        # 1. 先將目前登入帳號的遊戲進度保存到本地 guest_profile.json
+        try:
+            from vector_drift.account.integration import save_guest_profile
+            save_guest_profile(self.session)
+        except Exception:
+            pass
+
+        # 2. 若沒有帳號（未登入），直接切換為 Guest，保留現有進度
+        if account is None:
+            ok()
+            return
+
+        # 3. 清除 Supabase 登入 Session（refresh token 等認證資訊會被清除）
         account.sign_out_async(on_success=ok, on_error=err)
 
     def _delete_local(self):

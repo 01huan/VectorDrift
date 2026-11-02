@@ -266,8 +266,21 @@ class LoginScene(Scene):
             self.login_button.enabled = True
             profile = account.profile
             if profile is not None and account.current_user is not None:
-                from vector_drift.account.integration import apply_profile_to_session
-                apply_profile_to_session(self.session, profile, account.current_user.id, account.current_user.email)
+                from vector_drift.account.integration import (
+                    apply_best_profile,
+                    save_guest_profile,
+                    save_progress,
+                )
+                # 先將目前未登入賺的進度寫入本地，避免登入後被雲端舊資料覆蓋。
+                save_guest_profile(self.session)
+                chosen = apply_best_profile(
+                    self.session, profile,
+                    account.current_user.id,
+                    account.current_user.email,
+                )
+                # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
+                if chosen is not None and chosen is not profile and profile is not None:
+                    save_progress(account, self.session)
             from .menu import MenuScene
             self.manager.switch(MenuScene(self.manager))
 
@@ -387,8 +400,21 @@ class RegisterScene(Scene):
             else:
                 profile = account.profile
                 if profile is not None and account.current_user is not None:
-                    from vector_drift.account.integration import apply_profile_to_session
-                    apply_profile_to_session(self.session, profile, account.current_user.id, account.current_user.email)
+                    from vector_drift.account.integration import (
+                        apply_best_profile,
+                        save_guest_profile,
+                        save_progress,
+                    )
+                    # 先將目前未登入賺的進度寫入本地，避免登入後被雲端舊資料覆蓋。
+                    save_guest_profile(self.session)
+                    chosen = apply_best_profile(
+                        self.session, profile,
+                        account.current_user.id,
+                        account.current_user.email,
+                    )
+                    # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
+                    if chosen is not None and chosen is not profile and profile is not None:
+                        save_progress(account, self.session)
                 from .menu import MenuScene
                 self.manager.switch(MenuScene(self.manager))
 

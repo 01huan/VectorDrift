@@ -87,12 +87,21 @@ def main():
         def _on_restored(_user):
             profile = account_manager.profile
             if profile is not None and account_manager.current_user is not None:
-                from vector_drift.account.integration import apply_profile_to_session
-                apply_profile_to_session(
+                from vector_drift.account.integration import (
+                    apply_best_profile,
+                    save_guest_profile,
+                    save_progress,
+                )
+                # 先將目前未登入賺的進度寫入本地，避免登入後被雲端舊資料覆蓋。
+                save_guest_profile(manager.session)
+                chosen = apply_best_profile(
                     manager.session, profile,
                     account_manager.current_user.id,
                     account_manager.current_user.email,
                 )
+                # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
+                if chosen is not None and chosen is not profile and profile is not None:
+                    save_progress(account_manager, manager.session)
 
         account_manager.restore_session_async(on_success=_on_restored, on_error=lambda _e: None)
 

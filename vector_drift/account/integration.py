@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .models import PlayerProfile
+from .profile_manager import _profile_updated_at, _ts_gte
 
 # The story keys already shown ride along in the profile's stats so the
 # cloud schema needs no new column; Session keeps them apart (session.stats
@@ -55,6 +56,29 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
     session.profile_loaded = True
     session.sync_status = "idle"
     session.last_sync_error = None
+
+
+def apply_best_profile(session: Any, cloud_profile: Any, user_id: str, email: str | None = None) -> Any:
+    """Apply the newest of the local guest profile vs. the cloud profile to ``session``.
+
+    Local data is trusted: when timestamps are equal, or the local profile is newer,
+    the local profile wins and is written to the session.  Returns the profile that
+    was applied (or ``None`` when there is nothing to apply).
+    """
+    from .local_profile_manager import LocalProfileManager
+
+    local = LocalProfileManager().load()
+    chosen = cloud_profile
+    if local is not None:
+        if cloud_profile is None or _ts_gte(
+            _profile_updated_at(local), _profile_updated_at(cloud_profile)
+        ):
+            chosen = local
+
+    if chosen is None:
+        return None
+    apply_profile_to_session(session, chosen, user_id, email)
+    return chosen
 
 
 def session_to_profile(session: Any, user_id: str) -> PlayerProfile:

@@ -358,15 +358,21 @@ class AccountManager:
         on_success: Optional[Callable[[], None]] = None,
         on_error: Optional[Callable[[Exception], None]] = None,
     ) -> None:
-        def fn() -> None:
+        def fn() -> tuple[bool, PlayerProfile]:
             try:
-                self.profile_manager.upsert(profile)
+                upsert_if_newer = getattr(self.profile_manager, "upsert_if_newer", None)
+                if upsert_if_newer is not None:
+                    saved, winning = upsert_if_newer(profile)
+                else:
+                    self.profile_manager.upsert(profile)
+                    saved, winning = True, profile
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"Profile save failed (run docs/supabase_schema.sql): {exc}") from exc
-            return None
+            return (saved, winning)
 
-        def success(_: Any) -> None:
-            self.profile = profile
+        def success(result: tuple[bool, PlayerProfile]) -> None:
+            _saved, winning = result
+            self.profile = winning
             if on_success:
                 on_success()
 
