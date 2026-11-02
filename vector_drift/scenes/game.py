@@ -595,6 +595,7 @@ class GameScene(Scene):
                     self.session.money.add(amount)
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
+                    self._save_profile_if_signed_in()
                 try:
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -845,6 +846,7 @@ class GameScene(Scene):
             self.session.money.spend(price)
             self.money = self.session.money
             self.session.paid_answer_levels.add(self.level.id)
+            self._save_profile_if_signed_in()
         self.hint_popup.page = self.hint_popup.answer_page
         self._reset_level()
 
@@ -900,6 +902,7 @@ class GameScene(Scene):
         self._run_coins = []
         self.money = self.session.money
         self.solution_used = True
+        self._save_profile_if_signed_in()
 
     def _pay_clear_reward(self):
         """Reaching the target pays once per fixed level (saved) or random map.
@@ -920,6 +923,17 @@ class GameScene(Scene):
         self._clear_reward = config.CLEAR_REWARD
         self.session.money.add(self._clear_reward)
         self.money = self.session.money
+
+    def _save_profile_if_signed_in(self) -> None:
+        """Upload the current session to Supabase when signed in.
+
+        Called right after ``session.money`` (or other profile data) changes
+        so progress is not lost when the player quits the level without
+        clearing it.  Guests are intentionally left untouched.
+        """
+        from vector_drift.account.integration import save_profile_if_authenticated
+
+        save_profile_if_authenticated(self.manager.account, self.session)
 
     def _hide_collected_coins(self):
         collected = self._collected_coins()
@@ -960,6 +974,7 @@ class GameScene(Scene):
         self.session.money.spend(cost)
         self.money = self.session.money
         self.session.revealed_solver_maps.add(self._solver_map_key())
+        self._save_profile_if_signed_in()
 
     def _note_ai_answer_shown(self):
         """A paid map's answer on screen counts as using the solution."""

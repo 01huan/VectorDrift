@@ -161,6 +161,35 @@ def save_progress(account: Any, session: Any) -> None:
         pass
 
 
+def save_profile_if_authenticated(account: Any, session: Any) -> None:
+    """Upload the session to Supabase only when the user is signed in.
+
+    Intended to be called right after the local ``session.money`` (or other
+    profile data) is changed so that progress is not lost when the player
+    quits the level without clearing it.
+
+    Guests are intentionally left untouched: their local file keeps the
+    existing save points (e.g. level clear) and is not written on every coin
+    pickup.
+    """
+    if account is None or not account.is_authenticated() or account.current_user is None:
+        return
+    try:
+        profile = session_to_profile(session, account.current_user.id)
+        session.sync_status = "syncing"
+
+        def _on_saved():
+            session.sync_status = "idle"
+
+        def _on_error(exc):
+            session.sync_status = "error"
+            session.last_sync_error = str(exc)
+
+        account.save_profile_async(profile, on_success=_on_saved, on_error=_on_error)
+    except Exception:
+        pass
+
+
 def clear_guest_profile(session=None):
     from .local_profile_manager import LocalProfileManager
 
