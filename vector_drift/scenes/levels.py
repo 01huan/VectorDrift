@@ -52,7 +52,6 @@ class LevelSelectScene(Scene):
                                   style="plain", font_size=17)
         self.shop_button = Button((config.WINDOW_W - px(180), px(20), px(160), px(40)), "Shop",
                                  style="primary", font_size=17)
-        self.store_button = self.shop_button
         self._rebuild_cards()
 
     def _start(self, level_id):

@@ -199,5 +199,3 @@ class ShopScene(Scene):
         self.back_button.draw(surface)
 
 
-# Alias names for compatibility.
-StoreScene = ShopScene
