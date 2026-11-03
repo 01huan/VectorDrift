@@ -43,12 +43,17 @@ class ReplayScene(Scene):
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
 
-        cx = config.WINDOW_W // 2
         self.back_button = Button((px(40), px(40), px(120), px(40)), "Back", style="plain", font_size=16)
-        self.prev_button = Button((cx - px(260), config.WINDOW_H - px(90), px(100), px(40)), "Prev", style="plain", font_size=16)
-        self.next_button = Button((cx - px(150), config.WINDOW_H - px(90), px(100), px(40)), "Next", style="plain", font_size=16)
-        self.play_button = Button((cx + px(50), config.WINDOW_H - px(90), px(100), px(40)), "Play", style="primary", font_size=16)
-        self.pause_button = Button((cx + px(160), config.WINDOW_H - px(90), px(100), px(40)), "Pause", style="plain", font_size=16)
+        button_w = px(100)
+        button_h = px(40)
+        gap_x = px(10)
+        gap_y = px(10)
+        start_x = px(40)
+        start_y = config.WINDOW_H - px(130)
+        self.prev_button = Button((start_x, start_y, button_w, button_h), "Prev", style="plain", font_size=16)
+        self.next_button = Button((start_x + button_w + gap_x, start_y, button_w, button_h), "Next", style="plain", font_size=16)
+        self.play_button = Button((start_x, start_y + button_h + gap_y, button_w, button_h), "Play", style="primary", font_size=16)
+        self.pause_button = Button((start_x + button_w + gap_x, start_y + button_h + gap_y, button_w, button_h), "Pause", style="plain", font_size=16)
 
         self._load(self.index)
 
