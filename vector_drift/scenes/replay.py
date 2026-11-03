@@ -142,7 +142,9 @@ class ReplayScene(Scene):
         if self.play_button.handle_event(event) == "click":
             self.audio.play("click")
             if self.records:
-                self.player.seek(0)
+                frames = self.player.record.frames if self.player.record else []
+                if frames and self.player.index >= len(frames) - 1:
+                    self.player.seek(0)
                 self.paused = False
                 self._acc = 0.0
         if self.pause_button.handle_event(event) == "click":
@@ -165,7 +167,9 @@ class ReplayScene(Scene):
                 if not self.records:
                     return
                 if self.paused:
-                    self.player.seek(0)
+                    frames = self.player.record.frames if self.player.record else []
+                    if frames and self.player.index >= len(frames) - 1:
+                        self.player.seek(0)
                     self.paused = False
                     self._acc = 0.0
                 else:
@@ -310,7 +314,7 @@ class ReplayScene(Scene):
         draw_text(surface, "Force", (px(40), ty + px(72)), 16, config.TEXT_DIM, anchor="midleft")
         draw_text(surface, f"({cur.get('fx', 0):.2f}, {cur.get('fy', 0):.2f}) N", (px(220), ty + px(72)), 16, config.TEXT, anchor="midleft")
 
-        draw_text(surface, "Space: play/pause   Left/Right: step   Play restarts from head",
+        draw_text(surface, "Space: play/pause   Left/Right: step   Play resumes from current position",
                   (config.WINDOW_W // 2, config.WINDOW_H - px(30)), 14, config.TEXT_FAINT, anchor="center")
 
         self.back_button.draw(surface)
