@@ -7,6 +7,7 @@ create table if not exists public.profiles (
     owned_ships text[] not null default array['ship01'],
     purchased_items text[] not null default array[]::text[],
     records jsonb not null default '{}'::jsonb,
+    replays jsonb not null default '[]'::jsonb,
     collected_money_pickups jsonb not null default '[]'::jsonb,
     stats jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now(),

@@ -22,6 +22,7 @@ class Session:
     random_seed: int | None = None  # fixed layout for one dynamic-level run (retry/replay)
     stats: dict = field(default_factory=dict)       # last win/fail details
     records: dict = field(default_factory=dict)     # level_id -> best total flight time (s)
+    replays: list = field(default_factory=list)     # stored launch records (fixed capacity)
     hint_answer_confirmed: bool = False             # "Show the answer?" asked once per game launch
     paid_answer_levels: set = field(default_factory=set)  # fixed levels whose answer was paid this launch
     revealed_solver_maps: set = field(default_factory=set)  # (level_id, seed) with AI Solver paid this launch
@@ -41,6 +42,30 @@ class Session:
     profile_loaded: bool = False
     sync_status: str = "idle"           # idle | syncing | error
     last_sync_error: str | None = None
+    @property
+    def launch_records(self):
+        return self.replays
+
+    @launch_records.setter
+    def launch_records(self, value):
+        self.replays = list(value or [])
+
+    @property
+    def replay_records(self):
+        return self.replays
+
+    @replay_records.setter
+    def replay_records(self, value):
+        self.replays = list(value or [])
+
+    @property
+    def launches(self):
+        return self.replays
+
+    @launches.setter
+    def launches(self, value):
+        self.replays = list(value or [])
+
     @property
     def unlocked_ships(self):
         return self.owned_ships

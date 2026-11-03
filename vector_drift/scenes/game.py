@@ -134,6 +134,7 @@ class GameScene(Scene):
         self.lives = self.level.lives
         self.attempts = 0
         self.total_time = 0.0
+        self._replay_frames = []
         self.state = SETUP
         self.flight = None
         # One PickupState per spec for the WHOLE run (all lives): consumed
@@ -400,6 +401,7 @@ class GameScene(Scene):
 
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
+        self._replay_frames = []
         if not self.valid or not self._ship_unlocked:
             self.audio.play("error")
             return
@@ -422,6 +424,25 @@ class GameScene(Scene):
             self._end_flight(self.flight.outcome)
 
     def _end_flight(self, outcome):
+        try:
+            from vector_drift.replay import normalize_records
+            from vector_drift.account.integration import session_to_profile
+            rec = {
+                "level_id": self.level.id,
+                "ship_id": getattr(self.ship, "id", None),
+                "fx_text": self.editor.lines[0].strip() if self.editor.lines else "",
+                "fy_text": self.editor.lines[1].strip() if len(self.editor.lines) > 1 else "",
+                "outcome": str(outcome),
+                "frames": list(self._replay_frames),
+            }
+            self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
+        except Exception:
+            pass
+        try:
+            from vector_drift.account.integration import save_progress
+            save_progress(self.manager.account, self.session)
+        except Exception:
+            pass
         self.audio.stop_loop("thruster_loop")
         self._sync_trail()
         self.total_time += self.flight.time
@@ -712,6 +733,16 @@ class GameScene(Scene):
                 log.warning("pickup sync contained: %r", exc)
             except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
                 log.exception("unexpected pickup-sync failure")
+            try:
+                x, y, vx, vy, fx, fy = self._ship_state()
+                self._replay_frames.append({
+                    "t": float(getattr(self.flight, "time", 0.0)),
+                    "x": float(x), "y": float(y),
+                    "vx": float(vx), "vy": float(vy),
+                    "fx": float(fx), "fy": float(fy),
+                })
+            except Exception:
+                pass
             if outcome is not Outcome.RUNNING:
                 self._safe_end_flight(outcome)
         elif self.state == ARRIVED:

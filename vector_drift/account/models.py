@@ -26,6 +26,32 @@ class PlayerProfile:
     collected_money_pickups: Set[tuple[int, tuple[float, float]]] = field(default_factory=set)
     stats: Dict[str, Any] = field(default_factory=dict)
     updated_at: Optional[str] = None
+    replays: list = field(default_factory=list)
+
+    @property
+    def launch_records(self):
+        return self.replays
+
+    @launch_records.setter
+    def launch_records(self, value):
+        self.replays = list(value or [])
+
+    @property
+    def replay_records(self):
+        return self.replays
+
+    @replay_records.setter
+    def replay_records(self, value):
+        self.replays = list(value or [])
+
+    @property
+    def launches(self):
+        return self.replays
+
+    @launches.setter
+    def launches(self, value):
+        self.replays = list(value or [])
+
 
     def to_row(self) -> dict:
         return {
@@ -39,6 +65,7 @@ class PlayerProfile:
                 [int(lid), [float(c[0]), float(c[1])]] for (lid, c) in self.collected_money_pickups
             ],
             "stats": self.stats,
+            "replays": list((self.replays or [])[-10:]),
             "updated_at": self.updated_at,
         }
 
@@ -77,5 +104,6 @@ class PlayerProfile:
             records=records,
             collected_money_pickups=pickups,
             stats=row.get("stats") or {},
+            replays=row.get("replays") or row.get("launch_records") or row.get("replay_records") or row.get("launches") or [],
             updated_at=row.get("updated_at"),
         )

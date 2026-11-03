@@ -47,6 +47,7 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
     session.owned_ships = set(profile.owned_ships) or {"ship01"}
     session.purchased_items = set(profile.purchased_items)
     session.records = dict(profile.records)
+    session.replays = list(getattr(profile, "replays", None) or [])
     session.collected_money_pickups = set(profile.collected_money_pickups)
     _apply_profile_stats(session, profile.stats)
     session.display_name = profile.display_name
@@ -80,6 +81,7 @@ def profiles_equal(a: Any, b: Any) -> bool:
         and _norm(getattr(a, "owned_ships", set())) == _norm(getattr(b, "owned_ships", set()))
         and _norm(getattr(a, "purchased_items", set())) == _norm(getattr(b, "purchased_items", set()))
         and _norm(getattr(a, "records", {})) == _norm(getattr(b, "records", {}))
+    and _norm(getattr(a, "replays", [])) == _norm(getattr(b, "replays", []))
         and _norm(getattr(a, "collected_money_pickups", set())) == _norm(getattr(b, "collected_money_pickups", set()))
         and _norm(getattr(a, "stats", {})) == _norm(getattr(b, "stats", {}))
         and getattr(a, "display_name", None) == getattr(b, "display_name", None)
@@ -119,6 +121,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         owned_ships=set(session.owned_ships or {"ship01"}),
         purchased_items=set(session.purchased_items or set()),
         records=dict(session.records or {}),
+        replays=list(getattr(session, "replays", None) or getattr(session, "launch_records", None) or [])[-10:],
         collected_money_pickups=set(session.collected_money_pickups or set()),
         stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ()),
                CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ())},
@@ -133,6 +136,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.owned_ships = {"ship01"}
     session.purchased_items = set()
     session.records = {}
+    session.replays = []
     session.collected_money_pickups = set()
     session.stats = {}
     session.story_seen = set()
@@ -159,6 +163,7 @@ def apply_guest_profile_to_session(session, profile):
     session.owned_ships = set(profile.owned_ships) or {"ship01"}
     session.purchased_items = set(profile.purchased_items)
     session.records = dict(profile.records)
+    session.replays = list(getattr(profile, "replays", None) or [])
     session.collected_money_pickups = set(profile.collected_money_pickups)
     _apply_profile_stats(session, profile.stats)
     session.display_name = profile.display_name

@@ -25,6 +25,7 @@ class MenuScene(Scene):
         self.start_button = Button((cx - px(110), px(400), px(220), px(54)), "Start", font_size=22)
         self.quit_button = Button((cx - px(110), px(470), px(220), px(54)), "Quit", style="plain", font_size=22)
         self.login_menu_button = Button((cx - px(110), px(540), px(220), px(46)), "Login", style="primary", font_size=18)
+        self.replay_button = Button((cx - px(110), px(600), px(220), px(46)), "Replays", style="plain", font_size=18)
         self.t = 0.0
 
     def _make_swirl(self):
@@ -59,6 +60,10 @@ class MenuScene(Scene):
             else:
                 from .auth import LoginScene
                 self.manager.switch(LoginScene(self.manager))
+        elif self.replay_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .replay import ReplayScene
+            self.manager.switch(ReplayScene(self.manager))
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_l:
             self.audio.play("click")
             account = self.manager.account
@@ -101,6 +106,7 @@ class MenuScene(Scene):
         if account is not None:
             self.login_menu_button.enabled = not account.is_busy
         self.login_menu_button.draw(surface)
+        self.replay_button.draw(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:
             draw_text(surface, account.current_user.email or "", (config.WINDOW_W - px(10), px(68)), 13,
                       config.TEXT_DIM, anchor="midright")
