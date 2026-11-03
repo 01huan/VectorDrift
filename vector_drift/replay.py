@@ -171,8 +171,10 @@ def normalize_records(data, capacity=MAX_REPLAYS):
             out.append(ReplayRecord.from_dict(item).to_dict())
         except Exception:
             continue
+    # Sort by created_at descending so newest records appear first
+    out.sort(key=lambda r: r.get("created_at", 0), reverse=True)
     if len(out) > capacity:
-        out = out[-capacity:]
+        out = out[:capacity]  # Keep only the first `capacity` (newest) records
     return out
 
 
