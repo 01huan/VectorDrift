@@ -434,6 +434,10 @@ class GameScene(Scene):
                 "fy_text": self.editor.lines[1].strip() if len(self.editor.lines) > 1 else "",
                 "outcome": str(outcome),
                 "frames": list(self._replay_frames),
+                # 隨機關卡必須連同 seed 一起紀錄，否則 replay 無法重現同樣的
+                # 障礙物、拾取物、起點與終點。固定關卡的 random_seed 為 None，
+                # 播放端 seed 為 None 時會用 get_level(level_id) 載入固定關卡。
+                "seed": self.session.random_seed,
             }
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
         except Exception:
