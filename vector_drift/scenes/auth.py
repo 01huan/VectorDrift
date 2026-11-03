@@ -199,6 +199,9 @@ class LoginScene(Scene):
         self.delete_guest_data_button = self.delete_local_button
         self.status = ""
         self._busy = False
+        self._conflict = None
+        self.use_local_button = Button((cx - px(180), px(420), px(170), px(44)), "Use Local", style="primary", font_size=15)
+        self.use_cloud_button = Button((cx + px(10), px(420), px(170), px(44)), "Use Cloud", style="plain", font_size=15)
 
     def _delete_local(self):
         account = self.manager.account
@@ -217,6 +220,15 @@ class LoginScene(Scene):
         self.status = msg
 
     def handle_event(self, event):
+        if self._conflict is not None:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.use_local_button.handle_event(event) == "click":
+                    self._resolve_conflict(True)
+                    return
+                if self.use_cloud_button.handle_event(event) == "click":
+                    self._resolve_conflict(False)
+                    return
+            return
         self.email_input.handle_event(event)
         self.password_input.handle_event(event)
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -239,6 +251,27 @@ class LoginScene(Scene):
                 return
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
             self._try_login()
+
+    def _resolve_conflict(self, prefer_local: bool):
+        c = self._conflict
+        if c is None:
+            return
+        account = self.manager.account
+        from vector_drift.account.integration import (
+            apply_profile_to_session,
+            save_guest_profile,
+            save_progress,
+        )
+        chosen = c["local"] if prefer_local else c["cloud"]
+        apply_profile_to_session(self.session, chosen, c["user_id"], c["email"])
+        if prefer_local:
+            if account is not None:
+                save_progress(account, self.session)
+        else:
+            save_guest_profile(self.session)
+        self._conflict = None
+        from .menu import MenuScene
+        self.manager.switch(MenuScene(self.manager))
 
     def _try_login(self):
         if self._busy:
@@ -267,20 +300,31 @@ class LoginScene(Scene):
             profile = account.profile
             if profile is not None and account.current_user is not None:
                 from vector_drift.account.integration import (
-                    apply_best_profile,
+                    profiles_equal,
                     save_guest_profile,
                     save_progress,
                 )
+                from vector_drift.account.local_profile_manager import LocalProfileManager
                 # 先將目前未登入賺的進度寫入本地，避免登入後被雲端舊資料覆蓋。
                 save_guest_profile(self.session)
-                chosen = apply_best_profile(
-                    self.session, profile,
-                    account.current_user.id,
-                    account.current_user.email,
-                )
-                # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
-                if chosen is not None and chosen is not profile and profile is not None:
-                    save_progress(account, self.session)
+                local = LocalProfileManager().load()
+                if local is None or profile is None or profiles_equal(local, profile):
+                    from vector_drift.account.integration import apply_profile_to_session
+                    chosen = local if local is not None else profile
+                    apply_profile_to_session(self.session, chosen, account.current_user.id, account.current_user.email)
+                    # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
+                    if chosen is not None and chosen is not profile and profile is not None:
+                        save_progress(account, self.session)
+                else:
+                    # 資料不同：詢問使用者要用本地還是雲端覆蓋另一個。
+                    self._conflict = {
+                        "local": local,
+                        "cloud": profile,
+                        "user_id": account.current_user.id,
+                        "email": account.current_user.email,
+                    }
+                    self._set_status("Local and cloud data differ. Choose which to keep.")
+                    return
             from .menu import MenuScene
             self.manager.switch(MenuScene(self.manager))
 
@@ -316,23 +360,34 @@ class LoginScene(Scene):
         surface.blit(self.background, (0, 0))
         cx = config.WINDOW_W // 2
         draw_text(surface, "LOGIN", (cx, px(120)), 40, config.TEXT, kind="bold", anchor="center")
-        draw_text(surface, "Email", (cx - px(180), px(196)), 14, config.TEXT_DIM, anchor="midleft")
-        draw_text(surface, "Password", (cx - px(180), px(256)), 14, config.TEXT_DIM, anchor="midleft")
-        self.email_input.draw(surface)
-        self.password_input.draw(surface)
-        self.login_button.draw(surface)
-        self.register_button.draw(surface)
-        self.forgot_button.draw(surface)
-        self.back_button.draw(surface)
-        self.delete_local_button.draw(surface)
-        if self.status:
-            msg = self.status
-            if self._busy:
-                dots = "." * (int(pygame.time.get_ticks() / 400) % 4)
-                msg = self.status.rstrip(".") + dots
-            draw_text(surface, msg, (cx, px(460)), 15, config.WARNING, anchor="center")
-        if self.manager.account is not None and self.manager.account.is_busy:
-            draw_text(surface, "Please wait, contacting server...", (cx, px(485)), 13, config.TEXT_FAINT, anchor="center")
+        if self._conflict is None:
+            draw_text(surface, "Email", (cx - px(180), px(196)), 14, config.TEXT_DIM, anchor="midleft")
+            draw_text(surface, "Password", (cx - px(180), px(256)), 14, config.TEXT_DIM, anchor="midleft")
+            self.email_input.draw(surface)
+            self.password_input.draw(surface)
+            self.login_button.draw(surface)
+            self.register_button.draw(surface)
+            self.forgot_button.draw(surface)
+            self.back_button.draw(surface)
+            self.delete_local_button.draw(surface)
+        if self._conflict is None:
+            if self.status:
+                msg = self.status
+                if self._busy:
+                    dots = "." * (int(pygame.time.get_ticks() / 400) % 4)
+                    msg = self.status.rstrip(".") + dots
+                draw_text(surface, msg, (cx, px(460)), 15, config.WARNING, anchor="center")
+            if self.manager.account is not None and self.manager.account.is_busy:
+                draw_text(surface, "Please wait, contacting server...", (cx, px(485)), 13, config.TEXT_FAINT, anchor="center")
+        else:
+            draw_text(surface, "Local and cloud data differ.", (cx, px(360)), 16, config.WARNING, anchor="center")
+            draw_text(surface, "Choose which to keep:", (cx, px(380)), 14, config.TEXT_DIM, anchor="center")
+            self.use_local_button.rect.y = px(410)
+            self.use_cloud_button.rect.y = px(410)
+            self.use_local_button.draw(surface)
+            self.use_cloud_button.draw(surface)
+            if self.status:
+                draw_text(surface, self.status, (cx, px(480)), 15, config.WARNING, anchor="center")
 
 
 class RegisterScene(Scene):

@@ -57,6 +57,36 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
     session.sync_status = "idle"
     session.last_sync_error = None
 
+def profiles_equal(a: Any, b: Any) -> bool:
+    """Return True when two profiles carry the same game data.
+
+    Timestamps (``updated_at``) are ignored: only the actual progress matters
+    for deciding whether the local and cloud copies disagree.
+    """
+    if a is None or b is None:
+        return False
+
+    def _norm(v):
+        if isinstance(v, set):
+            return frozenset(v)
+        if isinstance(v, dict):
+            return tuple(sorted((k, _norm(val)) for k, val in v.items()))
+        if isinstance(v, (list, tuple)):
+            return tuple(sorted(_norm(x) for x in v))
+        return v
+
+    return (
+        getattr(a, "money", None) == getattr(b, "money", None)
+        and _norm(getattr(a, "owned_ships", set())) == _norm(getattr(b, "owned_ships", set()))
+        and _norm(getattr(a, "purchased_items", set())) == _norm(getattr(b, "purchased_items", set()))
+        and _norm(getattr(a, "records", {})) == _norm(getattr(b, "records", {}))
+        and _norm(getattr(a, "collected_money_pickups", set())) == _norm(getattr(b, "collected_money_pickups", set()))
+        and _norm(getattr(a, "stats", {})) == _norm(getattr(b, "stats", {}))
+        and getattr(a, "display_name", None) == getattr(b, "display_name", None)
+    )
+
+
+
 
 def apply_best_profile(session: Any, cloud_profile: Any, user_id: str, email: str | None = None) -> Any:
     """Apply the newest of the local guest profile vs. the cloud profile to ``session``.
