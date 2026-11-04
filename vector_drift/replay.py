@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 MAX_REPLAYS = 10
-REPLAY_CAPACITY = MAX_REPLAYS
-MAX_LAUNCH_RECORDS = MAX_REPLAYS
-FIXED_REPLAY_COUNT = MAX_REPLAYS
+
+
+
 
 
 @dataclass
@@ -107,10 +107,7 @@ class ReplayRecord:
         )
 
 
-LaunchRecord = ReplayRecord
-FlightRecord = ReplayRecord
-LaunchReplay = ReplayRecord
-Replay = ReplayRecord
+
 
 
 class ReplayBuffer:
@@ -156,11 +153,7 @@ class ReplayBuffer:
         return buf
 
 
-ReplayStore = ReplayBuffer
-LaunchStore = ReplayBuffer
-ReplayManager = ReplayBuffer
-LaunchManager = ReplayBuffer
-ReplayHistory = ReplayBuffer
+
 
 
 def normalize_records(data, capacity=MAX_REPLAYS):
@@ -186,7 +179,7 @@ def normalize_records(data, capacity=MAX_REPLAYS):
     return out
 
 
-trim_records = normalize_records
+
 
 
 def record_launch(frames, level_id=0, ship_id=None, fx_text="", fy_text="",
@@ -271,9 +264,4 @@ class ReplayPlayer:
         return None
 
 
-ReplayViewer = ReplayPlayer
-ReplayController = ReplayPlayer
-ReplayPlayback = ReplayPlayer
-ReplaySession = ReplayPlayer
-ReplayEngine = ReplayPlayer
-ReplayRunner = ReplayPlayer
+
