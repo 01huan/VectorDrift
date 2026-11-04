@@ -24,6 +24,7 @@ from ..solver.interface import SolveResult
 from .base import Scene
 from .dialogue import DialogueBox
 from .hint_popup import HintPopup, confirm_text
+from .pause_menu import PauseMenu
 
 log = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ class GameScene(Scene):
 
     def __init__(self, manager):
         super().__init__(manager)
+        self.pause_menu = None          # Esc menu; while open the level is paused
         if is_dynamic_level(self.session.level_id):
             # Same seed for the whole run: retry/replay keep one layout.
             if self.session.random_seed is None:
@@ -328,7 +330,8 @@ class GameScene(Scene):
         self._refresh_buttons()
 
     def _update_cursor(self):
-        set_cursor("text" if self.editor.is_text_area(self._mouse_pos) else "arrow")
+        over_text = self.pause_menu is None and self.editor.is_text_area(self._mouse_pos)
+        set_cursor("text" if over_text else "arrow")
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEMOTION:
@@ -346,6 +349,13 @@ class GameScene(Scene):
             self.audio.play("click")    # same as its Close button
             self.ai_popup = False
             return
+        if self.pause_menu is not None:
+            self._handle_pause_event(event)
+            return                      # modal: nothing behind it takes input
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if self.state in (SETUP, FLIGHT):
+                self._open_pause()
+            return                      # ARRIVED: Esc does nothing
         # The run button sits inside the editor's header, so it gets the event first.
         result = self.run_button.handle_event(event)
         if result == "click":
@@ -363,10 +373,6 @@ class GameScene(Scene):
                 self._try_launch()
                 return
             if self.editor.handle_event(event):
-                return
-        elif self.state == FLIGHT:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self._abort()
                 return
 
         if self.level_button.handle_event(event) == "click":
@@ -696,7 +702,8 @@ class GameScene(Scene):
             log.exception("unexpected editor failure")
         if self.dialogue is not None:
             self.dialogue.update(dt)
-        self._update_flight(dt)
+        if self.pause_menu is None:     # paused: flight, banner and arrival wait
+            self._update_flight(dt)
 
     def _update_ai(self):
         """Random levels: restart the solver on a new state, poll the running job."""
@@ -805,11 +812,48 @@ class GameScene(Scene):
         if self.dialogue is not None:
             self.dialogue.draw(surface)
         self._draw_coins(surface)
+        if self.pause_menu is not None:
+            self.pause_menu.draw(surface)
 
     def _draw_coins(self, surface):
         """Available balance, top-right of the plot, above every other layer."""
         draw_coins(surface, int(self.session.money), (config.WINDOW_W - px(14), px(12)), 16,
                    config.WARNING, icon=COIN_BALANCE, anchor="topright")
+
+    # ------------------------------------------------------------------ Pause menu
+    def _open_pause(self):
+        self.pause_menu = PauseMenu(in_flight=self.state == FLIGHT)
+        if self.state == FLIGHT:
+            self.audio.stop_loop("thruster_loop")
+        set_cursor("arrow")
+
+    def _close_pause(self):
+        self.pause_menu = None
+        if self.state == FLIGHT:
+            self.audio.start_loop("thruster_loop")
+        self._update_cursor()
+
+    def _handle_pause_event(self, event):
+        action = self.pause_menu.handle_event(event)
+        if action is None:
+            return
+        self.audio.play("click")
+        if action == "resume":
+            self._close_pause()
+        elif action == "abort":
+            self.pause_menu = None
+            self._abort()
+        elif action == "restart":
+            # Like Retry on the fail screen: same level, ship and seed, formulas kept.
+            self.manager.switch(GameScene(self.manager))
+        elif action == "levels":
+            from .levels import LevelSelectScene
+            self.manager.switch(LevelSelectScene(self.manager))
+        elif action == "menu":
+            from .menu import MenuScene
+            self.manager.switch(MenuScene(self.manager))
+        elif action == "quit":
+            self.manager.quit()
 
     # ------------------------------------------------------------------ Story
     def _say(self, lines, seen_key=None):
@@ -1074,7 +1118,8 @@ class GameScene(Scene):
         )
 
     def on_exit(self):
-        """Leaving the level: stop the background solve and its workers."""
+        """Leaving the level: stop the thruster sound and the background solve."""
+        self.audio.stop_loop("thruster_loop")
         job, self.ai_job = self.ai_job, None
         if job is not None and job.running:
             try:
