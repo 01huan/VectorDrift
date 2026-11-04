@@ -3,11 +3,6 @@
 import os
 
 
-def _pygame():
-    import pygame
-    return pygame
-
-
 def open_display():
     import pygame
     from vector_drift import config
