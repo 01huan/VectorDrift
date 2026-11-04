@@ -222,6 +222,29 @@ LEVELS = [
             ((-3.0, 4.0), (2.0, 4.0), 0.5),
         ),
     ),
+    LevelSpec(
+        id=5,
+        name="First Extratime",
+        start=(-8.0, 0.0),
+        target_center=(8.0, 0.0),
+        target_radius=1.0,
+        ship_id="ship01",
+        time_limit=9.0,   # tighter than the 10 s default
+        # Two rocks forming a gentle S-curve -- NOT sealed (unlike level 3's ring):
+        # a straight line crashes into the first one, but a player who pushes
+        # the field strong enough can still clear both without ever touching the
+        # Extratime pickup. The pickup is optional by design: a linear field
+        # scaled up keeps the same path and just flies it faster. The tutorial
+        # answer F = (0.3, 0.5x - 2y) takes ~10.26 s, so it times out at 9 s
+        # and only reaches the target after grabbing the +3 s Extratime.
+        obstacles=(
+            ObstacleSpec(center=(-2.5, 0.8), radius=1.0),
+            ObstacleSpec(center=(2.5, -0.8), radius=1.0),
+        ),
+        pickups=(
+            PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
+        ),
+    ),
 
 ]
 
