@@ -106,25 +106,4 @@ class LocalProfileManager:
 
 
 
-def load_guest_profile(path=None):
-    return LocalProfileManager(path).load()
 
-
-def save_guest_profile(profile_or_session=None, path=None):
-    LocalProfileManager(path).save(profile_or_session)
-
-
-def clear_guest_profile(path=None):
-    LocalProfileManager(path).clear()
-
-
-def delete_guest_profile(path=None):
-    LocalProfileManager(path).clear()
-
-
-def delete_local_records(path=None):
-    LocalProfileManager(path).clear()
-
-
-def delete_local_data(path=None):
-    LocalProfileManager(path).clear()
