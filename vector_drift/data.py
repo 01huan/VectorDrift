@@ -297,17 +297,3 @@ class HoleSpec:
     @classmethod
     def from_centers(cls, black_center, white_center, radius=0.5):
         return cls(black_center=black_center, white_center=white_center, radius=radius)
-
-
-PortalSpec = HoleSpec
-WormholeSpec = HoleSpec
-BlackHoleSpec = HoleSpec
-WhiteHoleSpec = HoleSpec
-
-
-# Money (currency) value object -- re-exported for convenience.
-from .money import Money
-
-MoneySpec = Money
-Coin = Money
-MoneyPickup = Money

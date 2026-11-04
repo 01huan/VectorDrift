@@ -112,8 +112,3 @@ class Money:
 
     def __repr__(self) -> str:
         return f"Money(amount={self.amount})"
-
-
-Wallet = Money
-MoneyBag = Money
-CoinPurse = Money

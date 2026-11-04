@@ -1,4 +1,4 @@
-from vector_drift.money import Money, Wallet, MoneyBag, CoinPurse, _coerce
+from vector_drift.money import Money, _coerce
 
 
 class _HasAmount:
@@ -14,12 +14,6 @@ class _HasValue:
 class _HasBalance:
     def __init__(self, balance):
         self.balance = balance
-
-
-def test_aliases_are_same_class():
-    assert Wallet is Money
-    assert MoneyBag is Money
-    assert CoinPurse is Money
 
 
 def test_default_and_repr():
