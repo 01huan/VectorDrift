@@ -90,9 +90,7 @@ MAX_ARROW_PX = 4000       # refuse to allocate arrow temp surfaces larger than t
 # --- Costs ---------------------------------------------------------------
 AI_SOLVER_COST = 10
 HINT_COST = 10
-AI_COST = AI_SOLVER_COST
-HINT_MONEY_COST = HINT_COST
-SOLVER_COST = AI_SOLVER_COST
+
 MONEY_COST_PER_USE = 10
 FREE_ANSWER_LEVELS = (1, 2)         # fixed levels whose Hint answer page is free
 HINT_ANSWER_COST = 10               # coins for the Hint answer page on other fixed levels

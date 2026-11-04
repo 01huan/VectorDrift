@@ -152,8 +152,7 @@ OBSTACLE_ONLY_RULES = (
 # Full obstacle pipeline: common + obstacle-only + preset extras.
 OBSTACLE_RULES = (*COMMON_RULES, *OBSTACLE_ONLY_RULES)
 
-# Backward-compat alias: existing tests / callers reference RULES.
-RULES = OBSTACLE_RULES
+
 
 
 def _obstacle_ok(center, radius, segments, start, target, placed, preset=None):

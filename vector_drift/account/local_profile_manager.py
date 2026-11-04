@@ -103,17 +103,7 @@ class LocalProfileManager:
         return None
 
 
-GuestProfileManager = LocalProfileManager
-GuestManager = LocalProfileManager
-LocalManager = LocalProfileManager
-GuestSessionManager = LocalProfileManager
-LocalSessionManager = LocalProfileManager
-GuestStore = LocalProfileManager
-LocalStore = LocalProfileManager
-GuestProfileStore = LocalProfileManager
-LocalProfileStore = LocalProfileManager
-GuestDataStore = LocalProfileManager
-LocalDataStore = LocalProfileManager
+
 
 
 def load_guest_profile(path=None):

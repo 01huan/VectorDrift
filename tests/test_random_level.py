@@ -14,7 +14,7 @@ from vector_drift.level_presets import (
 )
 from vector_drift.physics import segment_hits_circle
 from vector_drift.random_level import (
-    RULES,
+    OBSTACLE_RULES,
     generate_random_level,
     generate_with_corridor,
     rule_direct_blockers,
@@ -158,7 +158,7 @@ def test_custom_preset_and_extra_rule_without_core_edits():
         assert level.id == 99 and len(level.obstacles) == 4
         assert all(o.center[1] <= 0.0 + 1e-9 for o in level.obstacles)
         # Rule pipeline is data: num_direct_blockers=0 disables the blocker rule.
-        assert len(RULES) == 4
+        assert len(OBSTACLE_RULES) == 4
     finally:
         from vector_drift.level_presets import PRESETS
         PRESETS.pop(99, None)
