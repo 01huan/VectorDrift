@@ -233,10 +233,11 @@ LEVELS = [
         # Two rocks forming a gentle S-curve -- NOT sealed (unlike level 3's ring):
         # a straight line crashes into the first one, but a player who pushes
         # the field strong enough can still clear both without ever touching the
-        # Extratime pickup. The pickup is optional by design: a linear field
-        # scaled up keeps the same path and just flies it faster. The tutorial
-        # answer F = (0.3, 0.5x - 2y) takes ~10.26 s, so it times out at 9 s
-        # and only reaches the target after grabbing the +3 s Extratime.
+        # Extratime pickup. The pickup is optional: this level only introduces
+        # it. The taught S-curve answer F = (0.3, 0.5x - 2y) (~10.26 s) benefits
+        # from the +3 s, but other approaches clear the level without it, e.g.
+        # level 2's rotational field (wide arc around both rocks) or scaling
+        # the field up (same path, flown faster).
         obstacles=(
             ObstacleSpec(center=(-2.5, 0.8), radius=1.0),
             ObstacleSpec(center=(2.5, -0.8), radius=1.0),
