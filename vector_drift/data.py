@@ -230,17 +230,28 @@ LEVELS = [
         target_radius=1.0,
         ship_id="ship01",
         time_limit=9.0,   # tighter than the 10 s default
-        # Two rocks forming a gentle S-curve -- NOT sealed (unlike level 3's ring):
-        # a straight line crashes into the first one, but a player who pushes
-        # the field strong enough can still clear both without ever touching the
-        # Extratime pickup. The pickup is optional: this level only introduces
-        # it. The taught S-curve answer F = (0.3, 0.5x - 2y) (~10.26 s) benefits
-        # from the +3 s, but other approaches clear the level without it, e.g.
-        # level 2's rotational field (wide arc around both rocks) or scaling
-        # the field up (same path, flown faster).
+        # Two sealed rows of rocks (y = +-4.8, r = 0.8, gaps ~0.1 m, narrower
+        # than the ship) block level 2's tall round swirl. The reference answer
+        # F = (-2y, x + 6.7) is that swirl flattened by a/b = 2 (height x
+        # 1/sqrt(2)) and passes between the rows (mirror: F = (2y, -x - 6.7)).
+        # The Extratime pickup is optional; the reference answers don't use it.
         obstacles=(
             ObstacleSpec(center=(-2.5, 0.8), radius=1.0),
             ObstacleSpec(center=(2.5, -0.8), radius=1.0),
+            ObstacleSpec(center=(-6.0, 4.8), radius=0.8),
+            ObstacleSpec(center=(-4.3, 4.8), radius=0.8),
+            ObstacleSpec(center=(-2.6, 4.8), radius=0.8),
+            ObstacleSpec(center=(-0.9, 4.8), radius=0.8),
+            ObstacleSpec(center=(0.8, 4.8), radius=0.8),
+            ObstacleSpec(center=(2.5, 4.8), radius=0.8),
+            ObstacleSpec(center=(4.2, 4.8), radius=0.8),
+            ObstacleSpec(center=(-6.0, -4.8), radius=0.8),
+            ObstacleSpec(center=(-4.3, -4.8), radius=0.8),
+            ObstacleSpec(center=(-2.6, -4.8), radius=0.8),
+            ObstacleSpec(center=(-0.9, -4.8), radius=0.8),
+            ObstacleSpec(center=(0.8, -4.8), radius=0.8),
+            ObstacleSpec(center=(2.5, -4.8), radius=0.8),
+            ObstacleSpec(center=(4.2, -4.8), radius=0.8),
         ),
         pickups=(
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
