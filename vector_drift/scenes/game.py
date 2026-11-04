@@ -342,6 +342,10 @@ class GameScene(Scene):
         if self.hint_popup is not None:
             self._handle_hint_event(event)
             return                      # modal: nothing behind it takes input
+        if self.ai_popup and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.audio.play("click")    # same as its Close button
+            self.ai_popup = False
+            return
         # The run button sits inside the editor's header, so it gets the event first.
         result = self.run_button.handle_event(event)
         if result == "click":
