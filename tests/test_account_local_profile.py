@@ -75,7 +75,7 @@ def test_local_profile_manager_coerce_and_session_save(tmp_path, monkeypatch):
 def test_delete_aliases(tmp_path):
     mgr = LocalProfileManager(tmp_path / "p.json")
     mgr.save(PlayerProfile(user_id="g", money=1))
-    for method in ("delete", "delete_profile", "reset"):
+    for method in ("delete_profile",):
         getattr(mgr, method)()
         # recreate for next
         mgr.save(PlayerProfile(user_id="g", money=1))

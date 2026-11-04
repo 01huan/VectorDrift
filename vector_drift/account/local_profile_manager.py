@@ -74,13 +74,7 @@ class LocalProfileManager:
         except OSError:
             pass
 
-    def delete(self) -> None:
-        self.clear()
-
     def delete_profile(self) -> None:
-        self.clear()
-
-    def reset(self) -> None:
         self.clear()
 
     @staticmethod
