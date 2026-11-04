@@ -38,9 +38,9 @@ def test_local_profile_manager_load_variants(tmp_path):
     path.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
     assert mgr.load() is None
 
-    # load_profile alias
+    # canonical loader
     path.write_text(json.dumps({"money": 9}), encoding="utf-8")
-    assert mgr.load_profile().money == 9
+    assert mgr.load().money == 9
 
 
 def test_local_profile_manager_coerce_and_session_save(tmp_path, monkeypatch):

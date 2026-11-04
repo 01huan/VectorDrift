@@ -64,9 +64,6 @@ class LocalProfileManager:
         except Exception:
             return None
 
-    def load_profile(self) -> Optional[PlayerProfile]:
-        return self.load()
-
     def clear(self) -> None:
         try:
             if self._path.exists():
