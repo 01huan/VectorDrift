@@ -94,6 +94,9 @@ Prices, the clear reward and free levels live in `config.py`:
 | Ctrl+A / Ctrl+C / Ctrl+X / Ctrl+V | Select line / copy / cut / paste |
 | Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Undo / redo in the line with the cursor (Fx and Fy each keep their own history) |
 | `(` with text selected | Wrap the selection in parentheses; it stays selected, so pressing `(` again adds another pair |
+| `(` with nothing or a space after the cursor | Add the closing `)` too and put the cursor between them (before other text only `(` is typed) |
+| `)` right before a `)` | Step over it instead of typing a second one (when the line's parentheses are balanced) |
+| Backspace inside an empty `()` | Delete both parentheses |
 | Ctrl+M | Mute / unmute |
 
 ## Formula format
