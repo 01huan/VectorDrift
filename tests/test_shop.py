@@ -13,9 +13,6 @@ from vector_drift.shop import (
     purchase_item,
     _coerce_money,
     _owned_ship_ids,
-    buy_item,
-    buy,
-    purchase,
 )
 
 
@@ -159,10 +156,7 @@ def test_shop_class():
     assert shop.buy("__missing__", s) is False
 
 
-def test_aliases_callable():
-    assert buy_item is purchase_item
-    assert buy is purchase_item
-    assert purchase is purchase_item
+
 
 
 def test_register_ships_populated():

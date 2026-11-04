@@ -52,10 +52,7 @@ class ShopItem:
 
 
 ITEMS: dict[str, ShopItem] = {}
-ITEM_REGISTRY = ITEMS
-SHOP_ITEMS = ITEMS
-SHOP_CATALOG = ITEMS
-CATALOG = ITEMS
+
 
 
 def register_item(item: ShopItem) -> ShopItem:
@@ -125,9 +122,7 @@ def purchase_item(item: ShopItem, session) -> bool:
     return True
 
 
-buy_item = purchase_item
-buy = purchase_item
-purchase = purchase_item
+
 
 
 class Shop:
