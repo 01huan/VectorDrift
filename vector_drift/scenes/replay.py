@@ -9,6 +9,7 @@ from ..config import px
 from ..coords import Viewport
 from ..data import SHIPS, get_level
 from ..physics import ForceField
+from ..pickups import PickupState
 from ..expr_parser import diagnose_expression
 from ..ui import Button, draw_text
 from .base import Scene
@@ -70,6 +71,7 @@ class ReplayScene(Scene):
         self.paused = True
         self._acc = 0.0
         self._setup_level_from_record(rec)
+        self._sync_pickups_to_current()
 
     def _clear_level(self):
         self._level = None
@@ -117,8 +119,18 @@ class ReplayScene(Scene):
                 self._field_layer = None
 
         self._ship = SHIPS.get(rec.get("ship_id"), SHIPS["ship01"])
+        raw_pickups = getattr(self._level, "pickups", ()) or ()
+        self._pickups = []
+        for p in raw_pickups:
+            if isinstance(p, PickupState):
+                self._pickups.append(p)
+            else:
+                try:
+                    self._pickups.append(PickupState.from_spec(p))
+                except Exception:
+                    self._pickups.append(p)
+        self._pickups = tuple(self._pickups)
         self._obstacles = getattr(self._level, "obstacles", ()) or ()
-        self._pickups = getattr(self._level, "pickups", ()) or ()
         self._holes = list(getattr(self._level, "holes", ()) or ())
         self._target_center = self._level.target_center
         self._target_radius = self._level.target_radius
@@ -129,6 +141,103 @@ class ReplayScene(Scene):
             self._story_planet = story.planet if story else None
         except Exception:
             self._story_planet = None
+
+        self._base_pickups = tuple(
+            PickupState(p.center, p.radius, p.kind) if not isinstance(p, PickupState) else
+            PickupState(p.center, p.radius, p.kind) for p in self._pickups
+        )
+        self._base_obstacles = tuple(self._obstacles)
+
+        self._apply_pickup_events_from_record(rec)
+
+    def _apply_pickup_events_from_record(self, rec):
+        events = None
+        if isinstance(rec, dict):
+            events = rec.get("pickup_events")
+        else:
+            events = getattr(rec, "pickup_events", None)
+        if not events:
+            return
+        try:
+            from ..pickups import obstacles_hit_by_blast
+        except Exception:
+            obstacles_hit_by_blast = None
+        pickups = list(self._pickups)
+        obstacles = list(self._obstacles)
+        for ev in events:
+            if not isinstance(ev, dict):
+                continue
+            kind = ev.get("kind")
+            center = ev.get("center")
+            # Mark matching pickup as consumed (reuse identity, no game rule copy).
+            for p in pickups:
+                if getattr(p, "consumed", False):
+                    continue
+                try:
+                    if center is not None and tuple(getattr(p, "center", ())) == tuple(center):
+                        p.consumed = True
+                except Exception:
+                    pass
+            # Shockwave: reuse the shared blast rule for obstacle removal.
+            if kind == "shockwave" and center is not None and obstacles_hit_by_blast is not None:
+                try:
+                    blast = ev.get("blast_radius", 3.0)
+                    survivors, _destroyed = obstacles_hit_by_blast(center, blast, obstacles)
+                    obstacles = list(survivors)
+                except Exception:
+                    pass
+        self._pickups = tuple(pickups)
+        self._obstacles = tuple(obstacles)
+
+    def _sync_pickups_to_current(self):
+        try:
+            self._pickups = tuple(PickupState(p.center, p.radius, p.kind) for p in self._base_pickups)
+            self._obstacles = tuple(self._base_obstacles)
+        except Exception:
+            pass
+        frames = []
+        if self.player is not None and self.player.record is not None:
+            frames = self.player.record.frames or []
+        end = 0
+        try:
+            end = max(0, min(self.player.index + 1, len(frames)))
+        except Exception:
+            end = 0
+        prev = None
+        for i in range(end):
+            f = frames[i]
+            try:
+                x = f.x if hasattr(f, "x") else f.get("x", 0.0)
+                y = f.y if hasattr(f, "y") else f.get("y", 0.0)
+            except Exception:
+                x, y = 0.0, 0.0
+            xy = (float(x), float(y))
+            if prev is not None:
+                self._consume_segment(prev, xy)
+            prev = xy
+        # Re-apply recorded events (idempotent) for shockwave etc.
+        try:
+            rec = self.records[self.index] if 0 <= self.index < len(self.records) else None
+            self._apply_pickup_events_from_record(rec)
+        except Exception:
+            pass
+
+    def _consume_segment(self, p0, p1):
+        try:
+            from ..pickups import check_pickups_segment
+
+            class _Ctx:
+                def __init__(self, obstacles):
+                    self.obstacle_specs = list(obstacles)
+                    self.obstacles = tuple(obstacles)
+                    self.hull_radius = 0.0
+
+            ctx = _Ctx(self._obstacles)
+            check_pickups_segment(self._pickups, p0, p1, 0.0, ctx=ctx)
+            if getattr(ctx, "obstacle_specs", None) is not None:
+                self._obstacles = tuple(ctx.obstacle_specs)
+        except Exception:
+            pass
 
     def handle_event(self, event):
         if self.back_button.handle_event(event) == "click":
@@ -235,6 +344,8 @@ class ReplayScene(Scene):
                             self._viewport.length(self._target_radius), self._t,
                             planet=self._story_planet)
 
+        self._sync_pickups_to_current()
+
         for obstacle in self._obstacles:
             sprites.draw_obstacle(surface, self._viewport.to_screen(*obstacle.center),
                                   self._viewport.length(obstacle.radius), self._t,
@@ -242,6 +353,8 @@ class ReplayScene(Scene):
                                   seed=(obstacle.center, obstacle.radius))
 
         for pickup in self._pickups:
+            if getattr(pickup, "consumed", False):
+                continue
             sprites.draw_pickup(surface, self._viewport.to_screen(*pickup.center),
                                 self._viewport.length(pickup.radius), self._t,
                                 kind=pickup.kind)
