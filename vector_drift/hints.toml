@@ -50,3 +50,16 @@ answers = [
   { label = "Fx = 2, k = 2", fx = "2", fy = "1 - 0.5x - 2y" },
   { label = "Fx = 3, k = 3", fx = "3", fy = "1.5 - 0.75x - 3y" },
 ]
+
+[level.5]
+steps = [
+  "Pushing straight right hits the first rock. Use the swirl from Level 2: F = (-y, x - h) turns the ship around the point (h, 0). Put the center just right of the ship and the spiral swings down, passes under both rocks, and curls back up into the planet.",
+  "The center decides where the spiral comes back to y = 0 on the right. Here it has to sit about 1.3 m right of the ship, near (-6.7, 0). But a round swirl centered there loops about 4.8 m high and crashes into the rows of rocks above and below.",
+  "The two coefficients do not have to match. In F = (-a y, b (x - h)), the left-right motion stays exactly the same, but every height is multiplied by the square root of b/a. A bigger a squashes the round spiral into a flat ellipse.",
+  "Keep Fy = x + 6.7 and double the y term: Fx = -2y. Now a/b = 2, so the loop is 1/sqrt(2), about 0.7 times as tall: it peaks near 3.4 m, slips between the rock rows, and still lands on the planet.",
+]
+answer_note = "A swirl centered at (-6.7, 0), flattened by a bigger y term. Flip both signs to go over the top instead:"
+answers = [
+  { label = "Flat ellipse, under the rocks", fx = "-2y", fy = "x + 6.7" },
+  { label = "Flat ellipse, over the rocks", fx = "2y", fy = "-x - 6.7" },
+]
