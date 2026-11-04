@@ -356,9 +356,11 @@ def test_wrapping_is_one_undo_step(ed):
     assert ed.lines[0] == "(x+1)" and ed.selected_text() == "x+1"
 
 
-def test_open_paren_without_a_selection_only_inserts_it(ed):
-    type_text(ed, "2(")
-    assert ed.lines[0] == "2(" and ed.col == 2
+def test_open_paren_before_other_text_only_inserts_it(ed):
+    type_text(ed, "x+1")
+    key(ed, pygame.K_HOME)
+    type_text(ed, "(")
+    assert ed.lines[0] == "(x+1" and ed.col == 1
 
 
 def test_close_paren_still_replaces_the_selection(ed):
@@ -374,3 +376,79 @@ def test_wrapping_respects_the_length_limit(ed):
     _select(ed, 0, 3)
     type_text(ed, "(")
     assert ed.lines[0] == "x+1"
+
+
+# --- auto-closing parentheses ------------------------------------------------------
+
+def _cursor_at(ed, text, col):
+    ed.set_lines([text, ""], record=False)
+    key(ed, pygame.K_HOME)
+    for _ in range(col):
+        key(ed, pygame.K_RIGHT)
+
+
+def test_open_paren_at_the_line_end_adds_the_close_paren(ed):
+    type_text(ed, "sin(")
+    assert ed.lines[0] == "sin()" and ed.col == 4
+
+
+def test_open_paren_before_a_space_adds_the_close_paren(ed):
+    _cursor_at(ed, "2 + y", 1)
+    type_text(ed, "(")
+    assert ed.lines[0] == "2() + y" and ed.col == 2
+
+
+def test_open_paren_before_a_close_paren_only_inserts_it(ed):
+    _cursor_at(ed, "sin()", 4)
+    type_text(ed, "(")
+    assert ed.lines[0] == "sin(()" and ed.col == 5
+
+
+def test_typing_a_whole_call_does_not_double_the_close_parens(ed):
+    type_text(ed, "sin(cos(x))")
+    assert ed.lines[0] == "sin(cos(x))" and ed.col == 11
+
+
+def test_close_paren_steps_over_the_next_close_paren(ed):
+    _cursor_at(ed, "sin()", 4)
+    type_text(ed, "x)")
+    assert ed.lines[0] == "sin(x)" and ed.col == 6
+
+
+def test_close_paren_steps_over_only_when_the_parens_are_balanced(ed):
+    _cursor_at(ed, "((x)", 3)
+    type_text(ed, ")")
+    assert ed.lines[0] == "((x))" and ed.col == 4
+
+
+def test_backspace_in_empty_parens_removes_both(ed):
+    type_text(ed, "sin(")
+    key(ed, pygame.K_BACKSPACE)
+    assert ed.lines[0] == "sin" and ed.col == 3
+
+
+def test_backspace_between_typed_parens_removes_both(ed):
+    _cursor_at(ed, "sin()", 4)
+    key(ed, pygame.K_BACKSPACE)
+    assert ed.lines[0] == "sin" and ed.col == 3
+
+
+def test_backspace_after_an_open_paren_with_text_removes_only_it(ed):
+    _cursor_at(ed, "(x)", 1)
+    key(ed, pygame.K_BACKSPACE)
+    assert ed.lines[0] == "x)" and ed.col == 0
+
+
+def test_undo_removes_the_auto_closed_pair_together(ed):
+    type_text(ed, "x+")
+    type_text(ed, "(")
+    undo(ed)
+    assert ed.lines[0] == "x+" and ed.col == 2
+    redo(ed)
+    assert ed.lines[0] == "x+()" and ed.col == 3
+
+
+def test_auto_close_needs_room_for_both_parens(ed):
+    ed.max_len = 4
+    type_text(ed, "sin(")
+    assert ed.lines[0] == "sin(" and ed.col == 4

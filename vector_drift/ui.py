@@ -530,14 +530,36 @@ class CodeEditor:
         self.anchor, self.col = (start + 1, end + 1) if forward else (end + 1, start + 1)
         self._record(before)
 
+    def _auto_closes(self):
+        """"(" with nothing or a space after the cursor gets its ")" too (if both fit)."""
+        text = self.lines[self.line]
+        return (self.selection() is None and len(text) + 2 <= self.max_len
+                and text[self.col:self.col + 1] in ("", " "))
+
+    def _steps_over_close_paren(self):
+        """")" just before a ")" moves past it, unless the line is short of one."""
+        text = self.lines[self.line]
+        return (self.selection() is None and text[self.col:self.col + 1] == ")"
+                and text.count("(") == text.count(")"))
+
     def _type(self, chars):
         """Typed text: one character grows the open "insert" step."""
         if chars == "(" and self.selection():
             self._wrap_selection()
             return
+        if chars == ")" and self._steps_over_close_paren():
+            self.col += 1
+            self._blink = 0.0
+            return
         before = self._state()
         replacing = self.selection() is not None
-        self._insert(chars)
+        if chars == "(" and self._auto_closes():
+            text = self.lines[self.line]
+            self.lines[self.line] = text[:self.col] + "()" + text[self.col:]
+            self.col += 1                       # cursor between the pair
+            self._changed()
+        else:
+            self._insert(chars)
         single = len(chars) == 1
         self._record(before, "insert" if single else None, join=not replacing)
         if single and chars in STEP_BREAKERS:
@@ -556,7 +578,8 @@ class CodeEditor:
                 self._record(before)
             elif self.col:
                 cut = 0 if ctrl else self.col - 1
-                self.lines[self.line] = text[:cut] + text[self.col:]
+                end = self.col + 1 if not ctrl and text[cut:self.col + 1] == "()" else self.col
+                self.lines[self.line] = text[:cut] + text[end:]     # "(|)" loses both
                 self.col = cut
                 self._changed()
                 self._record(before, None if ctrl else "delete")
