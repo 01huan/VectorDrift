@@ -277,13 +277,12 @@ class Flight:
             self.pickups = tuple(pickups)
         self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
         # Black/white hole pairs (wormholes). Persist for the whole flight.
-        raw_holes = holes
-        if raw_holes is None:
-            raw_holes = getattr(level, "holes", ()) or ()
+        if holes is None:
+            holes = getattr(level, "holes", ()) or ()
             for alias in ("portals", "wormholes"):
-                raw_holes = raw_holes or getattr(level, alias, ()) or ()
+                holes = holes or getattr(level, alias, ()) or ()
         self.holes = []
-        for h in (raw_holes or ()):
+        for h in (holes or ()):
             try:
                 bc = getattr(h, "black_center", None)
                 wc = getattr(h, "white_center", None)
