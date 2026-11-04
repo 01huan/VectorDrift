@@ -30,6 +30,11 @@ def _find(folder, name):
 
 
 class SoundBank:
+    # Pause-menu switches, independent of each other and of Ctrl+M ``muted``
+    # (which silences both). Class defaults so bare instances still work.
+    music_on = True
+    sfx_on = True
+
     def __init__(self):
         self.sounds = {}
         self.music_paths = {}
@@ -65,7 +70,7 @@ class SoundBank:
     # -- effects ------------------------------------------------------------
     def play(self, name):
         sound = self.sounds.get(name)
-        if sound and not self.muted:
+        if sound and self._sfx_audible():
             sound.play()
 
     def start_loop(self, name):
@@ -73,7 +78,7 @@ class SoundBank:
         if sound and name not in self._loop_channels:
             channel = sound.play(loops=-1)
             if channel is not None:
-                channel.set_volume(0.0 if self.muted else 1.0)
+                channel.set_volume(1.0 if self._sfx_audible() else 0.0)
                 self._loop_channels[name] = channel
 
     def stop_loop(self, name):
@@ -121,13 +126,34 @@ class SoundBank:
 
     def _apply_music_volume(self):
         if self.enabled:
-            pygame.mixer.music.set_volume(0.0 if self.muted else MUSIC_VOLUME * self._fade)
+            audible = self.music_on and not self.muted
+            pygame.mixer.music.set_volume(MUSIC_VOLUME * self._fade if audible else 0.0)
 
     # -- mute ---------------------------------------------------------------
-    def toggle_mute(self):
-        self.muted = not self.muted
+    def _sfx_audible(self):
+        return self.sfx_on and not self.muted
+
+    def _apply_loop_volume(self):
+        for channel in self._loop_channels.values():
+            channel.set_volume(1.0 if self._sfx_audible() else 0.0)
+
+    def _apply_switches(self):
         if not self.enabled:
             return
-        for channel in self._loop_channels.values():
-            channel.set_volume(0.0 if self.muted else 1.0)
+        self._apply_loop_volume()
         self._apply_music_volume()
+
+    def toggle_mute(self):
+        """Ctrl+M: silence everything (keeps the music/sfx switches as they are)."""
+        self.muted = not self.muted
+        self._apply_switches()
+
+    def toggle_music(self):
+        """Pause-menu Music switch; sound effects are untouched."""
+        self.music_on = not self.music_on
+        self._apply_switches()
+
+    def toggle_sfx(self):
+        """Pause-menu Sound switch; music is untouched."""
+        self.sfx_on = not self.sfx_on
+        self._apply_switches()

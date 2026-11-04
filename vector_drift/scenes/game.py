@@ -822,7 +822,9 @@ class GameScene(Scene):
 
     # ------------------------------------------------------------------ Pause menu
     def _open_pause(self):
-        self.pause_menu = PauseMenu(in_flight=self.state == FLIGHT)
+        self.pause_menu = PauseMenu(in_flight=self.state == FLIGHT,
+                                    music_on=getattr(self.audio, "music_on", True),
+                                    sfx_on=getattr(self.audio, "sfx_on", True))
         if self.state == FLIGHT:
             self.audio.stop_loop("thruster_loop")
         set_cursor("arrow")
@@ -836,6 +838,15 @@ class GameScene(Scene):
     def _handle_pause_event(self, event):
         action = self.pause_menu.handle_event(event)
         if action is None:
+            return
+        if action in ("toggle_music", "toggle_sfx"):
+            # Flip the switch first so turning Sound off is silent and on clicks.
+            toggle = getattr(self.audio, action, None)     # SoundBank.toggle_music / toggle_sfx
+            if toggle is not None:
+                toggle()
+            self.pause_menu.set_audio(getattr(self.audio, "music_on", True),
+                                      getattr(self.audio, "sfx_on", True))
+            self.audio.play("click")
             return
         self.audio.play("click")
         if action == "resume":

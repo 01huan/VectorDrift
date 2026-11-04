@@ -87,7 +87,7 @@ Prices, the clear reward and free levels live in `config.py`:
 | Input | Action |
 |---|---|
 | Enter, or the play button on the Vector_field panel | Launch (when both formulas are valid) |
-| Esc | Open the pause menu: Resume, Abort flight (during flight), Restart, Levels, Main Menu, Quit. The game is paused while the menu is open. If a popup is open (story dialogue, Hint, AI Solver), Esc closes the top one first |
+| Esc | Open the pause menu: Resume, Abort flight (during flight), Restart, Levels, Main Menu, Quit, plus separate Music and Sound on/off switches. The game is paused while the menu is open. If a popup is open (story dialogue, Hint, AI Solver), Esc closes the top one first |
 | The stop button (during flight) | Abort the flight (costs a life) |
 | Tab, Up/Down | Switch between the Fx and Fy lines |
 | Mouse drag, double-click, Shift+arrows/Home/End | Select text in a line |
