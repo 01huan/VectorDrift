@@ -142,10 +142,12 @@ class ReplayScene(Scene):
         except Exception:
             self._story_planet = None
 
-        self._base_pickups = tuple(
-            PickupState(p.center, p.radius, p.kind) if not isinstance(p, PickupState) else
-            PickupState(p.center, p.radius, p.kind) for p in self._pickups
-        )
+        # Reproduce the state the level was in when this launch happened:
+        # pickups already consumed in previous runs and obstacles already
+        # destroyed (e.g. by an earlier shockwave) must not reappear.
+        self._apply_initial_state_from_record(rec)
+
+        self._base_pickups = tuple(self._pickups)
         self._base_obstacles = tuple(self._obstacles)
 
         self._apply_pickup_events_from_record(rec)
@@ -189,10 +191,49 @@ class ReplayScene(Scene):
         self._pickups = tuple(pickups)
         self._obstacles = tuple(obstacles)
 
+    def _apply_initial_state_from_record(self, rec):
+        # Mark pickups that were already consumed before this launch (from
+        # previous runs) so they do not render / re-trigger.
+        consumed_centers = set()
+        try:
+            raw = rec.get("consumed_pickups") if isinstance(rec, dict) else getattr(rec, "consumed_pickups", None)
+            if raw:
+                consumed_centers = {tuple(c) for c in raw}
+        except Exception:
+            consumed_centers = set()
+        pickups = list(self._pickups)
+        for p in pickups:
+            try:
+                if tuple(getattr(p, "center", ())) in consumed_centers:
+                    p.consumed = True
+            except Exception:
+                pass
+        self._pickups = tuple(pickups)
+
+        # Keep only obstacles that survived up to this launch (drop those
+        # already destroyed by an earlier shockwave).
+        try:
+            raw = rec.get("obstacle_centers") if isinstance(rec, dict) else getattr(rec, "obstacle_centers", None)
+        except Exception:
+            raw = None
+        if raw is not None:
+            try:
+                keep = {tuple(c) for c in raw}
+                self._obstacles = tuple(o for o in self._obstacles
+                                       if tuple(getattr(o, "center", ())) in keep)
+            except Exception:
+                pass
+
     def _sync_pickups_to_current(self):
         try:
             self._pickups = tuple(PickupState(p.center, p.radius, p.kind) for p in self._base_pickups)
             self._obstacles = tuple(self._base_obstacles)
+        except Exception:
+            pass
+        # Restore pre-consumed / pre-destroyed state before replaying this flight.
+        try:
+            rec = self.records[self.index] if 0 <= self.index < len(self.records) else None
+            self._apply_initial_state_from_record(rec)
         except Exception:
             pass
         frames = []

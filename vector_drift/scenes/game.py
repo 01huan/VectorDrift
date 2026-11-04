@@ -402,6 +402,17 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
         self._replay_frames = []
+        # Snapshot the level state at launch so replays can reproduce it
+        # (pickups already consumed in previous runs, obstacles already
+        # destroyed by an earlier shockwave).
+        try:
+            self._replay_initial_consumed = [tuple(p.center) for p in (self.pickups or []) if getattr(p, "consumed", False)]
+        except Exception:
+            self._replay_initial_consumed = []
+        try:
+            self._replay_initial_obstacle_centers = [tuple(getattr(o, "center", ())) for o in (getattr(self.level, "obstacles", ()) or ())]
+        except Exception:
+            self._replay_initial_obstacle_centers = []
         if not self.valid or not self._ship_unlocked:
             self.audio.play("error")
             return
@@ -434,10 +445,12 @@ class GameScene(Scene):
                 "fy_text": self.editor.lines[1].strip() if len(self.editor.lines) > 1 else "",
                 "outcome": str(outcome),
                 "frames": list(self._replay_frames),
-                # 隨機關卡必須連同 seed 一起紀錄，否則 replay 無法重現同樣的
-                # 障礙物、拾取物、起點與終點。固定關卡的 random_seed 為 None，
-                # 播放端 seed 為 None 時會用 get_level(level_id) 載入固定關卡。
+                # 隨機關卡必須連同 seed 一起紀錄...
                 "seed": self.session.random_seed,
+                # Level state at launch: pickups already consumed in previous
+                # runs and obstacles already destroyed must not reappear.
+                "consumed_pickups": list(getattr(self, "_replay_initial_consumed", []) or []),
+                "obstacle_centers": list(getattr(self, "_replay_initial_obstacle_centers", []) or []),
             }
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
         except Exception:

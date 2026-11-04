@@ -53,6 +53,8 @@ class ReplayRecord:
     frames: List = field(default_factory=list)
     created_at: float = field(default_factory=lambda: time.time())
     seed: Optional[int] = None
+    consumed_pickups: List = field(default_factory=list)
+    obstacle_centers: List = field(default_factory=list)
 
     def to_dict(self):
         return {
@@ -64,6 +66,8 @@ class ReplayRecord:
             "frames": [f.to_dict() if hasattr(f, "to_dict") else f for f in (self.frames or [])],
             "created_at": float(self.created_at),
             "seed": self.seed,
+            "consumed_pickups": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.consumed_pickups or [])],
+            "obstacle_centers": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.obstacle_centers or [])],
         }
 
     @staticmethod
@@ -87,6 +91,8 @@ class ReplayRecord:
             seed = int(seed) if seed is not None else None
         except (TypeError, ValueError):
             seed = None
+        consumed = data.get("consumed_pickups") if isinstance(data, dict) else None
+        obstacles = data.get("obstacle_centers") if isinstance(data, dict) else None
         return ReplayRecord(
             level_id=level_id,
             ship_id=data.get("ship_id") if isinstance(data, dict) else None,
@@ -96,6 +102,8 @@ class ReplayRecord:
             frames=frames,
             created_at=created,
             seed=seed,
+            consumed_pickups=list(consumed or []),
+            obstacle_centers=list(obstacles or []),
         )
 
 
