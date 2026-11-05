@@ -16,6 +16,17 @@ from vector_drift.level_presets import is_dynamic_level
 from vector_drift.physics import Flight, ForceField, Outcome
 
 FIXED_IDS = [lv.id for lv in LEVELS if not is_dynamic_level(lv.id)]
+# Fixed levels whose hint is still to be written. Level 6 (First Unbound) gets
+# its hint and reference answers after it has been play-tested. Strict: the
+# check fails again as soon as the hint exists, so remember to drop it here.
+HINTS_PENDING = {6}
+
+
+def _hint_case(level_id):
+    if level_id in HINTS_PENDING:
+        return pytest.param(level_id, id=str(level_id), marks=pytest.mark.xfail(
+            reason=f"level {level_id} hint pending (written after play-testing)", strict=True))
+    return pytest.param(level_id, id=str(level_id))
 # (level id, section index (0-based), answer index, answer); one-screen levels are section 0.
 ANSWERS = [(level_id, k, i, answer)
            for level_id, hint in sorted(load_hints().items())
@@ -29,7 +40,7 @@ def _answer_id(case):
     return f"level{level_id}{section}-answer{i + 1}"
 
 
-@pytest.mark.parametrize("level_id", FIXED_IDS)
+@pytest.mark.parametrize("level_id", [_hint_case(i) for i in FIXED_IDS])
 def test_every_fixed_level_has_a_hint(level_id):
     level = get_level(level_id)
     for k in range(section_count(level)):

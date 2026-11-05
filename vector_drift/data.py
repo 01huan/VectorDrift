@@ -339,6 +339,40 @@ LEVELS = [
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
         ),
     ),
+    # Unbound intro: 15 rocks along x = 4.5 + y^2 / 12 wall the target in on
+    # the right. Neighbours are at most ~1.64 m apart, under the 2 m
+    # (2 x (0.8 + hull 0.2)) the ship needs, and both ends stick out past the
+    # top-right and bottom-right corners, so the only way round is outside the
+    # map: either Unbound (top or bottom, like level 3's two shockwaves).
+    LevelSpec(
+        id=6,
+        name="First Unbound",
+        start=(-7.0, 0.0),
+        target_center=(7.5, 0.0),
+        target_radius=1.0,
+        ship_id="ship01",
+        obstacles=(
+            ObstacleSpec(center=(10.38, -8.4), radius=0.8),
+            ObstacleSpec(center=(9.31, -7.6), radius=0.8),
+            ObstacleSpec(center=(8.24, -6.7), radius=0.8),
+            ObstacleSpec(center=(7.11, -5.6), radius=0.8),
+            ObstacleSpec(center=(6.11, -4.4), radius=0.8),
+            ObstacleSpec(center=(5.25, -3.0), radius=0.8),
+            ObstacleSpec(center=(4.69, -1.5), radius=0.8),
+            ObstacleSpec(center=(4.5, 0.0), radius=0.8),
+            ObstacleSpec(center=(4.69, 1.5), radius=0.8),
+            ObstacleSpec(center=(5.25, 3.0), radius=0.8),
+            ObstacleSpec(center=(6.11, 4.4), radius=0.8),
+            ObstacleSpec(center=(7.11, 5.6), radius=0.8),
+            ObstacleSpec(center=(8.24, 6.7), radius=0.8),
+            ObstacleSpec(center=(9.31, 7.6), radius=0.8),
+            ObstacleSpec(center=(10.38, 8.4), radius=0.8),
+        ),
+        pickups=(
+            PickupSpec(center=(-2.7, 6.3), radius=0.45, kind="unbound"),
+            PickupSpec(center=(-2.7, -6.3), radius=0.45, kind="unbound"),
+        ),
+    ),
     # Checkpoint intro: two level-1 screens side by side. In world terms the
     # ship goes x = -7 -> 7 (checkpoint) -> 21 (planet); the pan is (14, 0) and
     # the screens share x in [4, 10] of section 1 (= [-10, -4] of section 2),
