@@ -30,3 +30,13 @@ def test_readme_documents_the_coin_rules():
     assert "taken back" in coins
     assert f"pays {config.CLEAR_REWARD} coins" in coins
     assert "clearing a level pays nothing" not in coins
+
+
+def test_readme_documents_unbound():
+    text = README.read_text(encoding="utf-8")
+    rules = text.split("## Run", 1)[0]
+    unbound = rules.split("**Unbound**", 1)[1]
+    assert "twice the map" in unbound and "±20 m × ±15 m" in unbound
+    assert "every life" in unbound
+    assert "outside the map" in unbound and "level start" in unbound
+    assert "shield" in unbound.lower()

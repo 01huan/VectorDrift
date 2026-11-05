@@ -15,6 +15,13 @@ The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each lau
 * ​**Invalid mathematical result**​: if evaluating a force expression produces an invalid numerical result during flight, such as `log(-1)`, the launch fails and costs one life.
 * ​**Infinite force**​: if the ship passes through a point where the force is infinite, such as `tan(x)` at x = ±π/2, `1/x^2` or `log(abs(x))` at x = 0, it is flung straight off the field, which counts as out of bounds. Points where the force stays finite (`sin(x)/x` at x = 0) are passed through.
 
+The **Unbound** pickup (from level 6) opens the map edge:
+
+* For the rest of that life the ship may fly past the map edge. It only goes out of bounds past an outer edge twice the map's size (±20 m × ±15 m), and the camera zooms out to keep it in view.
+* Unbound comes back at the start of every life; the other pickups stay taken.
+* If time runs out while the ship is outside the map, the next launch starts back at the level start instead of where the ship stopped.
+* With a shield active as well, the map edge is Unbound's job: crossing it does not use up the shield, which stays for the rocks.
+
 ## Run
 
 Requires **Python 3.11 or newer** (the level hints are read with the standard
