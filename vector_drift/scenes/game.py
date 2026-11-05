@@ -90,6 +90,17 @@ def ease_in_out(p):
     return p * p * (3.0 - 2.0 * p)
 
 
+def pan_offsets(shift, progress):
+    """(old, new) section offsets in m at eased pan ``progress`` 0 -> 1.
+
+    Sections are drawn in their own coordinates plus an offset. The section
+    being left moves from (0, 0) to -shift; the next one comes in from
+    +shift and settles at (0, 0), so the shared checkpoint stays aligned.
+    """
+    sx, sy = shift
+    return (-sx * progress, -sy * progress), (sx * (1.0 - progress), sy * (1.0 - progress))
+
+
 def fmt_pair(x, y, unit):
     try:
         fx, fy = float(x), float(y)
@@ -1374,48 +1385,28 @@ class GameScene(Scene):
             log.warning("set_clip contained: %r", exc)
 
         try:
-            hb = self.history_bounds
-            if hb.w and hb.h:
-                surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
-            if self.launch_pos != self.level.start:
-                # Faint marker at the original start ("back to start" target).
-                pygame.draw.circle(surface, config.TEXT_FAINT, vp.to_screen(*self.level.start), px(3))
-            launch = vp.to_screen(*self.launch_pos)
-            sprites.draw_start_marker(surface, launch, vp.length(START_MARKER_RADIUS_M), self.t)
+            pan = self.pan if self.state == PANNING else None
+            if pan is not None:
+                old_offset, offset = pan_offsets(pan.shift, pan.progress)
+                self._draw_panning_out(surface, plot, pan, old_offset)
+                old_px = self._offset_px(old_offset)
+            else:
+                offset = (0.0, 0.0)
+                hb = self.history_bounds
+                if hb.w and hb.h:
+                    surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
 
             flash = 0.0
             if self.state == ARRIVED:
                 flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
-            sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
-                                vp.length(self.level.target_radius), self.t, flash, planet=self.planet)
+            self._draw_section(surface, self.level, self.pickups, self.holes, offset,
+                               index=self.section_index, launch=self.launch_pos, flash=flash)
 
-            for obstacle in getattr(self.level, "obstacles", ()) or ():
-                sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
-                                      vp.length(obstacle.radius), self.t,
-                                      kind=getattr(obstacle, "kind", "bumper"),
-                                      seed=(obstacle.center, obstacle.radius))
-
-            for pickup in getattr(self, "pickups", ()) or ():
-                if pickup.consumed:
-                    continue
-                sprites.draw_pickup(surface, vp.to_screen(*pickup.center),
-                                    vp.length(pickup.radius), self.t, kind=pickup.kind)
-
-            for i, hole in enumerate(getattr(self, "holes", ()) or (), start=1):
-                try:
-                    bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
-                    wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
-                    r = getattr(hole, "radius", 0.5)
-                    sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black", pair_index=i)
-                    sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white", pair_index=i)
-                    # Pair marker so players can see which black hole maps to which white hole.
-                    # The white-hole picture is white in the middle, so its number is dark.
-                    for center, color in ((bc, config.TEXT), (wc, config.OUTLINE)):
-                        sp = vp.to_screen(*center)
-                        draw_text(surface, str(i), sp, 12, color, kind="bold", anchor="center")
-                except Exception:
-                    pass
-
+            if pan is not None:
+                # The leg that reached the checkpoint leaves with the old section.
+                self.trail.draw(surface, (plot.x + old_px[0], plot.y + old_px[1]))
+                self._draw_panning_ship(surface, pan, old_offset)
+                return                  # (no labels or banner while panning)
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)
 
@@ -1458,6 +1449,98 @@ class GameScene(Scene):
                 self._draw_banner(surface, plot)
         except _RENDER_ERRORS as exc:
             log.warning("plot overlay contained: %r", exc)
+
+    # ------------------------------------------------------------------ sections
+    def _offset_px(self, offset):
+        """A world offset (m) as a screen offset (px); y points down on screen."""
+        scale = self.viewport.scale
+        return (offset[0] * scale, -offset[1] * scale)
+
+    def _checkpoint_radius(self, index):
+        """Radius (m) of the checkpoint section ``index`` starts on (index >= 1)."""
+        return self.full_level.sections[index - 1].target_radius
+
+    def _draw_section(self, surface, level, pickups, holes, offset, index, launch=None, flash=0.0,
+                      target=True):
+        """One section's start, target and props, shifted by ``offset`` (m).
+
+        ``index`` is the section's number (0-based): from the second section
+        on its start is the checkpoint just reached, and every target but the
+        last section's is a checkpoint. ``launch`` is where the next launch
+        starts (None: no launch pad, for the section the camera is leaving).
+        ``target=False`` skips the target (while panning, the section being
+        left shares its checkpoint with the next section's start).
+        """
+        vp = self.viewport
+        ox, oy = offset
+
+        def at(x, y):
+            return vp.to_screen(x + ox, y + oy)
+
+        start = tuple(level.start)
+        if index > 0:
+            sprites.draw_checkpoint(surface, at(*start), vp.length(self._checkpoint_radius(index)),
+                                    self.t, self.flyable_ship)
+        if launch is not None:
+            launch = tuple(launch)
+            if index == 0 and launch != start:
+                # Faint marker at the original start ("back to start" target).
+                pygame.draw.circle(surface, config.TEXT_FAINT, at(*start), px(3))
+            if index == 0 or launch != start:
+                sprites.draw_start_marker(surface, at(*launch), vp.length(START_MARKER_RADIUS_M), self.t)
+        elif index == 0:
+            sprites.draw_start_marker(surface, at(*start), vp.length(START_MARKER_RADIUS_M), self.t)
+
+        if target:
+            center, radius = at(*level.target_center), vp.length(level.target_radius)
+            if index < self.section_total - 1:
+                sprites.draw_checkpoint(surface, center, radius, self.t, self.flyable_ship)
+            else:
+                sprites.draw_target(surface, center, radius, self.t, flash, planet=self.planet)
+
+        for obstacle in getattr(level, "obstacles", ()) or ():
+            sprites.draw_obstacle(surface, at(*obstacle.center),
+                                  vp.length(obstacle.radius), self.t,
+                                  kind=getattr(obstacle, "kind", "bumper"),
+                                  seed=(obstacle.center, obstacle.radius))
+
+        for pickup in pickups or ():
+            if pickup.consumed:
+                continue
+            sprites.draw_pickup(surface, at(*pickup.center),
+                                vp.length(pickup.radius), self.t, kind=pickup.kind)
+
+        for i, hole in enumerate(holes or (), start=1):
+            try:
+                bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
+                wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
+                r = getattr(hole, "radius", 0.5)
+                sprites.draw_hole(surface, at(*bc), vp.length(r), self.t, kind="black", pair_index=i)
+                sprites.draw_hole(surface, at(*wc), vp.length(r), self.t, kind="white", pair_index=i)
+                # Pair marker so players can see which black hole maps to which white hole.
+                # The white-hole picture is white in the middle, so its number is dark.
+                for center, color in ((bc, config.TEXT), (wc, config.OUTLINE)):
+                    draw_text(surface, str(i), at(*center), 12, color, kind="bold", anchor="center")
+            except Exception:
+                pass
+
+    def _draw_panning_out(self, surface, plot, pan, offset):
+        """The section the camera is leaving (its checkpoint is drawn by the new one)."""
+        hb = self.history_bounds
+        if hb.w and hb.h:
+            dx, dy = self._offset_px(offset)
+            surface.blit(self.history, (plot.x + hb.x + dx, plot.y + hb.y + dy), hb)
+        self._draw_section(surface, pan.level, pan.pickups, pan.holes, offset,
+                           index=self.section_index - 1, target=False)
+
+    def _draw_panning_ship(self, surface, pan, offset):
+        """The ship glides from where it touched the checkpoint onto its center."""
+        vp = self.viewport
+        p = pan.progress
+        (ax, ay), (tx, ty) = pan.arrival, pan.level.target_center
+        x, y = ax + (tx - ax) * p, ay + (ty - ay) * p
+        sprites.draw_ship(surface, vp.to_screen(x + offset[0], y + offset[1]), self.heading,
+                          vp.length(self.ship.length), self.ship)
 
     def _draw_plot_labels(self, surface, plot):
         x, y = plot.x + px(14), plot.y + px(12)
