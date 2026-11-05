@@ -43,6 +43,17 @@ class ReplayFrame:
                           vx=_f("vx"), vy=_f("vy"), fx=_f("fx"), fy=_f("fy"))
 
 
+def section_index_from(value):
+    """A stored section index, or 0 when it is missing, not an int, or negative.
+
+    Old saves have no section_index; whether the index exists in the level
+    is checked where the level is known (the replay scene).
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
+
+
 @dataclass
 class ReplayRecord:
     level_id: int = 0
@@ -55,6 +66,9 @@ class ReplayRecord:
     seed: Optional[int] = None
     consumed_pickups: List = field(default_factory=list)
     obstacle_centers: List = field(default_factory=list)
+    # Which screen of a multi-section level the launch flew (0-based, like
+    # data.section_level). One-screen levels and old saves are always 0.
+    section_index: int = 0
 
     def to_dict(self):
         return {
@@ -68,6 +82,7 @@ class ReplayRecord:
             "seed": self.seed,
             "consumed_pickups": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.consumed_pickups or [])],
             "obstacle_centers": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.obstacle_centers or [])],
+            "section_index": section_index_from(self.section_index),
         }
 
     @staticmethod
@@ -104,6 +119,7 @@ class ReplayRecord:
             seed=seed,
             consumed_pickups=list(consumed or []),
             obstacle_centers=list(obstacles or []),
+            section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
         )
 
 
