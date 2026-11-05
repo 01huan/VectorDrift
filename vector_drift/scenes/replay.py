@@ -80,7 +80,7 @@ class ReplayScene(Scene):
         self._section_total = 1
         self._start_checkpoint_radius = 0.0
 
-        self.back_button = Button((px(40), px(40), px(120), px(40)), "Back", style="plain", font_size=16)
+        self.back_button = Button((px(40), px(10), px(120), px(40)), "Back", style="plain", font_size=16)
         button_w = px(100)
         button_h = px(40)
         gap_x = px(10)
