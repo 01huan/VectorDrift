@@ -58,6 +58,7 @@ OUTCOME_TEXT = {
 RESUME_OUTCOMES = (Outcome.TIMEOUT,)
 
 START_MARKER_RADIUS_M = 0.45
+CHECKPOINT_LIFE_POP_S = 0.45  # the taken checkpoint life grows and fades out this long
 HISTORY_ALPHA = 110          # earlier legs of the current run
 RUN_GREEN = (137, 209, 133)
 
@@ -1409,6 +1410,13 @@ class GameScene(Scene):
             self._draw_section(surface, self.level, self.pickups, self.holes, offset,
                                index=self.section_index, launch=self.launch_pos, flash=flash)
 
+            if pan is not None and pan.t < CHECKPOINT_LIFE_POP_S:
+                # The checkpoint's life was just taken: it pops off the checkpoint.
+                start = self.level.start
+                sprites.draw_checkpoint_life(
+                    surface, vp.to_screen(start[0] + offset[0], start[1] + offset[1]),
+                    vp.length(self._checkpoint_radius(self.section_index)), self.t,
+                    self.flyable_ship, fade=pan.t / CHECKPOINT_LIFE_POP_S)
             if pan is not None:
                 # The leg that reached the checkpoint leaves with the old section.
                 self.trail.draw(surface, (plot.x + old_px[0], plot.y + old_px[1]))
@@ -1502,6 +1510,8 @@ class GameScene(Scene):
             center, radius = at(*level.target_center), vp.length(level.target_radius)
             if index < self.section_total - 1:
                 sprites.draw_checkpoint(surface, center, radius, self.t, self.flyable_ship)
+                # Not reached yet: it still holds the life it gives.
+                sprites.draw_checkpoint_life(surface, center, radius, self.t, self.flyable_ship)
             else:
                 sprites.draw_target(surface, center, radius, self.t, flash, planet=self.planet)
 

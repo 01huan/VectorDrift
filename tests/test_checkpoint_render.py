@@ -242,3 +242,90 @@ def test_a_timeout_resume_after_the_checkpoint_shows_the_pad_too(drawn):
 
     assert drawn["start"] == [vp.to_screen(-3.0, -3.0)]
     assert _near(drawn["checkpoint"], vp.to_screen(-7.0, -3.0))
+
+
+# --- the life a checkpoint gives ------------------------------------------------------
+@pytest.fixture
+def lives_drawn(monkeypatch):
+    """(screen center, fade) of every checkpoint life drawn."""
+    calls = []
+    real = sprites.draw_checkpoint_life
+
+    def spy(surface, center, radius, t, ship, fade=0.0):
+        calls.append((tuple(center), fade))
+        return real(surface, center, radius, t, ship, fade=fade)
+    monkeypatch.setattr(sprites, "draw_checkpoint_life", spy)
+    return calls
+
+
+def test_checkpoint_life_glows_and_shows_the_ship():
+    surface = pygame.Surface((240, 240))
+    surface.fill(config.BG)
+    sprites.draw_checkpoint_life(surface, (120, 120), 80, 0.0, SHIPS["ship01"])
+    box = surface.get_bounding_rect(min_alpha=1)
+    lit = sum(1 for x in range(0, 240, 4) for y in range(0, 240, 4) if surface.get_at((x, y))[:3] != config.BG)
+    assert lit > 200                                        # glow spreads well past the ship
+    assert surface.get_at((120, 120 - round(0.12 * 80)))[:3] != config.BG
+    assert box.width > 0
+
+
+def test_checkpoint_life_pop_ends_with_nothing():
+    surface = pygame.Surface((200, 200))
+    surface.fill(config.BG)
+    sprites.draw_checkpoint_life(surface, (100, 100), 60, 0.0, SHIPS["ship01"], fade=1.0)
+    sprites.draw_checkpoint_life(surface, (100, 100), 60, 0.0, None)
+    for center, radius in (((math.nan, 0), 30), ((0, 0), math.inf), (None, 30), ((1e9, 1e9), 30)):
+        sprites.draw_checkpoint_life(surface, center, radius, 0.0, SHIPS["ship01"])
+    assert all(surface.get_at((x, y))[:3] == config.BG for x in range(0, 200, 5) for y in range(0, 200, 5))
+
+
+def test_a_checkpoint_ahead_holds_a_life(lives_drawn):
+    scene = _scene()
+    scene.draw(_surface())
+    assert lives_drawn == [(scene.viewport.to_screen(7.0, 0.0), 0.0)]
+
+
+def test_touching_the_checkpoint_takes_its_life(lives_drawn):
+    scene = _scene()
+    _reach_checkpoint(scene)
+    vp = scene.viewport
+    surface = _surface()
+    lives_drawn.clear()
+
+    scene.draw(surface)                                     # touch: the life starts to pop
+    here = vp.to_screen(7.0, 0.0)
+    ahead = vp.to_screen(7.0 + 14.0, -3.0 + 3.0)            # section 2's checkpoint, off screen
+    assert sorted(lives_drawn) == sorted([(here, 0.0), (ahead, 0.0)])
+
+    scene.update(game_module.CHECKPOINT_LIFE_POP_S / 2)
+    lives_drawn.clear()
+    scene.draw(surface)
+    assert any(0.4 < fade < 0.6 for _, fade in lives_drawn)
+
+    scene.update(game_module.CHECKPOINT_LIFE_POP_S)
+    lives_drawn.clear()
+    scene.draw(surface)
+    assert [fade for _, fade in lives_drawn] == [0.0]       # only the next checkpoint's life
+
+
+def test_a_reached_checkpoint_stays_empty(lives_drawn):
+    scene = _scene()
+    _reach_checkpoint(scene)
+    scene.update(config.CHECKPOINT_PAN_DURATION)
+    vp = scene.viewport
+    lives_drawn.clear()
+
+    scene.draw(_surface())
+
+    # Section 2: its start (the checkpoint just taken) is empty; its target still holds one.
+    assert lives_drawn == [(vp.to_screen(7.0, -3.0), 0.0)]
+
+
+def test_the_planet_never_holds_a_life(lives_drawn):
+    scene = _scene()
+    for _ in range(2):
+        _reach_checkpoint(scene)
+        scene.update(config.CHECKPOINT_PAN_DURATION)
+    lives_drawn.clear()
+    scene.draw(_surface())
+    assert lives_drawn == []

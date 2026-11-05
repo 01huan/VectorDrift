@@ -536,6 +536,59 @@ def draw_checkpoint(surface, center, radius, t, ship=None, kind="square"):
         return
 
 
+CHECKPOINT_LIFE_GLOW = (170, 255, 210)   # minty "healing" glow behind the life ship
+CHECKPOINT_LIFE_SIZE = 0.8      # life ship length over the checkpoint radius
+CHECKPOINT_LIFE_LIFT = 0.12     # floats this far (x radius) above center, inside the portal ring
+
+
+def draw_checkpoint_life(surface, center, radius, t, ship, fade=0.0):
+    """The extra life a checkpoint gives: a glowing, gently bobbing upright ship.
+
+    It is the lives-counter icon of ``ship`` (the ship that flies), so it
+    reads as "one life". ``fade`` 0 -> 1 is the pop when it is taken: it
+    grows, rises and fades out; at 1 nothing is drawn. Never raises.
+    """
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius, fade = float(radius), max(0.0, float(fade))
+    except (TypeError, ValueError, OverflowError):
+        return
+    if (fade >= 1.0 or ship is None or radius <= 1
+            or not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius))):
+        return
+    cull = config.MAX_PX_CULL
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError):
+        return
+    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
+        return
+    r = round(radius)
+    try:
+        # Glow: premultiplied colours added onto the scene, so it really lights up
+        # (the portal ring around it brightens too) instead of a pale wash.
+        glow = _cached(("checkpoint-life-glow", r), lambda: soft_glow(
+            0.6 * r, CHECKPOINT_LIFE_GLOW, max_alpha=255, extent=2.0, power=1.3).premul_alpha())
+        icon = ship_icon_surface(ship, max(6, round(CHECKPOINT_LIFE_SIZE * r)))
+        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
+        scale = 1.0 + 0.6 * fade
+        bob = 0.05 * r * math.sin(t * 2.4)
+        pos = (cx, cy - (CHECKPOINT_LIFE_LIFT + 0.5 * fade) * r + bob)
+
+        light = glow.copy() if scale == 1.0 else pygame.transform.smoothscale(
+            glow, (round(glow.get_width() * scale), round(glow.get_height() * scale)))
+        k = round(255 * (0.55 + 0.45 * pulse) * (1.0 - fade))
+        light.fill((k, k, k, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        surface.blit(light, light.get_rect(center=pos), special_flags=pygame.BLEND_RGB_ADD)
+
+        if fade > 0.0:
+            icon = pygame.transform.rotozoom(icon, 0, scale)
+            icon.set_alpha(round(255 * (1.0 - fade)))
+        surface.blit(icon, icon.get_rect(center=pos))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
 # --- obstacle bumper ---------------------------------------------------------------
 def _render_bumper(radius):
     d = 2 * radius + 8

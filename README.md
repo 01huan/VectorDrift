@@ -49,7 +49,8 @@ ship inside; only the last section's target is the planet.
 
 * **Reaching a checkpoint** gives you one life back (never more than the
   level's lives) and pans the camera to the next section. Fx / Fy stay in the
-  editor, and you can change them.
+  editor, and you can change them. A checkpoint you have not reached shows
+  that life as a glowing ship inside it; touching it takes the ship.
 * **Losing a life after a checkpoint** relaunches from that checkpoint, not
   from the level start (Time up still resumes where the ship stopped).
 * **Running out of lives** restarts the whole level from the first section
