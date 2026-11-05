@@ -55,7 +55,10 @@ OUTCOME_TEXT = {
 }
 # After these outcomes the next launch starts (at rest) where the ship stopped;
 # every other miss (abort, out of bounds, diverged) goes back to the level start.
+# So does a time-up off the map (an unbound ship): see GameScene._end_flight.
 RESUME_OUTCOMES = (Outcome.TIMEOUT,)
+# Pickups that come back at the start of every life (the rest stay taken).
+RESPAWN_EVERY_LIFE = ("unbound",)
 
 START_MARKER_RADIUS_M = 0.45
 CHECKPOINT_LIFE_POP_S = 0.45  # the taken checkpoint life grows and fades out this long
@@ -277,6 +280,8 @@ class GameScene(Scene):
         One PickupState per spec for the WHOLE run of this section (all
         lives): consumed pickups and shockwave-cleared obstacles persist like
         level state until all lives are spent. No config = no pickups.
+        Exception: the RESPAWN_EVERY_LIFE kinds (unbound) come back at the
+        start of every life (_respawn_every_life_pickups).
         """
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
@@ -594,7 +599,8 @@ class GameScene(Scene):
         if self.story is not None:
             self._say((random_fail_line(),))
         noun = "life" if self.lives == 1 else "lives"
-        if outcome in RESUME_OUTCOMES:
+        self._respawn_every_life_pickups()
+        if outcome in RESUME_OUTCOMES and not self._off_map(self.flight):
             # Keep this leg visible (dimmed) and continue from where the ship stopped.
             self.launch_pos = (self.flight.x, self.flight.y)
             leg = self.trail.bounds
@@ -614,6 +620,20 @@ class GameScene(Scene):
         self.heading = self._heading_to_target()
         self.state = SETUP
         self._validate()                # launch point moved: re-check the formulas there
+
+    def _respawn_every_life_pickups(self):
+        """A new life starts: the RESPAWN_EVERY_LIFE pickups (unbound) are back."""
+        for p in self.pickups or ():
+            if p.kind in RESPAWN_EVERY_LIFE:
+                p.consumed = False
+
+    @staticmethod
+    def _off_map(flight):
+        """True if the ship stopped outside the map (only an unbound ship can)."""
+        try:
+            return abs(flight.x) > flight.bounds[0] or abs(flight.y) > flight.bounds[1]
+        except (AttributeError, TypeError, IndexError):
+            return False
 
     def _reach_checkpoint(self):
         """Reached a checkpoint: +1 life (capped), then pan to the next section.
