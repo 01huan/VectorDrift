@@ -92,7 +92,7 @@ AI_SOLVER_COST = 10
 HINT_COST = 10
 
 MONEY_COST_PER_USE = 10
-FREE_ANSWER_LEVELS = (1, 2)         # fixed levels whose Hint answer page is free
+FREE_ANSWER_LEVELS = (1, 2, 9)      # fixed levels whose Hint answer page is free
 HINT_ANSWER_COST = 10               # coins for the Hint answer page on other fixed levels
 CLEAR_REWARD = 5                    # coins for reaching the target, once per fixed level / random map
 
@@ -100,6 +100,7 @@ CLEAR_REWARD = 5                    # coins for reaching the target, once per fi
 MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)
 WIN_DELAY = 0.8                     # pause on target before Win screen (s)
+CHECKPOINT_PAN_DURATION = 1.2       # camera pan to the next section (s, ease-in-out)
 
 # --- Level select ------------------------------------------------------------
 # Level numbers shown even before they exist (as "Coming soon" cards).  The

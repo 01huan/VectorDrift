@@ -10,6 +10,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 |--------------|-------------------------------|----------|
 | `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite) |
 | `target.planet` | `targets/planet.png` | Destination / target planet, 512 x 512 |
+| `target.checkpoint` | `targets/checkpoint.png` | Checkpoint on multi-section levels (not supplied yet: drawn as a white square with the flying ship inside) |
 | `obstacle.rock01`, `obstacle.rock02` | `obstacles/rock01.png`, `obstacles/rock02.png` | Bumper rocks, 512 x 512: each bumper shows one of them, picked at random and turned by a random angle (fixed per bumper) |
 | `pickup.shockwave` | `pickups/shockwave.png` | Shockwave pickup icon, 256 x 256 |
 | `pickup.extratime` | `pickups/extratime.png` | Extratime pickup icon (stopwatch), 256 x 256 |

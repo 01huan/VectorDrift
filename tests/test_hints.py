@@ -1,32 +1,41 @@
 """Hints for the fixed levels: every fixed level has one and every answer flies.
 
-The checks run over every fixed level in data.LEVELS, so a new fixed level
-fails here until vector_drift/hints.toml gives it a hint whose answers reach.
+The checks run over every fixed level in data.LEVELS (and every section of a
+multi-section level), so a new fixed level fails here until
+vector_drift/hints.toml gives it a hint whose answers reach.
 """
 
 import pytest
 
-from vector_drift.data import LEVELS, SHIPS, default_ship_id, get_level
+from vector_drift.data import (LEVELS, SHIPS, default_ship_id, get_level, section_count,
+                               section_level)
 from vector_drift.expr_parser import parse_expression
-from vector_drift.hints import HintFormatError, get_hint, load_hints, parse_hints
+from vector_drift.hints import (HintFormatError, SectionedHint, get_hint, hint_sections,
+                                load_hints, parse_hints)
 from vector_drift.level_presets import is_dynamic_level
 from vector_drift.physics import Flight, ForceField, Outcome
 
 FIXED_IDS = [lv.id for lv in LEVELS if not is_dynamic_level(lv.id)]
-ANSWERS = [(level_id, i, answer)
+# (level id, section index (0-based), answer index, answer); one-screen levels are section 0.
+ANSWERS = [(level_id, k, i, answer)
            for level_id, hint in sorted(load_hints().items())
-           for i, answer in enumerate(hint.answers)]
+           for k, section_hint in enumerate(hint_sections(hint))
+           for i, answer in enumerate(section_hint.answers)]
 
 
 def _answer_id(case):
-    level_id, i, _ = case
-    return f"level{level_id}-answer{i + 1}"
+    level_id, k, i, _ = case
+    section = f"-section{k + 1}" if get_level(level_id).sections else ""
+    return f"level{level_id}{section}-answer{i + 1}"
 
 
 @pytest.mark.parametrize("level_id", FIXED_IDS)
 def test_every_fixed_level_has_a_hint(level_id):
-    assert get_hint(level_id) is not None, (
-        f"fixed level {level_id} has no hint: add [level.{level_id}] to vector_drift/hints.toml")
+    level = get_level(level_id)
+    for k in range(section_count(level)):
+        where = f"[level.{level_id}.section.{k + 1}]" if level.sections else f"[level.{level_id}]"
+        assert get_hint(level_id, k) is not None, (
+            f"fixed level {level_id} has no hint: add {where} to vector_drift/hints.toml")
 
 
 def test_hints_only_cover_existing_fixed_levels():
@@ -37,26 +46,29 @@ def test_hints_only_cover_existing_fixed_levels():
 def test_levels_without_a_hint_return_none():
     assert get_hint(7) is None
     assert get_hint(99) is None
+    assert get_hint(1, 1) is None                # a one-screen level has only section 0
 
 
 @pytest.mark.parametrize("case", ANSWERS, ids=_answer_id)
 def test_every_answer_parses(case):
-    level_id, _, answer = case
+    level_id, _, _, answer = case
     parse_expression(answer.fx)
     parse_expression(answer.fy)
 
 
 @pytest.mark.parametrize("case", ANSWERS, ids=_answer_id)
 def test_every_answer_reaches_the_target(case):
-    level_id, _, answer = case
-    level = get_level(level_id)
+    """Each answer flies from its own section's start to that section's target."""
+    level_id, k, _, answer = case
+    level = section_level(get_level(level_id), k)
     field = ForceField.from_exprs(parse_expression(answer.fx), parse_expression(answer.fy))
     flight = Flight(field, SHIPS[default_ship_id(level_id)], level)
     while flight.running:
         flight.step()
 
     assert flight.outcome is Outcome.REACHED, (
-        f"level {level_id}: Fx = {answer.fx}, Fy = {answer.fy} ends {flight.outcome.name}")
+        f"level {level_id} section {k + 1}: Fx = {answer.fx}, Fy = {answer.fy} "
+        f"ends {flight.outcome.name}")
 
 
 def _level(**fields):
@@ -100,3 +112,65 @@ def test_answer_label_is_optional():
     ])}})
 
     assert [a.label for a in hints[3].answers] == ["Top Shockwave", None]
+
+
+# --- multi-section levels: [level.N.section.K] ----------------------------------------
+MULTI_ID = next(lv.id for lv in LEVELS if lv.sections)      # level 9, two sections
+
+
+def _sections(*numbers, **fields):
+    return {"section": {str(n): _level(**fields) for n in numbers}}
+
+
+def test_section_hints_are_read_one_per_section():
+    hints = parse_hints({"level": {str(MULTI_ID): {"section": {
+        "1": _level(steps=["First screen."]),
+        "2": _level(steps=["Second screen."], answers=[{"fx": "4", "fy": "0"}]),
+    }}}})
+
+    hint = hints[MULTI_ID]
+    assert isinstance(hint, SectionedHint)
+    first, second = hint_sections(hint)
+    assert (first.section, first.steps) == (1, ("First screen.",))
+    assert (second.section, second.steps) == (2, ("Second screen.",))
+    assert second.answers[0].fx == "4"
+
+
+def test_a_one_screen_hint_is_its_own_only_section():
+    hint = parse_hints({"level": {"1": _level()}})[1]
+    assert hint_sections(hint) == (hint,) and hint.section is None
+
+
+@pytest.mark.parametrize("data, message", [
+    # Wrong number of sections.
+    (_sections(1), rf"level {MULTI_ID} section 2: missing"),
+    (_sections(1, 2, 3), rf"level {MULTI_ID} section 3: the level has only 2 sections"),
+    # Numbers not 1, 2, ... in a row.
+    (_sections(1, 3), rf"level {MULTI_ID} section 3: .*section 2 is missing"),
+    (_sections(2, 3), rf"level {MULTI_ID} section 2: .*section 1 is missing"),
+    ({"section": {"one": _level(), "2": _level()}}, rf"level {MULTI_ID} section 'one'"),
+    # Plain keys and sections together, or plain keys alone.
+    ({**_level(), **_sections(1, 2)}, rf"level {MULTI_ID}: give either 'section'"),
+    (_level(), rf"level {MULTI_ID}: has 2 sections"),
+    # A bad field inside a section names that section.
+    ({"section": {"1": _level(), "2": _level(steps=[])}}, rf"level {MULTI_ID} section 2: 'steps'"),
+    ({"section": {"1": _level(answers=[{"fy": "0"}]), "2": _level()}},
+     rf"level {MULTI_ID} section 1: answer 1 is missing 'fx'"),
+    ({"section": {"1": _level(), "2": _level(extra="x")}}, rf"level {MULTI_ID} section 2: unknown keys"),
+])
+def test_bad_section_hints_name_the_level_and_section(data, message):
+    with pytest.raises(HintFormatError, match=message):
+        parse_hints({"level": {str(MULTI_ID): data}})
+
+
+def test_a_one_screen_level_cannot_use_sections():
+    with pytest.raises(HintFormatError, match="level 1: is a one-screen level"):
+        parse_hints({"level": {"1": _sections(1)}})
+
+
+def test_a_section_hint_file_is_read(tmp_path):
+    path = tmp_path / "hints.toml"
+    body = 'steps = ["s"]\nanswer_note = "n"\nanswers = [ { fx = "5", fy = "0" } ]\n'
+    path.write_text(f"[level.{MULTI_ID}.section.1]\n{body}\n[level.{MULTI_ID}.section.2]\n{body}",
+                    encoding="utf-8")
+    assert len(hint_sections(load_hints(path)[MULTI_ID])) == 2

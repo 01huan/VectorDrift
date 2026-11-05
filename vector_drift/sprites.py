@@ -460,6 +460,60 @@ def draw_target(surface, center, radius, t, flash=0.0, planet=None):
             return
 
 
+# --- checkpoint (multi-section levels) ---------------------------------------------
+CHECKPOINT_FILL = (246, 248, 252)
+CHECKPOINT_SIDE = 1.6        # square side over the checkpoint radius (fits inside its disc)
+CHECKPOINT_SHIP = 0.78       # ship length over the square side
+
+
+def _paint_checkpoint_square(surface, center, radius, t, ship):
+    """Placeholder art: a white square with the ship that flies drawn inside."""
+    side = max(4, round(CHECKPOINT_SIDE * radius))
+    box = pygame.Rect(0, 0, side, side)
+    box.center = (round(center[0]), round(center[1]))
+    pygame.draw.rect(surface, CHECKPOINT_FILL, box, border_radius=max(1, side // 10))
+    pygame.draw.rect(surface, OUTLINE, box, max(1, side // 28), border_radius=max(1, side // 10))
+    if ship is not None:
+        draw_ship(surface, box.center, math.pi / 4, CHECKPOINT_SHIP * side, ship)
+
+
+CHECKPOINT_RENDERERS = {"square": _paint_checkpoint_square}
+"""kind -> painter(surface, center_px, radius_px, t, ship). Used when the
+target.checkpoint picture is missing; a new look adds one entry here."""
+
+
+def draw_checkpoint(surface, center, radius, t, ship=None, kind="square"):
+    """A checkpoint (the target of every section but the last). Never raises.
+
+    ``center`` / ``radius`` are in px; ``ship`` is the ship that flies.
+    targets/checkpoint.png replaces the code-drawn art when it exists.
+    """
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius = float(radius)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)) or radius <= 1:
+        return
+    try:
+        sw, sh = surface.get_size()
+    except (pygame.error, TypeError, ValueError):
+        return
+    cull = config.MAX_PX_CULL
+    if cx < -cull or cx > sw + cull or cy < -cull or cy > sh + cull:
+        return
+    size = round(2 * radius)
+    img = load_image("target.checkpoint", size_px=(size, size))
+    try:
+        if img is not None:
+            surface.blit(img, img.get_rect(center=(cx, cy)))
+            return
+        painter = CHECKPOINT_RENDERERS.get(kind, _paint_checkpoint_square)
+        painter(surface, (cx, cy), radius, t, ship)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
 # --- obstacle bumper ---------------------------------------------------------------
 def _render_bumper(radius):
     d = 2 * radius + 8

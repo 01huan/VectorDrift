@@ -4,11 +4,16 @@ Dynamic levels (e.g. 7, 8) are NOT hard-coded here: their tunables live in
 level_presets.py and their layouts are generated fresh by random_level.py.
 get_level() routes any id in level_presets.dynamic_ids() to the generator,
 so gameplay always uses get_level() instead of reading LEVELS directly.
-To add Level 9: register_preset(RandomPreset(level_id=9, ...)) -- no edits
-to this file, config.py, or scenes are needed.
+To add another random level: register_preset(RandomPreset(level_id=N, ...))
+with an id no fixed level uses (level 9 is fixed, see LEVELS) -- no edits to
+this file, config.py, or scenes are needed.
+
+Multi-section levels (level 9 on) are fixed levels made of SectionSpecs:
+reaching a section's target (a checkpoint) pans the camera to the next
+section; only the last target is the planet. See multi_section_level.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .level_presets import dynamic_ids, get_preset, is_dynamic_level
 
@@ -79,6 +84,83 @@ class LevelSpec:
     holes: tuple = ()           # tuple[HoleSpec, ...]; black/white hole pairs
     portals: tuple = ()
     wormholes: tuple = ()
+    sections: tuple = ()        # tuple[SectionSpec, ...]; empty = one-screen level.
+                              # Multi-section: the per-screen fields above are
+                              # section 1's (see multi_section_level).
+
+
+@dataclass(frozen=True)
+class SectionSpec:
+    """One screen of a multi-section level, in that screen's own coordinates.
+
+    Every section spans the usual [-10, 10] x [-7.5, 7.5] with the origin at
+    its own center, so physics sees each one as an ordinary level (see
+    section_level). The target of every section but the last is a checkpoint;
+    the camera then pans so the next section's start sits where that
+    checkpoint was (see section_shift).
+    """
+
+    start: tuple                # (x, y) in m, section coordinates
+    target_center: tuple        # (x, y) in m; a checkpoint unless last section
+    target_radius: float = 1.0  # m
+    time_limit: float = 10.0    # s of simulated flight per launch
+    obstacles: tuple = ()       # tuple[ObstacleSpec, ...]
+    pickups: tuple = ()         # tuple[PickupSpec, ...]
+    holes: tuple = ()           # tuple[HoleSpec, ...]
+
+
+def section_count(level):
+    """Number of screens in ``level``: 1 for an ordinary one-screen level."""
+    return len(level.sections) or 1
+
+
+def section_level(level, index):
+    """Section ``index`` (0-based) of ``level`` as an ordinary one-screen LevelSpec.
+
+    Same id, name, lives and ship; start, target, time limit and props come
+    from the section, in its own coordinates, and ``sections`` is empty, so
+    physics, hints, collisions and pickups treat it like any level. A
+    one-screen level is its own section 0.
+    """
+    if not level.sections:
+        if index != 0:
+            raise IndexError(f"level {level.id} has one section, not {index + 1}")
+        return level
+    if not 0 <= index < len(level.sections):
+        raise IndexError(f"level {level.id} has {len(level.sections)} sections, not {index + 1}")
+    s = level.sections[index]
+    return replace(level, start=tuple(s.start), target_center=tuple(s.target_center),
+                   target_radius=s.target_radius, time_limit=s.time_limit,
+                   obstacles=tuple(s.obstacles), pickups=tuple(s.pickups), holes=tuple(s.holes),
+                   portals=(), wormholes=(), sections=())
+
+
+def section_shift(level, index):
+    """Camera pan (m) from section ``index`` to ``index + 1``.
+
+    The checkpoint (section ``index``'s target) stays put on screen while the
+    camera moves, so the pan is that target minus the next section's start,
+    each in its own section's coordinates. It is also where section
+    ``index + 1``'s origin sits in section ``index``'s coordinates.
+    """
+    if not 0 <= index < len(level.sections) - 1:
+        raise IndexError(f"level {level.id} has no pan after section {index + 1}")
+    here, there = level.sections[index], level.sections[index + 1]
+    return (float(here.target_center[0] - there.start[0]),
+            float(here.target_center[1] - there.start[1]))
+
+
+def multi_section_level(id, name, ship_id, sections, lives=5):
+    """A LevelSpec made of ``sections``; its own screen fields mirror section 1."""
+    if len(sections) < 2:
+        raise ValueError(f"level {id}: a multi-section level needs at least 2 sections")
+    first = sections[0]
+    return LevelSpec(id=id, name=name, start=tuple(first.start),
+                     target_center=tuple(first.target_center),
+                     target_radius=first.target_radius, ship_id=ship_id,
+                     time_limit=first.time_limit, lives=lives,
+                     obstacles=tuple(first.obstacles), pickups=tuple(first.pickups),
+                     holes=tuple(first.holes), sections=tuple(sections))
 
 
 
@@ -257,7 +339,19 @@ LEVELS = [
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
         ),
     ),
-
+    # Checkpoint intro: two level-1 screens side by side. In world terms the
+    # ship goes x = -7 -> 7 (checkpoint) -> 21 (planet); the pan is (14, 0) and
+    # the screens share x in [4, 10] of section 1 (= [-10, -4] of section 2),
+    # which must stay empty apart from the checkpoint (tests/test_level9.py).
+    multi_section_level(
+        id=9,
+        name="New Horizon",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(start=(-7.0, 0.0), target_center=(7.0, 0.0), target_radius=1.0),
+            SectionSpec(start=(-7.0, 0.0), target_center=(7.0, 0.0), target_radius=1.0),
+        ),
+    ),
 ]
 
 

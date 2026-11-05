@@ -10,7 +10,8 @@ from .. import config, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..coords import Viewport
-from ..data import SHIPS, default_ship_id, get_level, ship_unlocked
+from ..data import (SHIPS, default_ship_id, get_level, section_count, section_level,
+                    section_shift, ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
 from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
@@ -42,6 +43,9 @@ _RENDER_ERRORS = (
 )
 
 SETUP, FLIGHT, ARRIVED = "setup", "flight", "arrived"
+# Multi-section levels: the camera pans from a reached checkpoint to the next
+# section. No input is taken until the next section's SETUP.
+PANNING = "panning"
 
 OUTCOME_TEXT = {
     Outcome.TIMEOUT: "TIME UP",
@@ -80,6 +84,23 @@ LEGEND_LABEL_Y = 636
 LEGEND_Y = 662
 
 
+def ease_in_out(p):
+    """Smoothstep 0 -> 1 for the section pan (slow start, slow stop)."""
+    p = max(0.0, min(1.0, p))
+    return p * p * (3.0 - 2.0 * p)
+
+
+def pan_offsets(shift, progress):
+    """(old, new) section offsets in m at eased pan ``progress`` 0 -> 1.
+
+    Sections are drawn in their own coordinates plus an offset. The section
+    being left moves from (0, 0) to -shift; the next one comes in from
+    +shift and settles at (0, 0), so the shared checkpoint stays aligned.
+    """
+    sx, sy = shift
+    return (-sx * progress, -sy * progress), (sx * (1.0 - progress), sy * (1.0 - progress))
+
+
 def fmt_pair(x, y, unit):
     try:
         fx, fy = float(x), float(y)
@@ -96,6 +117,34 @@ def fmt_clock(seconds):
     return f"{cs // 100:02d}:{cs % 100:02d}"
 
 
+class _SkipReplay(Exception):
+    """Internal: this flight is not stored as a replay."""
+
+
+class SectionPan:
+    """The camera pan from a reached checkpoint to the next section.
+
+    ``shift`` is section_shift (m): where the new section's origin sits in
+    the old section's coordinates. ``level`` / ``pickups`` / ``holes`` are
+    the old section as it was left; ``arrival`` is where the ship touched
+    the checkpoint (old section coordinates); ``t`` is seconds elapsed.
+    """
+
+    def __init__(self, shift, level, pickups, holes, arrival):
+        self.shift = shift
+        self.level = level
+        self.pickups = pickups
+        self.holes = holes
+        self.arrival = arrival
+        self.t = 0.0
+
+    @property
+    def progress(self):
+        """Eased 0 -> 1 over config.CHECKPOINT_PAN_DURATION."""
+        duration = config.CHECKPOINT_PAN_DURATION
+        return ease_in_out(self.t / duration if duration > 0 else 1.0)
+
+
 class GameScene(Scene):
     music = "level"
 
@@ -107,9 +156,15 @@ class GameScene(Scene):
             if self.session.random_seed is None:
                 import random as _random
                 self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
-            self.level = get_level(self.session.level_id, seed=self.session.random_seed)
+            self.full_level = get_level(self.session.level_id, seed=self.session.random_seed)
         else:
-            self.level = get_level(self.session.level_id)
+            self.full_level = get_level(self.session.level_id)
+        # Multi-section levels: self.level is always the CURRENT section as an
+        # ordinary one-screen LevelSpec (section_level), so physics, hints,
+        # pickups and drawing work unchanged. One-screen levels: the level itself.
+        self.section_index = 0
+        self.level = section_level(self.full_level, 0)
+        self.pan = None                 # SectionPan while state == PANNING
         # Every skin in order; the ones this level has not unlocked are shown
         # (grey, "LvN+") but cannot fly. Retry / Replay keep the session's
         # pick; the level select clears it, so a level starts on its newest ship.
@@ -139,18 +194,8 @@ class GameScene(Scene):
         self._replay_frames = []
         self.state = SETUP
         self.flight = None
-        # One PickupState per spec for the WHOLE run (all lives): consumed
-        # pickups and shockwave-cleared obstacles persist like level state until
-        # all lives are spent. No config = no pickups (data.py decides).
-        from ..pickups import PickupState
-        specs = getattr(self.level, "pickups", ()) or ()
-        self.pickups = [PickupState.from_spec(s) for s in specs]
-        self._hide_collected_coins()
+        self._load_section_props()
         self.money = self.session.money
-        # Black/white hole pairs (wormholes).
-        self.holes = list(getattr(self.level, "holes", ()) or ())
-        for alias in ("portals", "wormholes"):
-            self.holes = self.holes or list(getattr(self.level, alias, ()) or ())
         self.launch_pos = self.level.start
         self.banner = None              # (title, subtitle, time_left)
         self.arrive_timer = 0.0
@@ -186,7 +231,7 @@ class GameScene(Scene):
         # Solver and never start it. The answer page marks this run as
         # "solution used": the win is flagged and not recorded as a best.
         self.hint_mode = not is_dynamic_level(self.level.id)
-        self.hint = get_hint(self.level.id) if self.hint_mode else None
+        self.hint = self._section_hint()
         self.hint_popup = None
         self.solution_used = False
         self._run_coins = []            # (coin key, amount) paid out this run, before any reveal
@@ -227,6 +272,29 @@ class GameScene(Scene):
         self._win_pending = False           # WinScene waits for the win line
         if self.story is not None:
             self._say(self.story.intro, level_intro_key(self.level.id))
+
+    def _load_section_props(self):
+        """Pickups and black/white holes of the current section (self.level).
+
+        One PickupState per spec for the WHOLE run of this section (all
+        lives): consumed pickups and shockwave-cleared obstacles persist like
+        level state until all lives are spent. No config = no pickups.
+        """
+        from ..pickups import PickupState
+        specs = getattr(self.level, "pickups", ()) or ()
+        self.pickups = [PickupState.from_spec(s) for s in specs]
+        self._hide_collected_coins()
+        self.holes = list(getattr(self.level, "holes", ()) or ())
+        for alias in ("portals", "wormholes"):
+            self.holes = self.holes or list(getattr(self.level, alias, ()) or ())
+
+    @property
+    def section_total(self):
+        return section_count(self.full_level)
+
+    @property
+    def on_last_section(self):
+        return self.section_index >= self.section_total - 1
 
     def _heading_to_target(self):
         tx = self.level.target_center[0] - self.launch_pos[0]
@@ -337,6 +405,8 @@ class GameScene(Scene):
         if event.type == pygame.MOUSEMOTION:
             self._mouse_pos = event.pos
             self._update_cursor()
+        if self.state == PANNING:
+            return                      # pan to the next section: no input at all
         if self.dialogue is not None:
             self.dialogue.handle_event(event)
             if self.dialogue.done:
@@ -446,6 +516,10 @@ class GameScene(Scene):
 
     def _end_flight(self, outcome):
         try:
+            if self.full_level.sections:
+                # The replay scene rebuilds a level by id, which gives section 1:
+                # a later section's flight would replay over the wrong screen.
+                raise _SkipReplay
             from vector_drift.replay import normalize_records
             from vector_drift.account.integration import session_to_profile
             rec = {
@@ -463,6 +537,8 @@ class GameScene(Scene):
                 "obstacle_centers": list(getattr(self, "_replay_initial_obstacle_centers", []) or []),
             }
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
+        except _SkipReplay:
+            pass
         except Exception:
             pass
         try:
@@ -473,6 +549,9 @@ class GameScene(Scene):
         self.audio.stop_loop("thruster_loop")
         self._sync_trail()
         self.total_time += self.flight.time
+        if outcome is Outcome.REACHED and not self.on_last_section:
+            self._reach_checkpoint()
+            return
         if outcome is Outcome.REACHED:
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
@@ -539,6 +618,42 @@ class GameScene(Scene):
         self.heading = self._heading_to_target()
         self.state = SETUP
         self._validate()                # launch point moved: re-check the formulas there
+
+    def _reach_checkpoint(self):
+        """Reached a checkpoint: +1 life (capped), then pan to the next section.
+
+        Not a win: no Win screen, story line or clear. From now on a lost
+        life relaunches from this checkpoint, the next section's start.
+        """
+        flight = self.flight
+        if self.lives < self.level.lives:
+            self.lives += 1
+        self.audio.play("life")
+        self.pan = SectionPan(
+            shift=section_shift(self.full_level, self.section_index),
+            level=self.level, pickups=self.pickups, holes=self.holes,
+            arrival=(flight.x, flight.y))
+        self.section_index += 1
+        self.level = section_level(self.full_level, self.section_index)
+        self._load_section_props()
+        self.hint = self._section_hint()
+        self.hint_popup = None          # the old section's hint no longer applies
+        self.launch_pos = self.level.start
+        self.banner = None
+        self.flight = None
+        self.state = PANNING
+        self._refresh_buttons()
+
+    def _finish_pan(self):
+        """The camera is on the next section: set it up for the next launch."""
+        self.pan = None
+        self.trail.clear()
+        self._trail_count = 0
+        self.history.fill((0, 0, 0, 0), self.history_bounds)
+        self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self.heading = self._heading_to_target()
+        self.state = SETUP
+        self._validate()                # new launch point: re-check the formulas there
 
     def _snapshot(self):
         screen = self.manager.screen or pygame.display.get_surface()
@@ -773,6 +888,10 @@ class GameScene(Scene):
                 pass
             if outcome is not Outcome.RUNNING:
                 self._safe_end_flight(outcome)
+        elif self.state == PANNING:
+            self.pan.t += dt
+            if self.pan.t >= config.CHECKPOINT_PAN_DURATION:
+                self._finish_pan()
         elif self.state == ARRIVED:
             self.arrive_timer -= dt
             if self.arrive_timer <= 0 and self.dialogue is None and not self._win_pending:
@@ -883,6 +1002,10 @@ class GameScene(Scene):
             save_progress(self.manager.account, self.session)
             
     # ------------------------------------------------------------------ Hint
+    def _section_hint(self):
+        """The hint for the section on screen (one per section on multi-section levels)."""
+        return get_hint(self.level.id, self.section_index) if self.hint_mode else None
+
     def _open_hint(self):
         if self.hint is None or self.state == ARRIVED:
             return
@@ -958,18 +1081,18 @@ class GameScene(Scene):
         self._reset_level()
 
     def _reset_level(self):
-        """Back to the level as it started (start, pickups, rocks); lives stay.
+        """Back to the current section as it started (start, pickups, rocks); lives stay.
 
+        On a multi-section level only this section resets: its start is the
+        checkpoint just reached, and sections already passed stay passed.
         A flight in progress just stops: it costs no life.
         """
-        from ..pickups import PickupState
         if self.state == FLIGHT:
             self.audio.stop_loop("thruster_loop")
             self.flight = None
             self.state = SETUP
-        self.level = get_level(self.level.id)
-        self.pickups = [PickupState.from_spec(s) for s in self.level.pickups]
-        self._hide_collected_coins()
+        self.level = section_level(self.full_level, self.section_index)
+        self._load_section_props()
         self.launch_pos = self.level.start
         self.trail.clear()
         self._trail_count = 0
@@ -1268,48 +1391,28 @@ class GameScene(Scene):
             log.warning("set_clip contained: %r", exc)
 
         try:
-            hb = self.history_bounds
-            if hb.w and hb.h:
-                surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
-            if self.launch_pos != self.level.start:
-                # Faint marker at the original start ("back to start" target).
-                pygame.draw.circle(surface, config.TEXT_FAINT, vp.to_screen(*self.level.start), px(3))
-            launch = vp.to_screen(*self.launch_pos)
-            sprites.draw_start_marker(surface, launch, vp.length(START_MARKER_RADIUS_M), self.t)
+            pan = self.pan if self.state == PANNING else None
+            if pan is not None:
+                old_offset, offset = pan_offsets(pan.shift, pan.progress)
+                self._draw_panning_out(surface, plot, pan, old_offset)
+                old_px = self._offset_px(old_offset)
+            else:
+                offset = (0.0, 0.0)
+                hb = self.history_bounds
+                if hb.w and hb.h:
+                    surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
 
             flash = 0.0
             if self.state == ARRIVED:
                 flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
-            sprites.draw_target(surface, vp.to_screen(*self.level.target_center),
-                                vp.length(self.level.target_radius), self.t, flash, planet=self.planet)
+            self._draw_section(surface, self.level, self.pickups, self.holes, offset,
+                               index=self.section_index, launch=self.launch_pos, flash=flash)
 
-            for obstacle in getattr(self.level, "obstacles", ()) or ():
-                sprites.draw_obstacle(surface, vp.to_screen(*obstacle.center),
-                                      vp.length(obstacle.radius), self.t,
-                                      kind=getattr(obstacle, "kind", "bumper"),
-                                      seed=(obstacle.center, obstacle.radius))
-
-            for pickup in getattr(self, "pickups", ()) or ():
-                if pickup.consumed:
-                    continue
-                sprites.draw_pickup(surface, vp.to_screen(*pickup.center),
-                                    vp.length(pickup.radius), self.t, kind=pickup.kind)
-
-            for i, hole in enumerate(getattr(self, "holes", ()) or (), start=1):
-                try:
-                    bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
-                    wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
-                    r = getattr(hole, "radius", 0.5)
-                    sprites.draw_hole(surface, vp.to_screen(*bc), vp.length(r), self.t, kind="black", pair_index=i)
-                    sprites.draw_hole(surface, vp.to_screen(*wc), vp.length(r), self.t, kind="white", pair_index=i)
-                    # Pair marker so players can see which black hole maps to which white hole.
-                    # The white-hole picture is white in the middle, so its number is dark.
-                    for center, color in ((bc, config.TEXT), (wc, config.OUTLINE)):
-                        sp = vp.to_screen(*center)
-                        draw_text(surface, str(i), sp, 12, color, kind="bold", anchor="center")
-                except Exception:
-                    pass
-
+            if pan is not None:
+                # The leg that reached the checkpoint leaves with the old section.
+                self.trail.draw(surface, (plot.x + old_px[0], plot.y + old_px[1]))
+                self._draw_panning_ship(surface, pan, old_offset)
+                return                  # (no labels or banner while panning)
             if self.flight is not None:
                 self.trail.draw(surface, plot.topleft)
 
@@ -1352,6 +1455,98 @@ class GameScene(Scene):
                 self._draw_banner(surface, plot)
         except _RENDER_ERRORS as exc:
             log.warning("plot overlay contained: %r", exc)
+
+    # ------------------------------------------------------------------ sections
+    def _offset_px(self, offset):
+        """A world offset (m) as a screen offset (px); y points down on screen."""
+        scale = self.viewport.scale
+        return (offset[0] * scale, -offset[1] * scale)
+
+    def _checkpoint_radius(self, index):
+        """Radius (m) of the checkpoint section ``index`` starts on (index >= 1)."""
+        return self.full_level.sections[index - 1].target_radius
+
+    def _draw_section(self, surface, level, pickups, holes, offset, index, launch=None, flash=0.0,
+                      target=True):
+        """One section's start, target and props, shifted by ``offset`` (m).
+
+        ``index`` is the section's number (0-based): from the second section
+        on its start is the checkpoint just reached, and every target but the
+        last section's is a checkpoint. ``launch`` is where the next launch
+        starts (None: no launch pad, for the section the camera is leaving).
+        ``target=False`` skips the target (while panning, the section being
+        left shares its checkpoint with the next section's start).
+        """
+        vp = self.viewport
+        ox, oy = offset
+
+        def at(x, y):
+            return vp.to_screen(x + ox, y + oy)
+
+        start = tuple(level.start)
+        if index > 0:
+            sprites.draw_checkpoint(surface, at(*start), vp.length(self._checkpoint_radius(index)),
+                                    self.t, self.flyable_ship)
+        if launch is not None:
+            launch = tuple(launch)
+            if index == 0 and launch != start:
+                # Faint marker at the original start ("back to start" target).
+                pygame.draw.circle(surface, config.TEXT_FAINT, at(*start), px(3))
+            if index == 0 or launch != start:
+                sprites.draw_start_marker(surface, at(*launch), vp.length(START_MARKER_RADIUS_M), self.t)
+        elif index == 0:
+            sprites.draw_start_marker(surface, at(*start), vp.length(START_MARKER_RADIUS_M), self.t)
+
+        if target:
+            center, radius = at(*level.target_center), vp.length(level.target_radius)
+            if index < self.section_total - 1:
+                sprites.draw_checkpoint(surface, center, radius, self.t, self.flyable_ship)
+            else:
+                sprites.draw_target(surface, center, radius, self.t, flash, planet=self.planet)
+
+        for obstacle in getattr(level, "obstacles", ()) or ():
+            sprites.draw_obstacle(surface, at(*obstacle.center),
+                                  vp.length(obstacle.radius), self.t,
+                                  kind=getattr(obstacle, "kind", "bumper"),
+                                  seed=(obstacle.center, obstacle.radius))
+
+        for pickup in pickups or ():
+            if pickup.consumed:
+                continue
+            sprites.draw_pickup(surface, at(*pickup.center),
+                                vp.length(pickup.radius), self.t, kind=pickup.kind)
+
+        for i, hole in enumerate(holes or (), start=1):
+            try:
+                bc = hole.black_center if hasattr(hole, "black_center") else hole[0]
+                wc = hole.white_center if hasattr(hole, "white_center") else hole[1]
+                r = getattr(hole, "radius", 0.5)
+                sprites.draw_hole(surface, at(*bc), vp.length(r), self.t, kind="black", pair_index=i)
+                sprites.draw_hole(surface, at(*wc), vp.length(r), self.t, kind="white", pair_index=i)
+                # Pair marker so players can see which black hole maps to which white hole.
+                # The white-hole picture is white in the middle, so its number is dark.
+                for center, color in ((bc, config.TEXT), (wc, config.OUTLINE)):
+                    draw_text(surface, str(i), at(*center), 12, color, kind="bold", anchor="center")
+            except Exception:
+                pass
+
+    def _draw_panning_out(self, surface, plot, pan, offset):
+        """The section the camera is leaving (its checkpoint is drawn by the new one)."""
+        hb = self.history_bounds
+        if hb.w and hb.h:
+            dx, dy = self._offset_px(offset)
+            surface.blit(self.history, (plot.x + hb.x + dx, plot.y + hb.y + dy), hb)
+        self._draw_section(surface, pan.level, pan.pickups, pan.holes, offset,
+                           index=self.section_index - 1, target=False)
+
+    def _draw_panning_ship(self, surface, pan, offset):
+        """The ship glides from where it touched the checkpoint onto its center."""
+        vp = self.viewport
+        p = pan.progress
+        (ax, ay), (tx, ty) = pan.arrival, pan.level.target_center
+        x, y = ax + (tx - ax) * p, ay + (ty - ay) * p
+        sprites.draw_ship(surface, vp.to_screen(x + offset[0], y + offset[1]), self.heading,
+                          vp.length(self.ship.length), self.ship)
 
     def _draw_plot_labels(self, surface, plot):
         x, y = plot.x + px(14), plot.y + px(12)

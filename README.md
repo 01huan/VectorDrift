@@ -41,6 +41,23 @@ works even when a CJK IME is in Chinese mode.
 Main menu -> **Start** -> level select -> level. In a level, the round button next to
 "LV1" goes back to level select, which has the way back to the main menu.
 
+## Checkpoints
+
+From level 9 on, a level can span several screens (sections). The target of
+every section but the last is a checkpoint, drawn as a white square with your
+ship inside; only the last section's target is the planet.
+
+* **Reaching a checkpoint** gives you one life back (never more than the
+  level's lives) and pans the camera to the next section. Fx / Fy stay in the
+  editor, and you can change them.
+* **Losing a life after a checkpoint** relaunches from that checkpoint, not
+  from the level start (Time up still resumes where the ship stopped).
+* **Running out of lives** restarts the whole level from the first section
+  with full lives; the checkpoints reached no longer count. Restart in the
+  pause menu does the same.
+* Each section has its own time limit per launch. The best time adds up the
+  flights of every section.
+
 ## Ships
 
 Six ship skins, `ship01` to `ship06`, look different but fly the same (1 kg).
@@ -63,7 +80,8 @@ use the coin-pair picture; a price you can't afford yet is shown in red.
   your saved progress. On a random level it pays once per map: Retry on the
   same map pays nothing, a new map pays again.
 * **Hint answers (fixed levels):** opening Hint and reading every step is free.
-  The answer page is free on levels 1 and 2 and costs 10 coins from level 3 on.
+  The answer page is free on levels 1 and 2 and on level 9 (the first
+  checkpoint level), and costs 10 coins on the other fixed levels.
   You pay when you confirm, once per level per game launch.
 * **AI Solver (random levels):** opening it and solving in the background are
   free. Fx / Fy stay hidden until you press **Reveal** (10 coins). One payment
@@ -132,6 +150,13 @@ and at least one answer (`fx`, `fy`, optional `label`). `tests/test_hints.py`
 fails for any fixed level without a hint, and flies every answer from the
 level start to check that it reaches the planet. Random levels (7, 8) use the
 AI Solver and need no hint.
+
+A multi-section level gets one hint per section instead: `[level.N.section.K]`
+tables numbered 1 to its number of sections, each with the same keys. Every
+answer is flown from its own section's start and must reach that section's
+target. In a level, Hint shows the hint of the section on screen, and its
+answer page resets only that section (back to its start, which after a
+checkpoint is the checkpoint).
 
 ## Tests
 
