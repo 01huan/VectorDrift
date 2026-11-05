@@ -215,6 +215,7 @@ class GameScene(Scene):
         self._space_screen = None       # the stars in the display's format (zoomed drawing)
         self._mips, self._mips_key = {}, None       # arrow layers by zoom level
         self._arrows, self._arrows_key = None, None # arrow layer at the current zoom
+        self._arrows_smooth = True      # False: a fast stretch, redone smoothly once still
         self._trail_count = 0
         self._plot_base = None          # background + arrows + labels, pre-composited
         self._plot_key = None
@@ -1516,17 +1517,20 @@ class GameScene(Scene):
     def _zoomed_arrows(self):
         """The arrow layer at the camera's zoom: the next level out, stretched.
 
-        Stretching is at most 2 ** (1/3) ~ 1.26, so arrows stay sharp.
-        Cached while the zoom holds still.
+        Stretching is at most 2 ** (1/3) ~ 1.26. While the zoom keeps
+        changing it is a fast (nearest-pixel) stretch, slightly jagged; the
+        first frame the zoom holds still it is redone smoothly, then cached.
         """
         zoom = self.camera.zoom
         dim = not self.valid and self.state == SETUP
         key = (self._field_version, dim, zoom)
-        if key == self._arrows_key:
+        if key == self._arrows_key and self._arrows_smooth:
             return self._arrows
+        smooth = key == self._arrows_key            # same zoom as last frame: settled
         arrows = None
         i = zoom_level(zoom)
         layer = self._arrow_layer(i)
+        exact = True
         if layer is not None:
             base_zoom = level_zoom(i)
             w, h = layer.get_size()
@@ -1534,12 +1538,14 @@ class GameScene(Scene):
             part.center = (w // 2, h // 2)
             part = part.clip(layer.get_rect())
             if part.size != (w, h) and part.w and part.h:
-                arrows = pygame.transform.smoothscale(layer.subsurface(part), (w, h))
+                stretch = pygame.transform.smoothscale if smooth else pygame.transform.scale
+                arrows = stretch(layer.subsurface(part), (w, h))
+                exact = smooth
             elif part.size == (w, h):
                 arrows = layer.copy() if dim else layer     # never change the shared layer
             if arrows is not None and dim:
                 arrows.set_alpha(70)
-        self._arrows, self._arrows_key = arrows, key
+        self._arrows, self._arrows_key, self._arrows_smooth = arrows, key, exact
         return arrows
 
     def _draw_zoomed_base(self, surface, plot):

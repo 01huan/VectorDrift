@@ -324,3 +324,26 @@ def test_grid_drawn_straight_onto_the_screen_matches_the_layer(zoom):
     assert diff[~crossing].max() == 0
     assert diff.max() <= 45                      # the two axes at the origin
     assert diff[crossing].mean() <= 15
+
+
+def test_arrows_scale_fast_while_zooming_and_smooth_once_still(scene, monkeypatch):
+    calls = []
+    real_fast, real_smooth = pygame.transform.scale, pygame.transform.smoothscale
+    monkeypatch.setattr(pygame.transform, "scale",
+                        lambda *a, **k: calls.append("fast") or real_fast(*a, **k))
+    monkeypatch.setattr(pygame.transform, "smoothscale",
+                        lambda *a, **k: calls.append("smooth") or real_smooth(*a, **k))
+    _launch(scene, "0", "10")
+    _run_until(scene, lambda: scene.flight.unbound)
+    scene._arrow_layer(1)                          # ready, so only the stretch is seen here
+    for zoom in (0.9, 0.88, 0.86):                 # moving
+        scene.camera.zoom = zoom
+        calls.clear()
+        scene._zoomed_arrows()
+        assert "fast" in calls and "smooth" not in calls
+    calls.clear()
+    scene._zoomed_arrows()                            # same zoom again: settled
+    assert "smooth" in calls
+    calls.clear()
+    scene._zoomed_arrows()                            # stays settled: nothing to redo
+    assert calls == []
