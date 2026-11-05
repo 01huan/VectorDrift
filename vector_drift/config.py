@@ -100,6 +100,7 @@ CLEAR_REWARD = 5                    # coins for reaching the target, once per fi
 MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)
 WIN_DELAY = 0.8                     # pause on target before Win screen (s)
+CHECKPOINT_PAN_DURATION = 1.2       # camera pan to the next section (s, ease-in-out)
 
 # --- Level select ------------------------------------------------------------
 # Level numbers shown even before they exist (as "Coming soon" cards).  The
