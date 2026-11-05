@@ -72,6 +72,7 @@ PAD = 20
 CX = 160                     # panel center line
 CONTENT_W = 320 - 2 * PAD
 LOGO_Y = 36
+LOGO_W = 220                 # logo width; its height follows the picture (~69)
 LEVEL_ROW_Y = 82
 SHIP_LABEL_Y = 124
 SHIP_BOX = R(CX - 55, 140, 110, 110)
@@ -1578,7 +1579,8 @@ class GameScene(Scene):
         pygame.draw.line(surface, config.PANEL_EDGE, panel.topright, panel.bottomright, max(2, px(2)))
         cx = px(CX)
 
-        draw_text(surface, "VECTOR DRIFT", (cx, px(LOGO_Y)), 26, config.TEXT, kind="bold", anchor="center")
+        if not sprites.draw_logo(surface, (cx, px(LOGO_Y)), px(LOGO_W)):
+            draw_text(surface, "VECTOR DRIFT", (cx, px(LOGO_Y)), 26, config.TEXT, kind="bold", anchor="center")
 
         # Level row: "LV1" + level-select button
         draw_text(surface, f"LV{self.level.id}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,

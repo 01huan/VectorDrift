@@ -89,6 +89,10 @@ for _n in range(1, 11):
     register(AssetSpec(f"white_hole.white_hole{_n:02d}", Path(f"white_holes/white_hole{_n:02d}.png"), display_w=48, display_h=48))
 # UI
 register(AssetSpec("ui.start_marker", Path("ui/start_marker.png"), display_w=36, display_h=36))
+# Game logo (main menu title, level panel header). Drawn at the width each
+# screen asks for; the height follows the picture (sprites.draw_logo).
+LOGO = "ui.logo"
+register(AssetSpec(LOGO, Path("ui/logo.png"), display_w=620))
 # Coins: coin_1 marks the player's balance; coin_2 (the map coin's picture)
 # marks prices and coins earned.
 COIN_BALANCE = "ui.coin_1"
@@ -136,6 +140,12 @@ def _load_source(key: str) -> pygame.Surface | None:
                 log.warning("failed to load image %s: %r", path, exc)
     _sources[key] = surf
     return surf
+
+
+def source_size(key: str) -> tuple[int, int] | None:
+    """The picture's own size in pixels (for keeping its aspect), or ``None``."""
+    source = _load_source(key)
+    return source.get_size() if source is not None else None
 
 
 def load_image(key: str, size_px: tuple[int, int] | None = None) -> pygame.Surface | None:

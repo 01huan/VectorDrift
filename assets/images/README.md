@@ -19,6 +19,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `ui.coin_1` | `ui/coin_1.png` | Coin icon next to the player's balance, 256 x 256 |
 | `ui.coin_2` | `pickups/money.png` | Coin icon next to prices and coins earned (same picture as the map coin) |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
+| `ui.logo` | `ui/logo.png` | Game logo on the main menu and the level panel, 1200 x 378, 256-colour palette (about 100 KB); the height follows the picture's aspect |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
 
 Round props (the planet and the rocks) fill about 98% of their canvas: the

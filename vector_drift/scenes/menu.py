@@ -12,6 +12,10 @@ from ..physics import ForceField
 from ..ui import Button, draw_text
 from .base import Scene
 
+TAGLINE = "Shape the field, guide the ship"
+LOGO_Y, LOGO_W = 165, 620           # logo center height and width (logical px)
+TAGLINE_Y = 285
+
 
 class MenuScene(Scene):
     music = "menu"
@@ -90,12 +94,12 @@ class MenuScene(Scene):
         heading = math.atan2(b * math.cos(th), -a * math.sin(th))
         sprites.draw_ship(surface, pos, heading, px(64), SHIPS["ship01"])
 
-        draw_text(surface, "VECTOR DRIFT", (config.WINDOW_W // 2 + px(4), px(195)), 76, config.OUTLINE,
-                  kind="bold", anchor="center")
-        draw_text(surface, "VECTOR DRIFT", (config.WINDOW_W // 2, px(190)), 76, config.TEXT,
-                  kind="bold", anchor="center")
-        draw_text(surface, "Design a force field. Let physics fly the ship.",
-                  (config.WINDOW_W // 2, px(262)), 22, config.ACCENT, anchor="center")
+        if not sprites.draw_logo(surface, (config.WINDOW_W // 2, px(LOGO_Y)), px(LOGO_W)):
+            draw_text(surface, "VECTOR DRIFT", (config.WINDOW_W // 2 + px(4), px(195)), 76, config.OUTLINE,
+                      kind="bold", anchor="center")
+            draw_text(surface, "VECTOR DRIFT", (config.WINDOW_W // 2, px(190)), 76, config.TEXT,
+                      kind="bold", anchor="center")
+        draw_text(surface, TAGLINE, (config.WINDOW_W // 2, px(TAGLINE_Y)), 22, config.ACCENT, anchor="center")
         self.start_button.draw(surface)
         self.quit_button.draw(surface)
         account = self.manager.account

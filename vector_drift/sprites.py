@@ -12,7 +12,7 @@ import random
 import pygame
 
 from . import config
-from .image_assets import ROCK_KEYS, load_image
+from .image_assets import LOGO, ROCK_KEYS, load_image, source_size
 from .render import draw_smooth_arrow, soft_glow
 
 log = logging.getLogger(__name__)
@@ -458,6 +458,28 @@ def draw_target(surface, center, radius, t, flash=0.0, planet=None):
             surface.blit(ring, ring.get_rect(center=center))
         except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
             return
+
+
+# --- logo -----------------------------------------------------------------------------
+def draw_logo(surface, center, width):
+    """The game logo, ``width`` px wide (height keeps the picture's aspect).
+
+    Returns False when ui/logo.png is missing or cannot be drawn, so the
+    caller can fall back to the "VECTOR DRIFT" text.
+    """
+    size = source_size(LOGO)
+    if size is None:
+        return False
+    w = max(1, round(width))
+    h = max(1, round(w * size[1] / size[0]))
+    img = load_image(LOGO, size_px=(w, h))
+    if img is None:
+        return False
+    try:
+        surface.blit(img, img.get_rect(center=(round(center[0]), round(center[1]))))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return False
+    return True
 
 
 # --- checkpoint (multi-section levels) ---------------------------------------------
