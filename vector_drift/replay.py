@@ -206,6 +206,9 @@ class ReplayPlayer:
         self.index = 0
         self.paused = False
         self.playing = True
+        self.speed = 1.0
+        self.MIN_SPEED = 0.1
+        self.MAX_SPEED = 2.0
 
     def pause(self):
         self.paused = True
@@ -262,6 +265,15 @@ class ReplayPlayer:
 
     def update(self, dt):
         return None
+
+    def set_speed(self, speed):
+        self.speed = max(self.MIN_SPEED, min(self.MAX_SPEED, speed))
+
+    def increase_speed(self):
+        self.set_speed(min(self.MAX_SPEED, self.speed + 0.1))
+
+    def decrease_speed(self):
+        self.set_speed(max(self.MIN_SPEED, self.speed - 0.1))
 
 
 

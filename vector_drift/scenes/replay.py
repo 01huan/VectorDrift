@@ -55,6 +55,8 @@ class ReplayScene(Scene):
         self.next_button = Button((start_x + button_w + gap_x, start_y, button_w, button_h), "Next", style="plain", font_size=16)
         self.play_button = Button((start_x, start_y + button_h + gap_y, button_w, button_h), "Play", style="primary", font_size=16)
         self.pause_button = Button((start_x + button_w + gap_x, start_y + button_h + gap_y, button_w, button_h), "Pause", style="plain", font_size=16)
+        self.speed_btn_decrease = Button((start_x, start_y - button_h - gap_y, button_w, button_h), "slow down", style="plain", font_size=16)
+        self.speed_btn_increase = Button((start_x + button_w + gap_x, start_y - button_h - gap_y, button_w, button_h), "speed up", style="plain", font_size=16)
 
         self._load(self.index)
 
@@ -306,6 +308,13 @@ class ReplayScene(Scene):
             self.audio.play("click")
             self.player.pause()
             self.paused = True
+        if self.speed_btn_decrease.handle_event(event) == "click":
+            self.audio.play("click")
+            self.player.decrease_speed()
+        if self.speed_btn_increase.handle_event(event) == "click":
+            self.audio.play("click")
+            self.player.increase_speed()
+            self.paused = True
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 from .menu import MenuScene
@@ -332,10 +341,10 @@ class ReplayScene(Scene):
                     self.paused = True
 
     def update(self, dt):
-        self._t += dt
+        self._t += dt * self.player.speed
         if self.paused or not self.records:
             return
-        self._acc += dt
+        self._acc += dt * self.player.speed
         frames = self.player.record.frames if self.player.record else []
         while self._acc >= 0.05 and self.player.index < len(frames) - 1:
             self._acc -= 0.05
@@ -456,6 +465,7 @@ class ReplayScene(Scene):
             ("Level", str(rec.get("level_id"))),
             ("Ship", str(rec.get("ship_id"))),
             ("Outcome", str(rec.get("outcome"))),
+            ("Speed", f"{self.player.speed:.1f}x"),
         ]
         y = px(70)
         for label, value in info:
@@ -486,4 +496,6 @@ class ReplayScene(Scene):
         self.next_button.draw(surface)
         self.play_button.draw(surface)
         self.pause_button.draw(surface)
+        self.speed_btn_decrease.draw(surface)
+        self.speed_btn_increase.draw(surface)
 
