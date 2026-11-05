@@ -66,3 +66,23 @@ answers = [
   { label = "Flat ellipse, under the rocks", fx = "-2y", fy = "x + 6.7" },
   { label = "Flat ellipse, over the rocks", fx = "2y", fy = "-x - 6.7" },
 ]
+
+[level.9.section.1]
+steps = [
+  "The checkpoint is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
+  "Push only to the right: make Fx positive and keep Fy = 0. A constant force gives constant acceleration (F = ma).",
+]
+answer_note = "Any positive Fx works, as long as it is not too small to arrive in time."
+answers = [
+  { fx = "5", fy = "0" },
+]
+
+[level.9.section.2]
+steps = [
+  "The planet is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
+  "Push only to the right: make Fx positive and keep Fy = 0. A constant force gives constant acceleration (F = ma).",
+]
+answer_note = "Any positive Fx works, as long as it is not too small to arrive in time."
+answers = [
+  { fx = "5", fy = "0" },
+]

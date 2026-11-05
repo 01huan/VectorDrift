@@ -80,7 +80,8 @@ use the coin-pair picture; a price you can't afford yet is shown in red.
   your saved progress. On a random level it pays once per map: Retry on the
   same map pays nothing, a new map pays again.
 * **Hint answers (fixed levels):** opening Hint and reading every step is free.
-  The answer page is free on levels 1 and 2 and costs 10 coins from level 3 on.
+  The answer page is free on levels 1 and 2 and on level 9 (the first
+  checkpoint level), and costs 10 coins on the other fixed levels.
   You pay when you confirm, once per level per game launch.
 * **AI Solver (random levels):** opening it and solving in the background are
   free. Fx / Fy stay hidden until you press **Reveal** (10 coins). One payment

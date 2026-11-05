@@ -382,7 +382,7 @@ def _texts_drawn(scene, monkeypatch):
 
 
 def test_answer_settings_live_in_config():
-    assert config.FREE_ANSWER_LEVELS == (1, 2)
+    assert config.FREE_ANSWER_LEVELS == (1, 2, 9)
     assert config.HINT_ANSWER_COST == 10
 
 

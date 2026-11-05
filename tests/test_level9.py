@@ -181,3 +181,32 @@ def test_the_overlap_check_follows_diagonal_pans():
         ),
     )
     assert overlap_problems(level) == ["level 98 section 2: obstacle at (-8.0, -2.0)"]
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_level_nine_answer_is_free_after_the_usual_question():
+    from types import SimpleNamespace
+
+    import pygame
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    assert 9 in config.FREE_ANSWER_LEVELS
+    audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
+                            stop_loop=lambda *a, **k: None)
+    manager = SceneManager(audio)
+    manager.session.level_id = 9
+    scene = GameScene(manager)
+    manager.switch(scene)
+    scene.dialogue = None
+    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    scene._open_hint()
+    popup = scene.hint_popup
+    while popup.page < popup.answer_page - 1:
+        popup.page += 1
+
+    scene._request_hint_answer()
+    assert popup.confirming and popup.confirm_price is None     # free: asked once, no price
+    scene._show_hint_answer(0)
+    assert popup.on_answer_page and int(manager.session.money) == 0

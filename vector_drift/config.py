@@ -92,7 +92,7 @@ AI_SOLVER_COST = 10
 HINT_COST = 10
 
 MONEY_COST_PER_USE = 10
-FREE_ANSWER_LEVELS = (1, 2)         # fixed levels whose Hint answer page is free
+FREE_ANSWER_LEVELS = (1, 2, 9)      # fixed levels whose Hint answer page is free
 HINT_ANSWER_COST = 10               # coins for the Hint answer page on other fixed levels
 CLEAR_REWARD = 5                    # coins for reaching the target, once per fixed level / random map
 
