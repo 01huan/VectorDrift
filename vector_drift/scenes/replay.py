@@ -361,7 +361,6 @@ class ReplayScene(Scene):
         if self.speed_btn_increase.handle_event(event) == "click":
             self.audio.play("click")
             self.player.increase_speed()
-            self.paused = True
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 from .menu import MenuScene
