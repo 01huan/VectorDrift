@@ -4,8 +4,13 @@ Dynamic levels (e.g. 7, 8) are NOT hard-coded here: their tunables live in
 level_presets.py and their layouts are generated fresh by random_level.py.
 get_level() routes any id in level_presets.dynamic_ids() to the generator,
 so gameplay always uses get_level() instead of reading LEVELS directly.
-To add Level 9: register_preset(RandomPreset(level_id=9, ...)) -- no edits
-to this file, config.py, or scenes are needed.
+To add another random level: register_preset(RandomPreset(level_id=N, ...))
+with an id no fixed level uses (level 9 is fixed, see LEVELS) -- no edits to
+this file, config.py, or scenes are needed.
+
+Multi-section levels (level 9 on) are fixed levels made of SectionSpecs:
+reaching a section's target (a checkpoint) pans the camera to the next
+section; only the last target is the planet. See multi_section_level.
 """
 
 from dataclasses import dataclass, replace
@@ -334,7 +339,19 @@ LEVELS = [
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
         ),
     ),
-
+    # Checkpoint intro: two level-1 screens side by side. In world terms the
+    # ship goes x = -7 -> 7 (checkpoint) -> 21 (planet); the pan is (14, 0) and
+    # the screens share x in [4, 10] of section 1 (= [-10, -4] of section 2),
+    # which must stay empty apart from the checkpoint (tests/test_level9.py).
+    multi_section_level(
+        id=9,
+        name="New Horizon",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(start=(-7.0, 0.0), target_center=(7.0, 0.0), target_radius=1.0),
+            SectionSpec(start=(-7.0, 0.0), target_center=(7.0, 0.0), target_radius=1.0),
+        ),
+    ),
 ]
 
 
