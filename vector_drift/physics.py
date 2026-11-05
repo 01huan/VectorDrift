@@ -311,6 +311,9 @@ class Flight:
         self.shield_remaining = 0.0  # seconds of shield effect remaining (ship ignores bumpers)
         self.hole_teleported = False  # True if this step's hole teleport moved the ship
         self.teleports = 0            # black-hole passes so far (the scene plays "warp" per pass)
+        # Indices into trail where a new stroke starts (the ship came out of a
+        # white hole): the trail is not joined across a teleport.
+        self.trail_breaks = []
 
     @property
     def time(self):
@@ -479,6 +482,10 @@ class Flight:
         for black, white, radius in (self.holes or []):
             try:
                 if segment_hits_circle(p0, p1, black, radius + self.hull_radius):
+                    # The stroke ends where the ship went in; a new one starts
+                    # at the white hole (drawing only, the motion is unchanged).
+                    self.trail.append((p1[0], p1[1]))
+                    self.trail_breaks.append(len(self.trail))
                     self.x, self.y = white[0], white[1]
                     self.trail.append((self.x, self.y))
                     self.hole_teleported = True

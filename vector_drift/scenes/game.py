@@ -501,6 +501,7 @@ class GameScene(Scene):
         self._trail_count = 0
         self._bounces_heard = 0
         self._teleports_heard = 0
+        self._replay_teleports = 0
         self.state = FLIGHT
         self.banner = None
         self._refresh_buttons()
@@ -659,23 +660,26 @@ class GameScene(Scene):
         if self.flight is None:
             return
         pts = self.flight.trail
-        if len(pts) <= self._trail_count:
+        start, end = self._trail_count, len(pts)
+        if end <= start:
             return
-        if getattr(self.flight, "hole_teleported", False):
-            self.trail.last = None
-            self.flight.hole_teleported = False
+        # A teleport starts a new stroke: lift the pen at each break so the
+        # trail is not joined from the black hole to the white hole.
+        breaks = [i for i in getattr(self.flight, "trail_breaks", ()) if start <= i < end]
         vp = self.viewport
-        try:
-            new = [(vp.cx - vp.left + x * vp.scale, vp.cy - vp.top - y * vp.scale)
-                   for x, y in pts[self._trail_count:]]
-        except (TypeError, ValueError, OverflowError):
-            self._trail_count = len(pts)
-            return
-        try:
-            self.trail.extend(new)
-        except _RENDER_ERRORS as exc:
-            log.warning("trail extend contained: %r", exc)
-        self._trail_count = len(pts)
+        bounds = sorted({start, *breaks, end})
+        for lo, hi in zip(bounds, bounds[1:]):
+            if lo in breaks:
+                self.trail.last = None
+            try:
+                new = [(vp.cx - vp.left + x * vp.scale, vp.cy - vp.top - y * vp.scale)
+                       for x, y in pts[lo:hi]]
+                self.trail.extend(new)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            except _RENDER_ERRORS as exc:
+                log.warning("trail extend contained: %r", exc)
+        self._trail_count = end
 
     def _play_flight_sounds(self):
         """Bounce off a rock / pass through a black hole since the last frame."""
@@ -873,12 +877,17 @@ class GameScene(Scene):
                 log.exception("unexpected pickup-sync failure")
             try:
                 x, y, vx, vy, fx, fy = self._ship_state()
-                self._replay_frames.append({
+                frame = {
                     "t": float(getattr(self.flight, "time", 0.0)),
                     "x": float(x), "y": float(y),
                     "vx": float(vx), "vy": float(vy),
                     "fx": float(fx), "fy": float(fy),
-                })
+                }
+                teleports = getattr(self.flight, "teleports", 0)
+                if teleports > self._replay_teleports:
+                    frame["warp"] = True        # the replay trail breaks here
+                    self._replay_teleports = teleports
+                self._replay_frames.append(frame)
             except Exception:
                 pass
             if outcome is not Outcome.RUNNING:

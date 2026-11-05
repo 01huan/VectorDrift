@@ -23,11 +23,17 @@ class ReplayFrame:
     vy: float = 0.0
     fx: float = 0.0
     fy: float = 0.0
+    # The ship came out of a white hole since the previous frame: the replay
+    # starts a new trail stroke here instead of joining the two holes.
+    warp: bool = False
 
     def to_dict(self):
-        return {"t": float(self.t), "x": float(self.x), "y": float(self.y),
+        data = {"t": float(self.t), "x": float(self.x), "y": float(self.y),
                 "vx": float(self.vx), "vy": float(self.vy),
                 "fx": float(self.fx), "fy": float(self.fy)}
+        if self.warp:
+            data["warp"] = True         # only when set, so ordinary frames stay as they were
+        return data
 
     @staticmethod
     def from_dict(data):
@@ -39,8 +45,9 @@ class ReplayFrame:
                 return v if math.isfinite(v) else default
             except (TypeError, ValueError, AttributeError):
                 return default
+        warp = isinstance(data, dict) and data.get("warp") is True
         return ReplayFrame(t=_f("t"), x=_f("x"), y=_f("y"),
-                          vx=_f("vx"), vy=_f("vy"), fx=_f("fx"), fy=_f("fy"))
+                          vx=_f("vx"), vy=_f("vy"), fx=_f("fx"), fy=_f("fy"), warp=warp)
 
 
 def section_index_from(value):
