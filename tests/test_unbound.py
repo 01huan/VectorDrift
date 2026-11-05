@@ -1,4 +1,4 @@
-"""Unbound: the life that takes it may fly past the map edge, up to twice the world."""
+"""Unbound: the life that takes it can no longer go out of bounds, however far it flies."""
 
 import math
 
@@ -8,11 +8,9 @@ from vector_drift import config
 from vector_drift.data import SHIPS, LevelSpec, PickupSpec
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import Flight, ForceField, Outcome
-from vector_drift.pickups import EFFECTS, PickupState, UNBOUND_OUTER_SCALE, unbound_outer_bounds
+from vector_drift.pickups import EFFECTS, PickupState
 
 SHIP = SHIPS["ship01"]
-OUTER_W = 2 * config.WORLD_HALF_W           # 20 m
-OUTER_H = 2 * config.WORLD_HALF_H           # 15 m
 
 # Picked up right after launch: the ship starts at (-7, 0) and heads up.
 UNBOUND = PickupSpec(center=(-7.0, 0.8), radius=0.45, kind="unbound")
@@ -45,8 +43,6 @@ def highest(flight):
 
 def test_unbound_is_a_registered_pickup():
     assert "unbound" in EFFECTS
-    assert UNBOUND_OUTER_SCALE == 2.0
-    assert unbound_outer_bounds((config.WORLD_HALF_W, config.WORLD_HALF_H)) == (OUTER_W, OUTER_H)
 
 
 def test_without_unbound_leaving_the_map_is_out_of_bounds():
@@ -63,27 +59,21 @@ def test_unbound_ship_leaves_the_map_comes_back_and_reaches():
     assert highest(flight) > config.WORLD_HALF_H + 2.0
 
 
-def test_unbound_ship_past_the_outer_edge_is_out_of_bounds():
-    flight = fly("0", "10", level(UNBOUND))
+def test_unbound_ship_never_goes_out_of_bounds():
+    flight = fly("0", "10", level(UNBOUND))         # 10 s straight up: about 500 m
     assert flight.unbound
-    assert flight.outcome is Outcome.OUT_OF_BOUNDS
-    assert flight.y > OUTER_H
-    # It did fly on past the map edge first: one step is far shorter than 7.5 m.
-    assert flight.y < OUTER_H + 1.0
+    assert flight.outcome is Outcome.TIMEOUT
+    assert flight.y > 400.0
 
 
-@pytest.mark.parametrize("fx, fy, axis, edge", [
-    ("-10", "0", 0, -OUTER_W),
-    ("0", "-10", 1, -OUTER_H),
-])
-def test_outer_edge_holds_in_every_direction(fx, fy, axis, edge):
+@pytest.mark.parametrize("fx, fy", [("-10", "0"), ("0", "-10"), ("40", "40"), ("-300", "200")])
+def test_no_edge_in_any_direction(fx, fy):
     lv = LevelSpec(id=1, name="test", start=(0.0, 0.0), target_center=(9.0, 6.0),
                    target_radius=0.5, ship_id="ship01",
                    pickups=(PickupSpec(center=(0.0, 0.0), radius=0.45, kind="unbound"),))
     flight = fly(fx, fy, lv)
-    assert flight.outcome is Outcome.OUT_OF_BOUNDS
-    pos = (flight.x, flight.y)
-    assert pos[axis] < edge
+    assert flight.outcome is Outcome.TIMEOUT
+    assert abs(flight.x) > config.WORLD_HALF_W or abs(flight.y) > config.WORLD_HALF_H
 
 
 def test_a_new_flight_starts_without_unbound():
@@ -111,16 +101,25 @@ def test_shield_is_not_used_up_by_the_map_edge_while_unbound():
     assert flight.outcome is Outcome.REACHED
 
 
-def test_fling_while_unbound_goes_to_the_outer_edge():
-    # tan(x) has a pole at x = -3pi/2 on the way right: the ship is flung up.
+def test_infinite_force_while_unbound_is_diverged_not_out_of_bounds():
+    # tan(x) has a pole at x = -3pi/2 on the way right.
     lv = level(PickupSpec(center=(-6.9, 0.0), radius=0.45, kind="unbound"))
     flight = fly("-x", "tan(x)", lv)
     assert flight.unbound
-    assert flight.outcome is Outcome.OUT_OF_BOUNDS
-    pole, edge = flight.trail[-2], flight.trail[-1]
-    assert math.isclose(pole[0], -1.5 * math.pi, abs_tol=1e-6)
-    assert math.isclose(edge[1], OUTER_H)
-    assert math.isclose(flight.y, OUTER_H)
+    assert flight.outcome is Outcome.DIVERGED
+    # The ship stops at the pole: it is not flung anywhere.
+    assert math.isclose(flight.x, -1.5 * math.pi, abs_tol=1e-6)
+    assert (flight.x, flight.y) == flight.trail[-1]
+    assert abs(flight.y) < config.WORLD_HALF_H
+
+
+def test_target_before_the_pole_still_counts_while_unbound():
+    # Target sits on the way to the pole at x = -3pi/2 ~ -4.71.
+    lv = LevelSpec(id=1, name="test", start=(-7.0, 0.0), target_center=(-5.6, 0.0),
+                   target_radius=0.3, ship_id="ship01",
+                   pickups=(PickupSpec(center=(-6.9, 0.0), radius=0.45, kind="unbound"),))
+    flight = fly("-x", "tan(x)", lv)
+    assert flight.outcome is Outcome.REACHED
 
 
 def test_fling_without_unbound_still_stops_at_the_map_edge():

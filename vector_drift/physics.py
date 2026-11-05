@@ -298,9 +298,7 @@ class Flight:
         self.portals = self.holes
         self.wormholes = self.holes
         self.bounds = bounds
-        # Unbound pickup: this flight only fails past the outer edge instead.
-        from .pickups import unbound_outer_bounds
-        self.outer_bounds = unbound_outer_bounds(bounds)
+        # Unbound pickup: from then on this flight cannot go out of bounds.
         self.unbound = False
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
@@ -334,11 +332,6 @@ class Flight:
         except (ArithmeticError, ValueError, TypeError, OverflowError,
                 RecursionError, MemoryError):
             return (math.nan, math.nan)
-
-    @property
-    def active_bounds(self):
-        """The edge past which this flight is OUT_OF_BOUNDS right now."""
-        return self.outer_bounds if self.unbound else self.bounds
 
     @property
     def running(self):
@@ -410,7 +403,7 @@ class Flight:
             p0, reach_end, self.target, self.hit_radius
         ):
             self.outcome = Outcome.REACHED
-        elif abs(self.x) > self.active_bounds[0] or abs(self.y) > self.active_bounds[1]:
+        elif not self.unbound and (abs(self.x) > self.bounds[0] or abs(self.y) > self.bounds[1]):
             self.outcome = Outcome.OUT_OF_BOUNDS
         elif self.steps >= self.max_steps:
             self.outcome = Outcome.TIMEOUT
@@ -524,8 +517,8 @@ class Flight:
         duration (a new one overwrites what is left): the first bumper it
         touches is passed and uses the protection up (_bounce_along_path).
         shockwave needs nothing here: its effect already removed the obstacles
-        from this flight. unbound lets the rest of this flight past the map
-        edge (bounds), up to outer_bounds; the shield has no part in the edge,
+        from this flight. unbound means the rest of this flight is never out
+        of bounds, however far it goes; the shield has no part in the edge,
         so it stays for the bumpers.
         """
         from .pickups import EXTRATIME_DURATION, SHIELD_DURATION, extratime_bonus_steps
@@ -574,7 +567,8 @@ class Flight:
 
         Pickups and the target on the way to the pole still count; past it
         the ship leaves along `direction` and the flight is OUT_OF_BOUNDS.
-        An unbound ship is flung to the outer edge instead of the map edge.
+        An unbound ship cannot go out of bounds: it stops at the pole and the
+        flight is DIVERGED instead (infinite force, no way to fly on).
         """
         pole = (p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t)
         self._take_pickups(p0, pole)
@@ -583,9 +577,13 @@ class Flight:
             self.x, self.y = pole
             self.outcome = Outcome.REACHED
             return
+        if self.unbound:
+            self.x, self.y = pole
+            self.outcome = Outcome.DIVERGED
+            return
         reach = max(0.0, min(
             (bound - c * math.copysign(1.0, d)) / abs(d)
-            for c, d, bound in zip(pole, direction, self.active_bounds) if d
+            for c, d, bound in zip(pole, direction, self.bounds) if d
         ))
         dx, dy = direction
         self.x, self.y = pole[0] + dx * reach, pole[1] + dy * reach

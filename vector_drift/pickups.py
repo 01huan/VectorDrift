@@ -31,14 +31,6 @@ SHOCKWAVE_BLAST_RADIUS = 3.0      # explosion radius in meters (world coords)
 # accurate (it never rewinds elapsed steps).
 EXTRATIME_DURATION = 3.0
 SHIELD_DURATION = 3.0  # Seconds granted per active shield pickup
-# Unbound: the flight that takes it no longer fails at the map edge, only past
-# an outer edge this many times the world size (which also caps the camera zoom).
-UNBOUND_OUTER_SCALE = 2.0
-
-
-def unbound_outer_bounds(bounds, scale=UNBOUND_OUTER_SCALE):
-    """(half width, half height) of the outer edge an unbound ship may reach."""
-    return (float(bounds[0]) * scale, float(bounds[1]) * scale)
 
 
 def extratime_bonus_steps(dt, duration=EXTRATIME_DURATION):
@@ -197,7 +189,7 @@ def money_effect(pickup, ctx):
 
 @register_effect("unbound")
 def unbound_effect(pickup, ctx):
-    """Unbound: report that this flight may leave the map (up to the outer edge).
+    """Unbound: report that this flight can no longer go out of bounds.
 
     Pure: returns an event dict only. ``Flight._apply_pickup_events`` sets
     ``flight.unbound`` for the rest of that flight (one life). GameScene

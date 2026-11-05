@@ -71,9 +71,9 @@ def pickup(scene, center):
 
 
 def test_unbound_comes_back_after_a_lost_life(scene):
-    flight = fly(scene, "0", "10")              # up through every pickup, out past the outer edge
+    flight = fly(scene, "0", "10")              # up through every pickup, far off the map
     assert flight.unbound
-    assert flight.outcome is Outcome.OUT_OF_BOUNDS
+    assert flight.outcome is Outcome.TIMEOUT
     assert scene.state == SETUP and scene.lives == LEVEL.lives - 1
     assert not pickup(scene, UNBOUND).consumed
 

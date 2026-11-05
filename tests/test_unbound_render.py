@@ -223,14 +223,20 @@ def test_the_ship_never_leaves_the_screen_while_zooming_out(scene):
         previous = cam.zoom
 
 
-def test_camera_stops_at_the_outer_edge_and_resets_for_the_next_life(scene):
+def test_camera_follows_however_far_and_resets_for_the_next_life(scene):
     surface = _surface()
-    _launch(scene, "0", "10")
-    _run_until(scene, lambda: scene.state != FLIGHT, surface)
+    _launch(scene, "0", "10")                       # about 500 m up in 10 s
+    lowest = 1.0
+    while scene.state == FLIGHT:
+        scene.update(1 / 60)
+        scene.draw(surface)
+        if scene.flight is not None:
+            f, cam = scene.flight, scene.camera
+            assert abs(f.y) <= cam.half_h + 1e-6       # never off screen, never out of bounds
+            lowest = min(lowest, cam.zoom)
     assert scene.state == SETUP
-    assert scene.camera.zoom >= 0.5
+    assert lowest < 0.02
     _run_until(scene, lambda: scene.camera.zoom == 1.0, surface, frames=120)
-
 
 def test_zoomed_drawing_scales_props_with_the_camera(scene, monkeypatch):
     drawn = []
