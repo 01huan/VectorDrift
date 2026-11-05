@@ -840,7 +840,51 @@ def _paint_money(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "money", _render_money)
 
 
-PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life, "money": _paint_money}
+def _render_unbound(radius):
+    """Stand-in icon until pickups/unbound.png exists: a purple ball with a
+    square broken open at each side and an arrow pointing out of every gap."""
+    d = 2 * radius + 10
+    D = d * SS
+    c, r = D / 2, radius * SS
+    surf = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (96, 34, 150), (c, c), r)
+    cap = pygame.Surface((D, D), pygame.SRCALPHA)
+    pygame.draw.circle(cap, (160, 92, 230), (c, c), r)
+    pygame.draw.circle(cap, (0, 0, 0, 0), (c + 0.22 * r, c + 0.30 * r), r * 1.02)
+    surf.blit(cap, (0, 0))
+    shine = pygame.Rect(0, 0, 0.36 * r, 0.22 * r)
+    shine.center = (c - 0.30 * r, c - 0.38 * r)
+    pygame.draw.ellipse(surf, (240, 220, 255), shine)
+    white = (255, 255, 255)
+    thick = max(2, round(0.09 * r))
+    half, gap = 0.34 * r, 0.14 * r
+    # Square corners only: each side is broken open in the middle.
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            corner = (c + sx * half, c + sy * half)
+            pygame.draw.line(surf, white, corner, (c + sx * gap, c + sy * half), thick)
+            pygame.draw.line(surf, white, corner, (c + sx * half, c + sy * gap), thick)
+    # An arrow out through every gap.
+    head = 0.16 * r
+    for ux, uy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        tip = (c + ux * 0.72 * r, c + uy * 0.72 * r)
+        base = (c + ux * 0.18 * r, c + uy * 0.18 * r)
+        pygame.draw.line(surf, white, base, tip, thick)
+        nx, ny = -uy, ux
+        pygame.draw.polygon(surf, white, [
+            (tip[0] + ux * head * 0.4, tip[1] + uy * head * 0.4),
+            (tip[0] - ux * head + nx * head, tip[1] - uy * head + ny * head),
+            (tip[0] - ux * head - nx * head, tip[1] - uy * head - ny * head)])
+    pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
+    return pygame.transform.smoothscale(surf, (d, d))
+
+
+def _paint_unbound(surface, center, radius, t):
+    _paint_cached_prop(surface, center, radius, t, "unbound", _render_unbound)
+
+
+PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life, "money": _paint_money,
+                    "unbound": _paint_unbound}
 """kind -> painter(surface, center_px, radius_px, t). New pickups add one
 entry here; draw_pickup() dispatches, so game.py never branches."""
 

@@ -16,6 +16,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `pickup.extratime` | `pickups/extratime.png` | Extratime pickup icon (stopwatch), 256 x 256 |
 | `pickup.shield` | `pickups/shield.png` | Shield pickup icon, 256 x 256 |
 | `pickup.money` | `pickups/money.png` | Coin pickup on the map, 256 x 256 (coin_2) |
+| `pickup.unbound` | `pickups/unbound.png` | Unbound pickup icon, 256 x 256 (not made yet: the game draws a purple stand-in) |
 | `ui.coin_1` | `ui/coin_1.png` | Coin icon next to the player's balance, 256 x 256 |
 | `ui.coin_2` | `pickups/money.png` | Coin icon next to prices and coins earned (same picture as the map coin) |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
