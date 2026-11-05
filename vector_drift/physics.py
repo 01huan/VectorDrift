@@ -341,8 +341,10 @@ class Flight:
         if not self.running:
             return self.outcome
 
+        self._step_force = None
         try:
             fx, fy = self.field.at(self.x, self.y)
+            self._step_force = (fx, fy)
 
             # Semi-implicit Euler: update velocity before position.
             vx = self.vx + fx / self.mass * self.dt
@@ -643,7 +645,7 @@ class Flight:
         self.x, self.y = end
         self.trail.append((self.x, self.y))
 
-    def advance(self, frame_dt):
+    def advance(self, frame_dt, on_step=None):
         """Run fixed simulation steps fitting into elapsed frame time."""
         if not self.running:
             return self.outcome
@@ -656,6 +658,8 @@ class Flight:
         while self._accumulator >= self.dt and self.running:
             self._accumulator -= self.dt
             self.step()
+            if on_step is not None:
+                on_step(self)
 
         return self.outcome
 

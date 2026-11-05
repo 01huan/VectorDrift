@@ -1,6 +1,7 @@
 ﻿"""Replay viewer: fully re-renders a stored launch (ship, obstacles, pickups, field, trail)."""
 
 import math
+from bisect import bisect_right
 
 import pygame
 
@@ -60,7 +61,8 @@ class ReplayScene(Scene):
         self.index = 0 if self.records else -1
         self.player = ReplayPlayer(self.records[0] if self.records else None)
         self.paused = True
-        self._acc = 0.0
+        self._frame_times = []
+        self._playback_time = 0.0
         self._t = 0.0
 
         self._level = None
@@ -106,10 +108,59 @@ class ReplayScene(Scene):
         rec = self.records[self.index]
         self.player = ReplayPlayer(rec)
         self.player.seek(0)
+        frames = self.player.record.frames if self.player.record else []
+        self._frame_times = self._make_frame_times(frames)
+        self._playback_time = self._frame_times[0] if self._frame_times else 0.0
         self.paused = True
-        self._acc = 0.0
         self._setup_level_from_record(rec)
         self._sync_pickups_to_current()
+
+    @staticmethod
+    def _make_frame_times(frames):
+        times = [float(frame.t) for frame in frames]
+        if all(later > earlier for earlier, later in zip(times, times[1:])):
+            return times
+        start = times[0] if times else 0.0
+        return [start + i / config.FPS for i in range(len(frames))]
+
+    def _seek_index(self, index):
+        frame = self.player.seek(index)
+        if frame is not None and self._frame_times:
+            self._playback_time = self._frame_times[self.player.index]
+        return frame
+
+    def _sync_index_to_time(self):
+        if not self._frame_times:
+            return
+        self._playback_time = max(self._frame_times[0],
+                                  min(self._frame_times[-1], self._playback_time))
+        index = bisect_right(self._frame_times, self._playback_time) - 1
+        self.player.seek(max(0, index))
+
+    def _current_frame(self):
+        frames = self.player.record.frames if self.player.record else []
+        if not frames:
+            return None
+        index = max(0, min(len(frames) - 1, self.player.index))
+        if index >= len(frames) - 1:
+            return frames[index].to_dict()
+
+        first, second = frames[index], frames[index + 1]
+        first_time, second_time = self._frame_times[index:index + 2]
+        if second_time <= first_time:
+            return first.to_dict()
+        fraction = (self._playback_time - first_time) / (second_time - first_time)
+        if second.warp and fraction < 1.0:
+            return first.to_dict()
+        fraction = max(0.0, min(1.0, fraction))
+        frame = {
+            key: float(getattr(first, key)) +
+                 (float(getattr(second, key)) - float(getattr(first, key))) * fraction
+            for key in ("t", "x", "y", "vx", "vy", "fx", "fy")
+        }
+        if second.warp and fraction >= 1.0:
+            frame["warp"] = True
+        return frame
 
     def _clear_level(self):
         self._level = None
@@ -348,9 +399,8 @@ class ReplayScene(Scene):
             if self.records:
                 frames = self.player.record.frames if self.player.record else []
                 if frames and self.player.index >= len(frames) - 1:
-                    self.player.seek(0)
+                    self._seek_index(0)
                 self.paused = False
-                self._acc = 0.0
         if self.pause_button.handle_event(event) == "click":
             self.audio.play("click")
             self.player.pause()
@@ -369,19 +419,20 @@ class ReplayScene(Scene):
                 self.player.pause()
                 self.paused = True
                 self.player.step(-1)
+                self._seek_index(self.player.index)
             elif event.key == pygame.K_RIGHT:
                 self.player.pause()
                 self.paused = True
                 self.player.step(1)
+                self._seek_index(self.player.index)
             elif event.key == pygame.K_SPACE:
                 if not self.records:
                     return
                 if self.paused:
                     frames = self.player.record.frames if self.player.record else []
                     if frames and self.player.index >= len(frames) - 1:
-                        self.player.seek(0)
+                        self._seek_index(0)
                     self.paused = False
-                    self._acc = 0.0
                 else:
                     self.player.pause()
                     self.paused = True
@@ -390,12 +441,9 @@ class ReplayScene(Scene):
         self._t += dt * self.player.speed
         if self.paused or not self.records:
             return
-        self._acc += dt * self.player.speed
-        frames = self.player.record.frames if self.player.record else []
-        while self._acc >= 0.05 and self.player.index < len(frames) - 1:
-            self._acc -= 0.05
-            self.player.step(1)
-        if self.player.index >= len(frames) - 1:
+        self._playback_time += dt * self.player.speed
+        self._sync_index_to_time()
+        if self._frame_times and self._playback_time >= self._frame_times[-1]:
             self.player.pause()
             self.paused = True
 
@@ -497,7 +545,15 @@ class ReplayScene(Scene):
 
         frames = self.player.record.frames if self.player.record else []
         end = max(0, min(self.player.index + 1, len(frames)))
-        for stroke in trail_strokes(frames[:end]):
+        trail = list(frames[:end])
+        cur = self._current_frame() or {}
+        if (cur and self.player.index < len(frames) - 1
+                and self._playback_time > self._frame_times[self.player.index]
+                and not (frames[self.player.index + 1].warp
+                         and cur.get("x") == frames[self.player.index].x
+                         and cur.get("y") == frames[self.player.index].y)):
+            trail.append(cur)
+        for stroke in trail_strokes(trail):
             if len(stroke) < 2:
                 continue
             pts = [self._viewport.to_screen(*self._frame_xy(f)) for f in stroke]
@@ -506,7 +562,6 @@ class ReplayScene(Scene):
             except pygame.error:
                 pass
 
-        cur = self.player.current() or {}
         if cur:
             x, y = cur.get("x", 0.0), cur.get("y", 0.0)
             vx, vy = cur.get("vx", 0.0), cur.get("vy", 0.0)
@@ -571,4 +626,3 @@ class ReplayScene(Scene):
         self.pause_button.draw(surface)
         self.speed_btn_decrease.draw(surface)
         self.speed_btn_increase.draw(surface)
-

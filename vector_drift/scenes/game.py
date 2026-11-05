@@ -547,6 +547,7 @@ class GameScene(Scene):
         self._teleports_heard = 0
         self._replay_teleports = 0
         self.state = FLIGHT
+        self._record_replay_frame(self.flight)
         self.banner = None
         self._refresh_buttons()
         self.audio.play("launch")
@@ -934,7 +935,7 @@ class GameScene(Scene):
 
         if self.state == FLIGHT:
             try:
-                outcome = self.flight.advance(dt)
+                outcome = self.flight.advance(dt, on_step=self._record_replay_frame)
             except _PHYSICS_ERRORS as exc:
                 log.warning("flight advance (%s) -> DIVERGED: %r", type(exc).__name__, exc)
                 outcome = Outcome.DIVERGED
@@ -959,21 +960,6 @@ class GameScene(Scene):
                 log.warning("pickup sync contained: %r", exc)
             except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
                 log.exception("unexpected pickup-sync failure")
-            try:
-                x, y, vx, vy, fx, fy = self._ship_state()
-                frame = {
-                    "t": float(getattr(self.flight, "time", 0.0)),
-                    "x": float(x), "y": float(y),
-                    "vx": float(vx), "vy": float(vy),
-                    "fx": float(fx), "fy": float(fy),
-                }
-                teleports = getattr(self.flight, "teleports", 0)
-                if teleports > self._replay_teleports:
-                    frame["warp"] = True        # the replay trail breaks here
-                    self._replay_teleports = teleports
-                self._replay_frames.append(frame)
-            except Exception:
-                pass
             if outcome is not Outcome.RUNNING:
                 self._safe_end_flight(outcome)
         elif self.state == PANNING:
@@ -1004,6 +990,26 @@ class GameScene(Scene):
                 }
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
+
+    def _record_replay_frame(self, flight=None):
+        try:
+            flight = flight or self.flight
+            x, y, vx, vy = flight.x, flight.y, flight.vx, flight.vy
+            force = getattr(flight, "_step_force", None)
+            fx, fy = force if force is not None else flight.force
+            frame = {
+                "t": float(getattr(flight, "time", 0.0)),
+                "x": float(x), "y": float(y),
+                "vx": float(vx), "vy": float(vy),
+                "fx": float(fx), "fy": float(fy),
+            }
+            teleports = getattr(flight, "teleports", 0)
+            if teleports > self._replay_teleports:
+                frame["warp"] = True
+                self._replay_teleports = teleports
+            self._replay_frames.append(frame)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ draw
     def draw(self, surface):

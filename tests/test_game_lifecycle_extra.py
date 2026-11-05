@@ -95,6 +95,18 @@ def test_game_update_flight_loop():
         scene.draw(surface)
 
 
+def test_replay_records_each_fixed_physics_step():
+    scene, _mgr = _scene(1, fx="0", fy="0")
+    scene._try_launch()
+
+    assert len(scene._replay_frames) == 1
+    scene.update(1 / 60)
+
+    assert len(scene._replay_frames) == 3
+    assert [frame["t"] for frame in scene._replay_frames] == pytest.approx(
+        [0.0, 1 / 120, 2 / 120])
+
+
 def test_game_switch_ship():
     scene, mgr = _scene(1)
     scene._switch_ship(1)

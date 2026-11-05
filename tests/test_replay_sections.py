@@ -112,6 +112,43 @@ def test_a_section_two_record_replays_over_section_two():
     assert scene._target_radius == second.target_radius
 
 
+@pytest.mark.parametrize("speed", [0.1, 1.0, 2.0])
+def test_playback_interpolates_between_saved_frames_at_every_speed(speed):
+    record = _record(1)
+    record["frames"] = [
+        {"t": 0.0, "x": 0.0, "y": 0.0, "vx": 0.0, "vy": 0.0, "fx": 0.0, "fy": 0.0},
+        {"t": 1.0, "x": 10.0, "y": 0.0, "vx": 10.0, "vy": 0.0, "fx": 2.0, "fy": 0.0},
+    ]
+    scene = _replay(record)
+    scene.player.set_speed(speed)
+    scene.paused = False
+
+    scene.update(0.05 / speed)
+
+    frame = scene._current_frame()
+    assert scene.player.index == 0
+    assert frame["t"] == pytest.approx(0.05)
+    assert frame["x"] == pytest.approx(0.5)
+    assert frame["vx"] == pytest.approx(0.5)
+    assert frame["fx"] == pytest.approx(0.1)
+
+
+def test_playback_does_not_interpolate_through_a_wormhole():
+    record = _record(1)
+    record["frames"] = [
+        {"t": 0.0, "x": 0.0, "y": 0.0, "vx": 0.0, "vy": 0.0, "fx": 0.0, "fy": 0.0},
+        {"t": 1.0, "x": 100.0, "y": 0.0, "vx": 0.0, "vy": 0.0, "fx": 0.0, "fy": 0.0,
+         "warp": True},
+    ]
+    scene = _replay(record)
+    scene.paused = False
+
+    scene.update(0.5)
+
+    assert scene._current_frame()["x"] == 0.0
+    assert scene.player.index == 0
+
+
 def test_section_one_aims_at_a_checkpoint(drawn):
     scene = _replay(_record(9, section_index=0))
     scene.draw(_surface())
