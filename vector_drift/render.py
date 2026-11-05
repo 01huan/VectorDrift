@@ -129,6 +129,7 @@ def _star_sprite(radius, sparkle=False):
 
 def soft_glow(radius, color, max_alpha=255, extent=2.0, power=2.2):
     """Smooth radial glow (alpha falls off from the center) reaching radius*extent."""
+    radius = max(float(radius), 0.5)        # zoomed far out a glow can shrink to nothing
     size = max(2, int(2 * radius * extent))
     c = (size - 1) / 2
     yy, xx = np.mgrid[0:size, 0:size]
@@ -178,9 +179,33 @@ def make_space_background(size, seed=7, star_count=150):
 
 # --- grid ---------------------------------------------------------------------
 PLOT_SPACE_SEED, PLOT_SPACE_STARS = 11, 170
-# Minor grid lines (every 0.2 m) are left out once closer than this (logical px),
-# i.e. when the camera zooms far out.
+# Minor grid lines (a fifth of the major step) are left out once closer than
+# this (logical px), i.e. when the camera zooms far out.
 MINOR_GRID_MIN_PX = 7
+# Major grid lines, tick labels and field arrows are at least this far apart
+# (logical px): zoomed far out they step up to 2, 5, 10, ... m (arrows 2, 4, 8 m).
+GRID_MIN_PX = 20
+LABEL_MIN_PX = 56
+ARROW_MIN_PX = 20
+
+
+def grid_step(scale, min_px):
+    """Smallest of 1, 2, 5, 10, 20, 50, ... m that is at least ``min_px`` px at ``scale`` px/m."""
+    step = 1
+    while step * scale < min_px:
+        for k in (2, 2.5, 2):               # 1 -> 2 -> 5 -> 10 -> ...
+            step *= k
+            if step * scale >= min_px:
+                break
+    return int(step)
+
+
+def arrow_spacing(scale):
+    """Field-arrow spacing (m) at ``scale`` px/m: 1 m, doubled while closer than ARROW_MIN_PX."""
+    spacing = ARROW_SPACING_M
+    while spacing * scale < ARROW_MIN_PX * config.UI_SCALE:
+        spacing *= 2
+    return spacing
 
 
 def make_plot_space(viewport):
@@ -207,7 +232,8 @@ def draw_grid(grid, viewport):
     """Minor/major grid + axes onto ``grid`` (plot-sized, per-pixel alpha).
 
     Plot-local pixels at the viewport's scale, so a zoomed viewport draws the
-    same metre grid smaller.
+    same metre grid smaller; zoomed far out the major step grows (grid_step)
+    so the number of lines stays about the same.
     """
     w, h = viewport.width, viewport.height
     ox, oy = viewport.left, viewport.top
@@ -219,21 +245,22 @@ def draw_grid(grid, viewport):
     def sy(y):
         return round(viewport.cy - oy - y * s)
 
-    max_x = int(viewport.half_w) + 1
-    max_y = int(viewport.half_h) + 1
+    step = grid_step(s, GRID_MIN_PX * config.UI_SCALE)
+    max_x = int(viewport.half_w / step) + 1
+    max_y = int(viewport.half_h / step) + 1
     minor, major, axis = (130, 160, 230, 22), (130, 160, 230, 52), (180, 200, 245, 170)
 
-    if s / 5 >= MINOR_GRID_MIN_PX * config.UI_SCALE:
+    if step / 5 * s >= MINOR_GRID_MIN_PX * config.UI_SCALE:
         for i in range(-max_x * 5, max_x * 5 + 1):
             if i % 5:
-                pygame.draw.line(grid, minor, (sx(i / 5), 0), (sx(i / 5), h))
+                pygame.draw.line(grid, minor, (sx(i * step / 5), 0), (sx(i * step / 5), h))
         for j in range(-max_y * 5, max_y * 5 + 1):
             if j % 5:
-                pygame.draw.line(grid, minor, (0, sy(j / 5)), (w, sy(j / 5)))
+                pygame.draw.line(grid, minor, (0, sy(j * step / 5)), (w, sy(j * step / 5)))
     for i in range(-max_x, max_x + 1):
-        pygame.draw.line(grid, major, (sx(i), 0), (sx(i), h))
+        pygame.draw.line(grid, major, (sx(i * step), 0), (sx(i * step), h))
     for j in range(-max_y, max_y + 1):
-        pygame.draw.line(grid, major, (0, sy(j)), (w, sy(j)))
+        pygame.draw.line(grid, major, (0, sy(j * step)), (w, sy(j * step)))
     axis_w = max(2, px(1.5))
     pygame.draw.line(grid, axis, (sx(0), 0), (sx(0), h), axis_w)
     pygame.draw.line(grid, axis, (0, sy(0)), (w, sy(0)), axis_w)
@@ -281,32 +308,37 @@ def draw_plot_labels(surf, viewport):
         pygame.draw.rect(surf, (*config.BG, 200), rect.inflate(px(6), 0), border_radius=px(4))
         surf.blit(img, rect)
 
-    max_x = int(viewport.half_w) + 1
-    max_y = int(viewport.half_h) + 1
+    # Every other major line (every 2 m on the map), wider apart when zoomed out.
+    step = max(2 * grid_step(s, GRID_MIN_PX * config.UI_SCALE),
+               grid_step(s, LABEL_MIN_PX * config.UI_SCALE))
+    max_x = int(viewport.half_w / step) + 1
+    max_y = int(viewport.half_h / step) + 1
     tick, tick_w = px(4), max(2, px(1.5))
     for i in range(-max_x, max_x + 1):
-        if i and i % 2 == 0 and abs(i) < viewport.half_w:
-            pygame.draw.line(surf, config.AXIS, (sx(i), sy(0) - tick), (sx(i), sy(0) + tick), tick_w)
-            label(str(i), (sx(i), sy(0) + px(7)), "midtop")
+        x = i * step
+        if x and abs(x) < viewport.half_w:
+            pygame.draw.line(surf, config.AXIS, (sx(x), sy(0) - tick), (sx(x), sy(0) + tick), tick_w)
+            label(str(x), (sx(x), sy(0) + px(7)), "midtop")
     for j in range(-max_y, max_y + 1):
-        if j and j % 2 == 0 and abs(j) < viewport.half_h:
-            pygame.draw.line(surf, config.AXIS, (sx(0) - tick, sy(j)), (sx(0) + tick, sy(j)), tick_w)
-            label(str(j), (sx(0) - px(8), sy(j)), "midright")
+        y = j * step
+        if y and abs(y) < viewport.half_h:
+            pygame.draw.line(surf, config.AXIS, (sx(0) - tick, sy(y)), (sx(0) + tick, sy(y)), tick_w)
+            label(str(y), (sx(0) - px(8), sy(y)), "midright")
     label("0", (sx(0) - px(6), sy(0) + px(6)), "topright")
     label("x (m)", (w - px(8), sy(0) - px(6)), "bottomright")
     label("y (m)", (sx(0) + px(8), px(6)), "topleft")
 
 
 # --- arrows -------------------------------------------------------------------
-def field_samples(viewport, field):
-    """Sample points (cell centers, 1 m apart) with the force at each."""
-    nx = int(viewport.half_w / ARROW_SPACING_M + 1e-6)
-    ny = int(viewport.half_h / ARROW_SPACING_M + 1e-6)
+def field_samples(viewport, field, spacing=ARROW_SPACING_M):
+    """Sample points (cell centers, ``spacing`` m apart) with the force at each."""
+    nx = int(viewport.half_w / spacing + 1e-6)
+    ny = int(viewport.half_h / spacing + 1e-6)
     samples = []
     for i in range(-nx, nx):
-        x = (i + 0.5) * ARROW_SPACING_M
+        x = (i + 0.5) * spacing
         for j in range(-ny, ny):
-            y = (j + 0.5) * ARROW_SPACING_M
+            y = (j + 0.5) * spacing
             try:
                 fx, fy = field.at(x, y)
             except (ArithmeticError, ValueError, TypeError, OverflowError,
@@ -325,14 +357,16 @@ def field_arrow_shape(length_px):
     return 1.3 * u, head, head * 0.85
 
 
-def make_field_layer(viewport, field, max_mag=None):
+def make_field_layer(viewport, field, max_mag=None, spacing=ARROW_SPACING_M):
     """Arrow field as a transparent plot-sized surface, plus the largest |F| shown.
 
     All arrows share one color. Length is linear in |F|, scaled so the largest
     force on screen gets the longest arrow (like a quiver plot).
     ``max_mag`` fixes that scale instead (the map's largest |F|, for the
     zoomed-out view); arrows for larger forces are capped at the longest
-    length.
+    length. ``spacing`` (m) spreads the arrows out for a far zoom; the
+    longest arrow grows with it, so a newton keeps the same length relative
+    to the spacing.
     """
     k = SUPERSAMPLE
     w, h = viewport.width, viewport.height
@@ -342,12 +376,12 @@ def make_field_layer(viewport, field, max_mag=None):
     color = (*config.ARROW, 235)
     dot = 1.3 * config.UI_SCALE * k
 
-    samples = field_samples(viewport, field)
+    samples = field_samples(viewport, field, spacing)
     mags = [math.hypot(fx, fy) for _, _, fx, fy in samples]
     if max_mag is None:
         finite = [m for m in mags if math.isfinite(m)]
         max_mag = max(finite) if finite else 0.0
-    max_len_px = config.ARROW_MAX_M * s
+    max_len_px = config.ARROW_MAX_M * spacing / ARROW_SPACING_M * s
 
     for (x, y, fx, fy), mag in zip(samples, mags):
         qx, qy = cx + x * s * k, cy - y * s * k

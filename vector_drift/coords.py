@@ -1,5 +1,7 @@
 """World (meters, y up, origin at plot center) <-> screen (pixels) mapping."""
 
+import math
+
 from . import config
 
 
@@ -44,24 +46,26 @@ class Viewport:
         return meters * self.scale
 
 
-def fit_zoom(point, bounds, outer, margin=0.5):
+MIN_ZOOM = 1e-9          # only guards against zero; there is no zoom-out limit
+
+
+def fit_zoom(point, bounds, margin=0.5):
     """Camera zoom that keeps the whole map and ``point`` (the ship) on screen.
 
     1 while the point is on the map (``bounds``: half width, half height, m).
     Off the map, the largest zoom that still shows the map and the point with
-    ``margin`` m to spare, the camera staying centred on the map. The spare
-    room grows from 0 at the map edge to ``margin`` a margin past it, so the
-    zoom never jumps. Never below the zoom at which the ``outer`` edge just
-    fills the plot.
+    ``margin`` m to spare, the camera staying centred on the map, however far
+    away the point is. The spare room grows from 0 at the map edge to
+    ``margin`` a margin past it, so the zoom never jumps. A point that is not
+    a finite number gives 1.
     """
     hx, hy = bounds
     x, y = abs(point[0]), abs(point[1])
-    if x <= hx and y <= hy:
+    if not (math.isfinite(x) and math.isfinite(y)) or (x <= hx and y <= hy):
         return 1.0
 
     def need(v, half):
         return v + min(margin, v - half) if v > half else half
 
-    lowest = max(hx / outer[0], hy / outer[1])
     zoom = min(hx / need(x, hx), hy / need(y, hy))
-    return max(lowest, min(1.0, zoom))
+    return max(MIN_ZOOM, min(1.0, zoom))

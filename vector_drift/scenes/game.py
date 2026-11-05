@@ -17,7 +17,6 @@ from ..hints import get_hint
 from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
-from ..pickups import UNBOUND_OUTER_SCALE
 from ..image_assets import COIN_BALANCE
 from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
                   draw_panel_box, draw_text, icon_surface)
@@ -67,10 +66,24 @@ HISTORY_ALPHA = 110          # earlier legs of the current run
 CAMERA_EASE_S = 0.1          # zoom time constant: about 0.3 s to settle
 CAMERA_MARGIN_M = 1.0        # room kept between an off-map ship and the plot edge
 UNBOUND_EDGE = (190, 130, 255)   # dashed map edge while Unbound is active
-# Zooms the field arrows are drawn at for the zoomed-out view (1 down to the
-# outer edge's 0.5, evenly spaced in ratio); in between, the next one down
-# is stretched, so by at most 0.5 ** (-1/3) ~ 1.26.
-ZOOM_LEVELS = tuple(UNBOUND_OUTER_SCALE ** (-i / 3) for i in range(4))
+# Field arrows for the zoomed-out view are drawn at zoom levels 2 ** (-i / 3)
+# (i = 0, 1, 2, ...: three per halving, no end); in between, the next level
+# out is stretched, so by at most 2 ** (1/3) ~ 1.26. The first ones are drawn
+# at launch, the rest when first needed; only the latest few are kept.
+ZOOM_LEVELS_PER_HALVING = 3
+ZOOM_LEVELS_AT_LAUNCH = 4        # zoom 1 down to 0.5
+ZOOM_LEVELS_KEPT = 6
+# Zoomed far out the ship is still drawn at least this share of its usual size.
+SHIP_MIN_SCALE = 0.5
+
+
+def zoom_level(zoom):
+    """Index i of the arrow zoom level 2 ** (-i / 3) just below ``zoom`` (0 at zoom 1)."""
+    return max(0, math.ceil(-ZOOM_LEVELS_PER_HALVING * math.log2(zoom) - 1e-9))
+
+
+def level_zoom(i):
+    return 2.0 ** (-i / ZOOM_LEVELS_PER_HALVING)
 RUN_GREEN = (137, 209, 133)
 
 
@@ -200,7 +213,7 @@ class GameScene(Scene):
         self._history_legs = []         # the same earlier legs as world points (zoomed drawing)
         self._overlay = None            # plot-sized scratch layer for zoomed drawing
         self._space_screen = None       # the stars in the display's format (zoomed drawing)
-        self._mips, self._mips_key = [], None       # arrow layers at ZOOM_LEVELS
+        self._mips, self._mips_key = {}, None       # arrow layers by zoom level
         self._arrows, self._arrows_key = None, None # arrow layer at the current zoom
         self._trail_count = 0
         self._plot_base = None          # background + arrows + labels, pre-composited
@@ -521,7 +534,8 @@ class GameScene(Scene):
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
         if any(p.kind == "unbound" for p in self.pickups or ()):
-            self._arrow_mips()          # ready before the camera can zoom out
+            for i in range(ZOOM_LEVELS_AT_LAUNCH):
+                self._arrow_layer(i)    # ready before the camera starts zooming out
         self.trail.clear()
         self._trail_count = 0
         self._bounces_heard = 0
@@ -882,8 +896,8 @@ class GameScene(Scene):
         if flight is None or not getattr(flight, "unbound", False) or self.state not in (FLIGHT, ARRIVED):
             return 1.0, 1.0
         pos = (flight.x, flight.y)
-        return (fit_zoom(pos, flight.bounds, flight.outer_bounds, margin=CAMERA_MARGIN_M),
-                fit_zoom(pos, flight.bounds, flight.outer_bounds, margin=0.5 * self.ship.length))
+        return (fit_zoom(pos, flight.bounds, margin=CAMERA_MARGIN_M),
+                fit_zoom(pos, flight.bounds, margin=0.5 * self.ship.length))
 
     def _update_camera(self, dt):
         """Ease the camera zoom toward its target (smooth out and back in).
@@ -1468,37 +1482,42 @@ class GameScene(Scene):
         self._overlay.fill((0, 0, 0, 0))
         return self._overlay
 
-    def _arrow_mips(self):
-        """Arrow layers drawn at ZOOM_LEVELS, each covering what that zoom shows (cached).
+    def _arrow_layer(self, i):
+        """Arrows drawn at zoom level ``i`` (level_zoom), covering what that zoom shows.
 
-        The zoom-1 one is the map's own field layer. All share its length per
-        newton (arrows for larger forces off the map are capped at the
-        longest length), so the arrows keep their size as the camera zooms.
+        Level 0 is the map's own field layer. Every level keeps its length per
+        newton relative to the arrow spacing, which doubles once arrows would
+        crowd (render.arrow_spacing); arrows for forces above the map's
+        largest are capped at the longest length. Cached by field; the
+        ZOOM_LEVELS_KEPT most recently used levels are kept. None if it
+        cannot be drawn.
         """
         if self.field_layer is None:
-            return []
-        key = self._field_version
-        if key != self._mips_key:
-            mips = []
-            for zoom in ZOOM_LEVELS:
-                if zoom == 1.0:
-                    mips.append((zoom, self.field_layer))
-                    continue
-                try:
-                    layer, _ = render.make_field_layer(Viewport(zoom=zoom), self.field,
-                                                       max_mag=self.max_force)
-                except _PHYSICS_ERRORS + _RENDER_ERRORS as exc:
-                    log.warning("zoomed field layer contained: %r", exc)
-                    continue
-                mips.append((zoom, layer))
-            self._mips, self._mips_key = mips, key
-        return self._mips
+            return None
+        if i == 0:
+            return self.field_layer
+        if self._mips_key != self._field_version:
+            self._mips, self._mips_key = {}, self._field_version
+        if i in self._mips:
+            self._mips[i] = self._mips.pop(i)           # most recently used last
+            return self._mips[i]
+        view = Viewport(zoom=level_zoom(i))
+        try:
+            layer, _ = render.make_field_layer(view, self.field, max_mag=self.max_force,
+                                               spacing=render.arrow_spacing(view.scale))
+        except _PHYSICS_ERRORS + _RENDER_ERRORS as exc:
+            log.warning("zoomed field layer contained: %r", exc)
+            layer = None
+        self._mips[i] = layer
+        while len(self._mips) > ZOOM_LEVELS_KEPT:
+            self._mips.pop(next(iter(self._mips)))
+        return layer
 
     def _zoomed_arrows(self):
-        """The arrow layer at the camera's zoom: the nearest prepared one, stretched.
+        """The arrow layer at the camera's zoom: the next level out, stretched.
 
-        Stretching from the next zoom down is at most ZOOM_LEVELS' ratio
-        (about 1.26), so arrows stay sharp. Cached while the zoom holds still.
+        Stretching is at most 2 ** (1/3) ~ 1.26, so arrows stay sharp.
+        Cached while the zoom holds still.
         """
         zoom = self.camera.zoom
         dim = not self.valid and self.state == SETUP
@@ -1506,9 +1525,10 @@ class GameScene(Scene):
         if key == self._arrows_key:
             return self._arrows
         arrows = None
-        below = [(z, layer) for z, layer in self._arrow_mips() if z <= zoom + 1e-9]
-        if below:
-            base_zoom, layer = max(below, key=lambda m: m[0])
+        i = zoom_level(zoom)
+        layer = self._arrow_layer(i)
+        if layer is not None:
+            base_zoom = level_zoom(i)
             w, h = layer.get_size()
             part = pygame.Rect(0, 0, round(w * base_zoom / zoom), round(h * base_zoom / zoom))
             part.center = (w // 2, h // 2)
@@ -1574,6 +1594,11 @@ class GameScene(Scene):
                     log.debug("zoomed trail skipped: %r", exc)
         if not current:
             surface.blit(target, plot.topleft)
+
+    def _ship_length_px(self):
+        """The ship's drawn length: to scale, but never under SHIP_MIN_SCALE of usual."""
+        length = self.ship.length
+        return max(self.camera.length(length), SHIP_MIN_SCALE * self.viewport.length(length))
 
     def _draw_unbound_edge(self, surface):
         """While Unbound is active the map edge is a dashed line: it is open."""
@@ -1671,9 +1696,9 @@ class GameScene(Scene):
                     # for bad numbers), so no try/except needed here.
                     sprites.draw_vector(surface, ship_pos, (vx, vy), config.VELOCITY_VEC)
                     sprites.draw_vector(surface, ship_pos, (fx, fy), config.FORCE_VEC)
-                sprites.draw_ship(surface, ship_pos, self.heading, vp.length(self.ship.length), self.ship)
+                sprites.draw_ship(surface, ship_pos, self.heading, self._ship_length_px(), self.ship)
                 if self.flight is not None and self.flight.shield_remaining > 0.0:
-                    sprites.draw_shield(surface, ship_pos, vp.length(0.6 * self.ship.length), self.t)
+                    sprites.draw_shield(surface, ship_pos, 0.6 * self._ship_length_px(), self.t)
         finally:
             try:
                 surface.set_clip(prev_clip)
