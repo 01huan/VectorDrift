@@ -80,8 +80,38 @@ def _near(points, expected, tol=1.0):
 
 
 # --- the checkpoint renderer ------------------------------------------------------
-def test_checkpoint_draws_without_a_window_or_a_picture():
-    assert image_assets.get_spec("target.checkpoint") is not None
+CHECKPOINT_PATH = image_assets.IMAGES_DIR / image_assets.get_spec("target.checkpoint").path
+
+
+@pytest.fixture
+def no_picture(monkeypatch):
+    image_assets.clear_cache()
+    monkeypatch.setitem(image_assets._SPECS, "target.checkpoint",
+                        image_assets.AssetSpec("target.checkpoint", image_assets.Path("targets/missing.png")))
+    yield
+    image_assets.clear_cache()
+
+
+def test_checkpoint_picture_is_a_small_square_png():
+    assert CHECKPOINT_PATH.exists()
+    assert CHECKPOINT_PATH.stat().st_size <= 100 * 1024
+    img = pygame.image.load(str(CHECKPOINT_PATH)).convert_alpha()
+    assert img.get_size() == (512, 512)
+    assert img.get_at((0, 0)).a == 0                        # see-through corners
+
+
+def test_checkpoint_uses_the_picture_when_it_exists():
+    image_assets.clear_cache()
+    surface = pygame.Surface((200, 200), pygame.SRCALPHA)
+
+    sprites.draw_checkpoint(surface, (100, 100), 48, 0.0, SHIPS["ship01"])
+
+    box = surface.get_bounding_rect()
+    assert 80 <= box.width <= 97 and 80 <= box.height <= 97   # the picture at 2 x radius
+    assert surface.get_at((100 - 36 + 3, 100 - 36 + 3))[:3] != sprites.CHECKPOINT_FILL
+
+
+def test_checkpoint_draws_without_a_window_or_a_picture(no_picture):
     surface = pygame.Surface((200, 200), pygame.SRCALPHA)
 
     sprites.draw_checkpoint(surface, (100, 100), 48, 0.0, SHIPS["ship01"])
@@ -99,7 +129,7 @@ def test_checkpoint_draws_without_a_ship_and_ignores_bad_numbers():
         sprites.draw_checkpoint(surface, center, radius, 0.0, SHIPS["ship01"])
 
 
-def test_checkpoint_renderer_is_replaceable(monkeypatch):
+def test_checkpoint_renderer_is_replaceable(no_picture, monkeypatch):
     seen = []
     monkeypatch.setitem(sprites.CHECKPOINT_RENDERERS, "test",
                         lambda surface, center, radius, t, ship: seen.append((center, radius, ship)))

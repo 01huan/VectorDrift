@@ -66,7 +66,7 @@ for _n in range(1, 7):
     register(AssetSpec(f"ship.ship{_n:02d}", Path(f"ships/ship{_n:02d}.png"), display_w=76, display_h=76))
 # Targets / destination
 register(AssetSpec("target.planet", Path("targets/planet.png"), display_w=120, display_h=120))
-# Checkpoint (multi-section levels). No picture yet: sprites.draw_checkpoint
+# Checkpoint (multi-section levels). Without the picture, sprites.draw_checkpoint
 # falls back to the code-drawn white square with the ship inside.
 register(AssetSpec("target.checkpoint", Path("targets/checkpoint.png"), display_w=120, display_h=120))
 
