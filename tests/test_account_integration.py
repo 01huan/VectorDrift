@@ -119,3 +119,44 @@ def test_guest_profile_helpers_with_tmp_path(tmp_path, monkeypatch):
 
     clear_guest_profile(s3)
     assert not (tmp_path / "guest.json").exists()
+
+
+def test_save_progress_writes_local_and_syncs_when_authenticated(tmp_path, monkeypatch):
+    from vector_drift.account import local_profile_manager as lpm
+    from vector_drift.account.integration import save_progress
+
+    monkeypatch.setattr(lpm, "_storage_path", lambda: tmp_path / "guest.json")
+    session = _session()
+    session.money = Money(21)
+    uploads = []
+    account = SimpleNamespace(
+        current_user=SimpleNamespace(id="user-1"),
+        is_authenticated=lambda: True,
+        save_profile_async=lambda profile, **_kwargs: uploads.append(profile),
+    )
+
+    save_progress(account, session)
+
+    local = lpm.LocalProfileManager().load()
+    assert local is not None
+    assert local.money == 21
+    assert len(uploads) == 1
+    assert uploads[0].user_id == "user-1"
+    assert uploads[0].money == 21
+
+
+def test_save_progress_writes_guest_local_profile(tmp_path, monkeypatch):
+    from vector_drift.account import local_profile_manager as lpm
+    from vector_drift.account.integration import save_progress
+
+    monkeypatch.setattr(lpm, "_storage_path", lambda: tmp_path / "guest.json")
+    session = _session()
+    session.money = Money(8)
+
+    save_progress(None, session)
+
+    local = lpm.LocalProfileManager().load()
+    assert local is not None
+    assert local.user_id == "guest"
+    assert local.money == 8
+    assert session.sync_status == "idle"

@@ -600,27 +600,9 @@ class GameScene(Scene):
             best = self.session.records.get(self.level.id)
             if not self.solution_used and (best is None or self.total_time < best):
                 self.session.records[self.level.id] = self.total_time
-            # Sync progress to cloud when authenticated.
-            account = self.manager.account
-            if account is not None and account.is_authenticated() and account.current_user is not None:
-                try:
-                    from vector_drift.account.integration import session_to_profile
-                    profile = session_to_profile(self.session, account.current_user.id)
-                    self.session.sync_status = "syncing"
-                    def _on_saved():
-                        self.session.sync_status = "idle"
-                    def _on_save_error(exc):
-                        self.session.sync_status = "error"
-                        self.session.last_sync_error = str(exc)
-                    account.save_profile_async(profile, on_success=_on_saved, on_error=_on_save_error)
-                except Exception:
-                    pass
-            else:
-                try:
-                    from vector_drift.account.integration import save_guest_profile
-                    save_guest_profile(self.session)
-                except Exception:
-                    pass
+            from vector_drift.account.integration import save_progress
+
+            save_progress(self.manager.account, self.session)
             self.audio.play("win")
             self._refresh_buttons()
             return
@@ -822,7 +804,7 @@ class GameScene(Scene):
                     self.session.money.add(amount)
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
-                    self._save_profile_if_signed_in()
+                    self._save_progress()
                 try:
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -1182,7 +1164,7 @@ class GameScene(Scene):
             self.session.money.spend(price)
             self.money = self.session.money
             self.session.paid_answer_levels.add(self.level.id)
-            self._save_profile_if_signed_in()
+            self._save_progress()
         self.hint_popup.page = self.hint_popup.answer_page
         self._reset_level()
 
@@ -1238,7 +1220,7 @@ class GameScene(Scene):
         self._run_coins = []
         self.money = self.session.money
         self.solution_used = True
-        self._save_profile_if_signed_in()
+        self._save_progress()
 
     def _pay_clear_reward(self):
         """Reaching the target pays once per fixed level (saved) or random map.
@@ -1260,16 +1242,16 @@ class GameScene(Scene):
         self.session.money.add(self._clear_reward)
         self.money = self.session.money
 
-    def _save_profile_if_signed_in(self) -> None:
-        """Upload the current session to Supabase when signed in.
+    def _save_progress(self) -> None:
+        """Persist the current session locally and sync to Supabase if signed in.
 
         Called right after ``session.money`` (or other profile data) changes
         so progress is not lost when the player quits the level without
-        clearing it.  Guests are intentionally left untouched.
+        clearing it.
         """
-        from vector_drift.account.integration import save_profile_if_authenticated
+        from vector_drift.account.integration import save_progress
 
-        save_profile_if_authenticated(self.manager.account, self.session)
+        save_progress(self.manager.account, self.session)
 
     def _hide_collected_coins(self):
         collected = self._collected_coins()
@@ -1310,7 +1292,7 @@ class GameScene(Scene):
         self.session.money.spend(cost)
         self.money = self.session.money
         self.session.revealed_solver_maps.add(self._solver_map_key())
-        self._save_profile_if_signed_in()
+        self._save_progress()
 
     def _note_ai_answer_shown(self):
         """A paid map's answer on screen counts as using the solution."""

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
+from .errors import ProfileError
 from .models import PlayerProfile
 
 
@@ -36,8 +37,8 @@ class LocalProfileManager:
                 json.dumps(profile.to_row(), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        except OSError:
-            pass
+        except OSError as exc:
+            raise ProfileError(f"Failed to save local profile: {exc}") from exc
 
     def save_profile(self, profile: PlayerProfile) -> None:
         self.save(profile)
@@ -92,7 +93,6 @@ class LocalProfileManager:
             except Exception:
                 return None
         return None
-
 
 
 

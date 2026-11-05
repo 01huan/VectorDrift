@@ -147,6 +147,9 @@ class SceneManager:
             self.audio.set_music(scene.music)
 
     def quit(self):
+        from vector_drift.account.integration import save_progress
+
+        save_progress(self.account, self.session)
         self._exit_scene()
         self.running = False
 

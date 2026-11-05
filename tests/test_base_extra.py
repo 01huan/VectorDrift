@@ -29,3 +29,25 @@ def test_scene_manager_basic():
     mgr2 = SceneManager(audio)
     mgr2.running = True
     mgr2.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_m, mod=pygame.KMOD_CTRL))
+
+
+def test_scene_manager_quit_saves_progress(monkeypatch):
+    from vector_drift.account import integration
+
+    calls = []
+    monkeypatch.setattr(
+        integration,
+        "save_progress",
+        lambda account, session: calls.append((account, session)),
+    )
+    account = object()
+    mgr = SceneManager(
+        SimpleNamespace(play=lambda *a, **k: None, toggle_mute=lambda: None),
+        account_manager=account,
+    )
+    mgr.scene = SimpleNamespace(on_exit=lambda: None)
+
+    mgr.quit()
+
+    assert calls == [(account, mgr.session)]
+    assert mgr.running is False

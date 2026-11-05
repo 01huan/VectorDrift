@@ -81,3 +81,14 @@ def test_delete_aliases(tmp_path):
         mgr.save(PlayerProfile(user_id="g", money=1))
     mgr.clear()
     assert mgr.load() is None
+
+
+def test_save_reports_local_write_error(tmp_path):
+    from vector_drift.account.errors import ProfileError
+
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("x", encoding="utf-8")
+    manager = LocalProfileManager(blocker / "profile.json")
+
+    with pytest.raises(ProfileError, match="Failed to save local profile"):
+        manager.save(PlayerProfile(user_id="guest", money=1))

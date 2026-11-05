@@ -128,29 +128,9 @@ class ShopScene(Scene):
                         ok = shop_module.purchase_item(item, self.session)
                         if ok:
                             self.audio.play("purchase")
-                            account = self.manager.account
-                            if account is not None and account.is_authenticated() and account.current_user is not None:
-                                try:
-                                    from vector_drift.account.integration import session_to_profile
-                                    profile = session_to_profile(self.session, account.current_user.id)
-                                    self.session.sync_status = "syncing"
+                            from vector_drift.account.integration import save_progress
 
-                                    def _on_saved():
-                                        self.session.sync_status = "idle"
-
-                                    def _on_save_error(exc):
-                                        self.session.sync_status = "error"
-                                        self.session.last_sync_error = str(exc)
-
-                                    account.save_profile_async(profile, on_success=_on_saved, on_error=_on_save_error)
-                                except Exception:
-                                    pass
-                            else:
-                                try:
-                                    from vector_drift.account.integration import save_guest_profile
-                                    save_guest_profile(self.session)
-                                except Exception:
-                                    pass
+                            save_progress(self.manager.account, self.session)
 
                         else:
                             self.audio.play("error")

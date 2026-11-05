@@ -192,61 +192,59 @@ def load_guest_profile_into_session(session):
 def save_guest_profile(session):
     from .local_profile_manager import LocalProfileManager
 
-    try:
-        profile = session_to_profile(session, "guest")
-    except Exception:
-        return
+    profile = session_to_profile(session, "guest")
     LocalProfileManager().save(profile)
 
 
-def save_progress(account: Any, session: Any) -> None:
-    """Save the session: to the cloud when signed in, else to the guest file."""
-    try:
-        if account is not None and account.is_authenticated() and account.current_user is not None:
-            profile = session_to_profile(session, account.current_user.id)
-            session.sync_status = "syncing"
+def _mark_sync_error(session: Any, exc: Exception) -> None:
+    session.sync_status = "error"
+    session.last_sync_error = str(exc)
 
-            def _on_saved():
-                session.sync_status = "idle"
 
-            def _on_error(exc):
-                session.sync_status = "error"
-                session.last_sync_error = str(exc)
-
-            account.save_profile_async(profile, on_success=_on_saved, on_error=_on_error)
+def _save_cloud_profile(account: Any, session: Any, local_error: Exception | None) -> None:
+    is_authenticated = getattr(account, "is_authenticated", None)
+    current_user = getattr(account, "current_user", None)
+    if account is None or is_authenticated is None or not is_authenticated() or current_user is None:
+        if local_error is not None:
+            _mark_sync_error(session, local_error)
         else:
-            save_guest_profile(session)
-    except Exception:
-        pass
+            session.sync_status = "idle"
+            session.last_sync_error = None
+        return
+
+    profile = session_to_profile(session, current_user.id)
+    session.sync_status = "syncing"
+
+    def _on_saved():
+        if local_error is not None:
+            _mark_sync_error(session, local_error)
+        else:
+            session.sync_status = "idle"
+            session.last_sync_error = None
+
+    def _on_error(exc):
+        session.sync_status = "error"
+        session.last_sync_error = str(exc)
+
+    account.save_profile_async(profile, on_success=_on_saved, on_error=_on_error)
+
+
+def save_progress(account: Any, session: Any) -> None:
+    """Write progress to local storage immediately and sync it to cloud if signed in."""
+    local_error = None
+    try:
+        save_guest_profile(session)
+    except Exception as exc:
+        local_error = exc
+    try:
+        _save_cloud_profile(account, session, local_error)
+    except Exception as exc:
+        _mark_sync_error(session, exc)
 
 
 def save_profile_if_authenticated(account: Any, session: Any) -> None:
-    """Upload the session to Supabase only when the user is signed in.
-
-    Intended to be called right after the local ``session.money`` (or other
-    profile data) is changed so that progress is not lost when the player
-    quits the level without clearing it.
-
-    Guests are intentionally left untouched: their local file keeps the
-    existing save points (e.g. level clear) and is not written on every coin
-    pickup.
-    """
-    if account is None or not account.is_authenticated() or account.current_user is None:
-        return
-    try:
-        profile = session_to_profile(session, account.current_user.id)
-        session.sync_status = "syncing"
-
-        def _on_saved():
-            session.sync_status = "idle"
-
-        def _on_error(exc):
-            session.sync_status = "error"
-            session.last_sync_error = str(exc)
-
-        account.save_profile_async(profile, on_success=_on_saved, on_error=_on_error)
-    except Exception:
-        pass
+    """Persist locally for everyone and sync to cloud when signed in."""
+    save_progress(account, session)
 
 
 def clear_guest_profile(session=None):
