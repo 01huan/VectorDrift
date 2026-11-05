@@ -841,7 +841,7 @@ def _paint_money(surface, center, radius, t):
 
 
 def _render_unbound(radius):
-    """Stand-in icon until pickups/unbound.png exists: a purple ball with a
+    """Fallback when pickups/unbound.png is missing: a purple ball with a
     square broken open at each side and an arrow pointing out of every gap."""
     d = 2 * radius + 10
     D = d * SS
