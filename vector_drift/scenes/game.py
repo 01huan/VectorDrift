@@ -119,10 +119,6 @@ def fmt_clock(seconds):
     return f"{cs // 100:02d}:{cs % 100:02d}"
 
 
-class _SkipReplay(Exception):
-    """Internal: this flight is not stored as a replay."""
-
-
 class SectionPan:
     """The camera pan from a reached checkpoint to the next section.
 
@@ -518,10 +514,6 @@ class GameScene(Scene):
 
     def _end_flight(self, outcome):
         try:
-            if self.full_level.sections:
-                # The replay scene rebuilds a level by id, which gives section 1:
-                # a later section's flight would replay over the wrong screen.
-                raise _SkipReplay
             from vector_drift.replay import normalize_records
             from vector_drift.account.integration import session_to_profile
             rec = {
@@ -537,10 +529,11 @@ class GameScene(Scene):
                 # runs and obstacles already destroyed must not reappear.
                 "consumed_pickups": list(getattr(self, "_replay_initial_consumed", []) or []),
                 "obstacle_centers": list(getattr(self, "_replay_initial_obstacle_centers", []) or []),
+                # Which screen this launch flew (multi-section levels); the
+                # replay rebuilds that section, not section 1.
+                "section_index": self.section_index,
             }
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
-        except _SkipReplay:
-            pass
         except Exception:
             pass
         try:

@@ -306,12 +306,12 @@ def test_three_sections_play_through_to_the_win():
     assert manager.session.stats["lives_left"] == THREE.lives
 
 
-def test_multi_section_flights_are_not_stored_as_replays():
+def test_multi_section_flights_are_stored_with_their_section():
     scene = _scene()
     _fly(scene)
     _finish_pan(scene)
     _lose_a_life(scene)
-    assert scene.manager.session.replays in (None, [])
+    assert sorted(r["section_index"] for r in scene.manager.session.replays) == [0, 1]
 
 
 def test_one_screen_levels_still_store_replays_and_win_directly():

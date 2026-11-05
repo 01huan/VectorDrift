@@ -7,13 +7,13 @@ import pygame
 from .. import config, render, sprites
 from ..config import px
 from ..coords import Viewport
-from ..data import SHIPS, get_level
+from ..data import SHIPS, get_level, section_count, section_level
 from ..physics import ForceField
 from ..pickups import PickupState
 from ..expr_parser import diagnose_expression
 from ..ui import Button, draw_text
 from .base import Scene
-from ..replay import ReplayPlayer
+from ..replay import ReplayPlayer, section_index_from
 
 START_MARKER_RADIUS_M = 0.45
 
@@ -43,6 +43,9 @@ class ReplayScene(Scene):
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
+        self._section_index = 0         # which screen of the level the launch flew
+        self._section_total = 1
+        self._start_checkpoint_radius = 0.0
 
         self.back_button = Button((px(40), px(40), px(120), px(40)), "Back", style="plain", font_size=16)
         button_w = px(100)
@@ -88,6 +91,9 @@ class ReplayScene(Scene):
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
+        self._section_index = 0
+        self._section_total = 1
+        self._start_checkpoint_radius = 0.0
 
     def _setup_level_from_record(self, rec):
         from ..story import get_level_story
@@ -99,9 +105,17 @@ class ReplayScene(Scene):
         except (TypeError, ValueError):
             seed = None
         if seed is not None:
-            self._level = get_level(level_id, seed=seed)
+            full = get_level(level_id, seed=seed)
         else:
-            self._level = get_level(level_id)
+            full = get_level(level_id)
+        # Multi-section levels: rebuild the screen this launch flew. A missing,
+        # bad or out-of-range index (old saves, edited levels) means section 1.
+        self._section_total = section_count(full)
+        index = section_index_from(rec.get("section_index"))
+        self._section_index = index if index < self._section_total else 0
+        self._level = section_level(full, self._section_index)
+        self._start_checkpoint_radius = (full.sections[self._section_index - 1].target_radius
+                                         if self._section_index > 0 else 0.0)
 
         self._viewport = Viewport()
         self._bg = render.make_plot_background(self._viewport)
@@ -368,6 +382,20 @@ class ReplayScene(Scene):
                 return default
         return float(frame.get(key, default) if isinstance(frame, dict) else default)
 
+    def _checkpoint_taken(self):
+        """The launch reached its checkpoint and playback is at that moment."""
+        if "REACHED" not in str(self.records[self.index].get("outcome", "")):
+            return False
+        frames = self.player.record.frames if self.player.record else []
+        return bool(frames) and self.player.index >= len(frames) - 1
+
+    def _level_label(self, rec):
+        """'9 · section 2/2' on multi-section levels, just the level number otherwise."""
+        label = str(rec.get("level_id"))
+        if self._section_total > 1:
+            label += f" · section {self._section_index + 1}/{self._section_total}"
+        return label
+
     def draw(self, surface):
         surface.fill(config.BG)
         if not self.records or self._viewport is None:
@@ -388,11 +416,22 @@ class ReplayScene(Scene):
         except pygame.error:
             prev_clip = None
 
+        # Same look as the game: from section 2 on the start is the checkpoint
+        # just reached; every target but the last section's is a checkpoint.
         launch = self._viewport.to_screen(*self._start)
-        sprites.draw_start_marker(surface, launch, self._viewport.length(START_MARKER_RADIUS_M), self._t)
-        sprites.draw_target(surface, self._viewport.to_screen(*self._target_center),
-                            self._viewport.length(self._target_radius), self._t,
-                            planet=self._story_planet)
+        if self._section_index > 0:
+            sprites.draw_checkpoint(surface, launch, self._viewport.length(self._start_checkpoint_radius),
+                                    self._t, self._ship)
+        else:
+            sprites.draw_start_marker(surface, launch, self._viewport.length(START_MARKER_RADIUS_M), self._t)
+        target = self._viewport.to_screen(*self._target_center)
+        target_r = self._viewport.length(self._target_radius)
+        if self._section_index < self._section_total - 1:
+            sprites.draw_checkpoint(surface, target, target_r, self._t, self._ship)
+            if not self._checkpoint_taken():
+                sprites.draw_checkpoint_life(surface, target, target_r, self._t, self._ship)
+        else:
+            sprites.draw_target(surface, target, target_r, self._t, planet=self._story_planet)
 
         self._sync_pickups_to_current()
 
@@ -462,7 +501,7 @@ class ReplayScene(Scene):
         rec = self.records[self.index]
         info = [
             ("Record", f"{self.index + 1} / {len(self.records)}"),
-            ("Level", str(rec.get("level_id"))),
+            ("Level", self._level_label(rec)),
             ("Ship", str(rec.get("ship_id"))),
             ("Outcome", str(rec.get("outcome"))),
             ("Speed", f"{self.player.speed:.1f}x"),
