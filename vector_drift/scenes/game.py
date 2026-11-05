@@ -9,6 +9,7 @@ import pygame
 from .. import config, render, sprites
 from ..config import px
 from ..desktop import set_cursor
+from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
 from ..data import (SHIPS, default_ship_id, get_level, section_count, section_level,
                     section_shift, ship_unlocked)
@@ -68,10 +69,11 @@ CAMERA_MARGIN_M = 1.0        # room kept between an off-map ship and the plot ed
 UNBOUND_EDGE = (190, 130, 255)   # dashed map edge while Unbound is active
 # Field arrows for the zoomed-out view are drawn at zoom levels 2 ** (-i / 3)
 # (i = 0, 1, 2, ...: three per halving, no end); in between, the next level
-# out is stretched, so by at most 2 ** (1/3) ~ 1.26. The first ones are drawn
-# at launch, the rest when first needed; only the latest few are kept.
+# out is stretched, so by at most 2 ** (1/3) ~ 1.26. A background worker
+# draws them ahead: the first ones while the formulas are edited, the next
+# ones out during the flight. Only the latest few are kept.
 ZOOM_LEVELS_PER_HALVING = 3
-ZOOM_LEVELS_AT_LAUNCH = 4        # zoom 1 down to 0.5
+ZOOM_LEVELS_AT_LAUNCH = 4        # zoom 1 down to 0.5: drawn ahead while editing
 ZOOM_LEVELS_KEPT = 6
 # Zoomed far out the ship is still drawn at least this share of its usual size.
 SHIP_MIN_SCALE = 0.5
@@ -216,6 +218,8 @@ class GameScene(Scene):
         self._mips, self._mips_key = {}, None       # arrow layers by zoom level
         self._arrows, self._arrows_key = None, None # arrow layer at the current zoom
         self._arrows_smooth = True      # False: a fast stretch, redone smoothly once still
+        self._arrows_level = 0          # the zoom level the current arrows were stretched from
+        self._layer_builder = None      # background worker for arrow layers (Unbound levels)
         self._trail_count = 0
         self._plot_base = None          # background + arrows + labels, pre-composited
         self._plot_key = None
@@ -318,6 +322,7 @@ class GameScene(Scene):
         from ..pickups import PickupState
         specs = getattr(self.level, "pickups", ()) or ()
         self.pickups = [PickupState.from_spec(s) for s in specs]
+        self._has_unbound = any(p.kind == "unbound" for p in self.pickups)
         self._hide_collected_coins()
         self.holes = list(getattr(self.level, "holes", ()) or ())
         for alias in ("portals", "wormholes"):
@@ -534,9 +539,7 @@ class GameScene(Scene):
         self.attempts += 1
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
-        if any(p.kind == "unbound" for p in self.pickups or ()):
-            for i in range(ZOOM_LEVELS_AT_LAUNCH):
-                self._arrow_layer(i)    # ready before the camera starts zooming out
+        self._prefetch_arrows()         # drawn ahead in the background, not here
         self.trail.clear()
         self._trail_count = 0
         self._bounces_heard = 0
@@ -886,6 +889,10 @@ class GameScene(Scene):
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
             self._update_flight(dt)
             self._update_camera(dt)
+            try:
+                self._prefetch_arrows()
+            except _RENDER_ERRORS as exc:
+                log.warning("arrow prefetch contained: %r", exc)
 
     def _camera_target(self):
         """(zoom the camera eases toward, most it may lag behind while zooming out).
@@ -1352,6 +1359,8 @@ class GameScene(Scene):
     def on_exit(self):
         """Leaving the level: stop the thruster sound and the background solve."""
         self.audio.stop_loop("thruster_loop")
+        if self._layer_builder is not None:
+            self._layer_builder.stop()
         job, self.ai_job = self.ai_job, None
         if job is not None and job.running:
             try:
@@ -1483,35 +1492,85 @@ class GameScene(Scene):
         self._overlay.fill((0, 0, 0, 0))
         return self._overlay
 
-    def _arrow_layer(self, i):
+    @staticmethod
+    def _build_arrow_layer(job):
+        """Draw the arrows for one zoom level (runs on the background worker too)."""
+        field, max_force, i = job
+        view = Viewport(zoom=level_zoom(i))
+        layer, _ = render.make_field_layer(view, field, max_mag=max_force,
+                                           spacing=render.arrow_spacing(view.scale))
+        return layer
+
+    def _keep_arrow_layer(self, i, layer):
+        """Cache a level's layer; the ZOOM_LEVELS_KEPT most recently used stay."""
+        self._mips[i] = layer
+        while len(self._mips) > ZOOM_LEVELS_KEPT:
+            gone = next(iter(self._mips))
+            self._mips.pop(gone)
+            if self._layer_builder is not None:
+                version = self._field_version
+                self._layer_builder.forget(lambda key: key == (version, gone))
+
+    def _collect_arrow_layers(self):
+        """Take the layers the background worker has finished for the current field."""
+        if self._mips_key != self._field_version:
+            self._mips, self._mips_key = {}, self._field_version
+            if self._layer_builder is not None:
+                version = self._field_version
+                self._layer_builder.forget(lambda key: key[0] != version)
+        if self._layer_builder is None:
+            return
+        for (version, i), layer in self._layer_builder.take_done().items():
+            if version == self._field_version and layer is not None and i not in self._mips:
+                self._keep_arrow_layer(i, layer)
+
+    def _prefetch_arrows(self):
+        """Have the background worker draw the arrow levels the camera may need next.
+
+        Only on levels with Unbound. While setting up: the first zoom-out
+        levels (down to 0.5); in flight: the levels around the camera's zoom,
+        mostly the next two farther out.
+        """
+        if not self._has_unbound or self.field_layer is None or not self.valid:
+            return
+        if self._layer_builder is None:
+            self._layer_builder = BackgroundBuilder(self._build_arrow_layer)
+        self._collect_arrow_layers()
+        current = zoom_level(self.camera.zoom)
+        wanted = list(range(1, ZOOM_LEVELS_AT_LAUNCH))
+        if self.state in (FLIGHT, ARRIVED):
+            wanted += [current, current + 1, current + 2, current - 1]
+        for i in dict.fromkeys(wanted):
+            if i >= 1 and i not in self._mips:
+                self._layer_builder.request((self._field_version, i),
+                                            (self.field, self.max_force, i))
+
+    def _arrow_layer(self, i, wait=True):
         """Arrows drawn at zoom level ``i`` (level_zoom), covering what that zoom shows.
 
         Level 0 is the map's own field layer. Every level keeps its length per
         newton relative to the arrow spacing, which doubles once arrows would
         crowd (render.arrow_spacing); arrows for forces above the map's
-        largest are capped at the longest length. Cached by field; the
-        ZOOM_LEVELS_KEPT most recently used levels are kept. None if it
-        cannot be drawn.
+        largest are capped at the longest length. Normally drawn ahead by the
+        background worker (_prefetch_arrows); if it is not ready, ``wait``
+        draws it here, else None. None too if it cannot be drawn.
         """
         if self.field_layer is None:
             return None
         if i == 0:
             return self.field_layer
-        if self._mips_key != self._field_version:
-            self._mips, self._mips_key = {}, self._field_version
+        self._collect_arrow_layers()
         if i in self._mips:
             self._mips[i] = self._mips.pop(i)           # most recently used last
             return self._mips[i]
-        view = Viewport(zoom=level_zoom(i))
+        if not wait:
+            return None
         try:
-            layer, _ = render.make_field_layer(view, self.field, max_mag=self.max_force,
-                                               spacing=render.arrow_spacing(view.scale))
+            layer = self._build_arrow_layer((self.field, self.max_force, i))
         except _PHYSICS_ERRORS + _RENDER_ERRORS as exc:
             log.warning("zoomed field layer contained: %r", exc)
             layer = None
-        self._mips[i] = layer
-        while len(self._mips) > ZOOM_LEVELS_KEPT:
-            self._mips.pop(next(iter(self._mips)))
+        self._keep_arrow_layer(i, layer)
         return layer
 
     def _zoomed_arrows(self):
@@ -1520,16 +1579,25 @@ class GameScene(Scene):
         Stretching is at most 2 ** (1/3) ~ 1.26. While the zoom keeps
         changing it is a fast (nearest-pixel) stretch, slightly jagged; the
         first frame the zoom holds still it is redone smoothly, then cached.
+        If that level is not drawn yet, a ready level farther out stands in
+        (stretched more) until it is; only with none ready is it drawn here.
         """
         zoom = self.camera.zoom
         dim = not self.valid and self.state == SETUP
         key = (self._field_version, dim, zoom)
-        if key == self._arrows_key and self._arrows_smooth:
+        want = zoom_level(zoom)
+        if key == self._arrows_key and self._arrows_smooth and self._arrows_level == want:
             return self._arrows
         smooth = key == self._arrows_key            # same zoom as last frame: settled
+        i, layer = want, self._arrow_layer(want, wait=False)
+        if layer is None:
+            farther = [j for j in self._mips if j > want and self._mips[j] is not None]
+            if farther:
+                i = min(farther)
+                layer = self._arrow_layer(i)
+            else:
+                layer = self._arrow_layer(want)
         arrows = None
-        i = zoom_level(zoom)
-        layer = self._arrow_layer(i)
         exact = True
         if layer is not None:
             base_zoom = level_zoom(i)
@@ -1546,6 +1614,7 @@ class GameScene(Scene):
             if arrows is not None and dim:
                 arrows.set_alpha(70)
         self._arrows, self._arrows_key, self._arrows_smooth = arrows, key, exact
+        self._arrows_level = i
         return arrows
 
     def _draw_zoomed_base(self, surface, plot):

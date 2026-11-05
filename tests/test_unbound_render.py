@@ -347,3 +347,66 @@ def test_arrows_scale_fast_while_zooming_and_smooth_once_still(scene, monkeypatc
     calls.clear()
     scene._zoomed_arrows()                            # stays settled: nothing to redo
     assert calls == []
+
+
+# --- arrow layers drawn ahead on a worker thread -----------------------------------
+def _wait_for_layers(scene, levels, frames=600):
+    import time
+    for _ in range(frames):
+        scene.update(1 / 60)
+        if all(i in scene._mips for i in levels):
+            return
+        time.sleep(0.005)
+    raise AssertionError(f"layers {levels} never arrived: {sorted(scene._mips)}")
+
+
+def test_launch_no_longer_draws_arrow_layers_itself(scene, monkeypatch):
+    import threading
+    where = []
+    real = render.make_field_layer
+    monkeypatch.setattr(render, "make_field_layer", lambda *a, **k:
+                        where.append(threading.current_thread() is threading.main_thread())
+                        or real(*a, **k))
+    scene.editor.set_lines(["0", "10"])
+    scene._on_text_change(scene.editor)
+    where.clear()                                  # (the zoom-1 layer is drawn on the main thread)
+    scene._try_launch()
+    assert True not in where                       # the worker may start on them meanwhile
+
+
+def test_levels_for_the_first_zoom_out_are_drawn_while_editing(scene):
+    scene.editor.set_lines(["0", "10"])
+    scene._on_text_change(scene.editor)
+    _wait_for_layers(scene, {1, 2, 3})
+    assert scene.state == SETUP
+
+
+def test_a_new_field_drops_the_old_layers(scene):
+    scene.editor.set_lines(["0", "10"])
+    scene._on_text_change(scene.editor)
+    _wait_for_layers(scene, {1, 2, 3})
+    old = dict(scene._mips)
+    scene.editor.set_lines(["1", "10"])
+    scene._on_text_change(scene.editor)
+    _wait_for_layers(scene, {1, 2, 3})
+    assert all(scene._mips[i] is not old[i] for i in (1, 2, 3))
+
+
+def test_far_out_the_next_levels_are_drawn_ahead(scene):
+    _launch(scene, "0", "10")
+    _run_until(scene, lambda: scene.flight.unbound)
+    scene.camera.zoom = game_module.level_zoom(7)
+    _wait_for_layers(scene, {8, 9})
+
+
+def test_a_missing_level_falls_back_to_a_farther_ready_one(scene, monkeypatch):
+    _launch(scene, "0", "10")
+    _run_until(scene, lambda: scene.flight.unbound)
+    scene._arrow_layer(5)                          # ready (drawn here)
+    monkeypatch.setattr(render, "make_field_layer",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("drawn on the main thread")))
+    monkeypatch.setattr(scene, "_prefetch_arrows", lambda: None)
+    scene.camera.zoom = game_module.level_zoom(4) * 0.99    # needs level 5: ready
+    assert scene._zoomed_arrows() is not None
+    scene.camera.zoom = game_module.level_zoom(3) * 0.99    # needs level 4, not ready: uses 5
+    assert scene._zoomed_arrows() is not None
