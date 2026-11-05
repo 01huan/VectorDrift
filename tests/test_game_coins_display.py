@@ -48,7 +48,7 @@ def _draw_and_find(scene, monkeypatch):
     return surface, calls, balances
 
 
-@pytest.mark.parametrize("level_id", [2, 7])
+@pytest.mark.parametrize("level_id", [2, 8])
 def test_coins_are_visible_in_the_plot_top_right(monkeypatch, level_id):
     scene = _scene(level_id, 12)
     surface, calls, balances = _draw_and_find(scene, monkeypatch)

@@ -135,7 +135,7 @@ def test_random_levels_have_no_story(monkeypatch):
     monkeypatch.setattr(game_module, "run_solver_async",
                         lambda *a, **k: SimpleNamespace(running=True, cancel=lambda: None,
                                                         error=None, result=None))
-    scene = _scene(7)
+    scene = _scene(8)
     assert scene.story is None and scene.dialogue is None and scene.planet is None
 
 

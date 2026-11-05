@@ -15,14 +15,16 @@ COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
 
 
-def paginate(highest):
+def paginate(highest, excluded_ids=()):
     """Split level numbers 1..highest into pages that fit the 3x3 grid.
 
+    ``excluded_ids`` removes merged or retired ids from the card sequence.
     One page holds all nine slots.  With more levels, the first page keeps
     its last slot for "Next", the last page its first slot for "Previous",
     and middle pages give up both.
     """
-    ids = list(range(1, highest + 1))
+    ids = [level_id for level_id in range(1, highest + 1)
+           if level_id not in excluded_ids]
     if len(ids) <= CARDS_PER_PAGE:
         return [ids]
     pages = [ids[:CARDS_PER_PAGE - 1]]

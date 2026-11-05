@@ -1,13 +1,18 @@
-"""Random-level presets: one dataclass per dynamic level."""
+"""Random-level presets and their optional complete generation templates."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
 class RandomPreset:
-    """All tunables for one dynamic random level."""
+    """All tunables for one dynamic random level.
+
+    ``templates`` can hold complete RandomPreset configurations. When present,
+    generation chooses one configuration and uses it for the whole level.
+    Without templates, this preset itself remains the generation config.
+    """
 
     level_id: int
     name: str
@@ -45,13 +50,20 @@ class RandomPreset:
     num_holes: int = 0
     num_wormholes: int = 0
     num_portals: int = 0
+    templates: tuple[RandomPreset, ...] = ()
     card_blurb: str = "New maze every visit"
     extra_rules: tuple = field(default=(), compare=False, repr=False)
 
+    def __post_init__(self):
+        if any(not isinstance(template, RandomPreset) for template in self.templates):
+            raise TypeError("preset.templates must contain RandomPreset instances")
+        if any(template.templates for template in self.templates):
+            raise ValueError("random-level templates cannot contain nested templates")
 
-PRESET_7 = RandomPreset(
-    level_id=7,
-    name="Random Drift",
+
+_PRESET_8_TEMPLATE_1 = RandomPreset(
+    level_id=8,
+    name="Random Drift I",
     ship_id="ship01",
     time_limit=10.0,
     lives=5,
@@ -80,7 +92,7 @@ PRESET_7 = RandomPreset(
 )
 
 
-PRESET_8 = RandomPreset(
+_PRESET_8_TEMPLATE_2 = RandomPreset(
     level_id=8,
     name="Random Drift II",
     time_limit=12.0,
@@ -102,8 +114,12 @@ PRESET_8 = RandomPreset(
     card_blurb="Denser maze, smaller target; shockwaves, extratime and shields",
 )
 
+PRESET_8 = replace(
+    _PRESET_8_TEMPLATE_2,
+    templates=(_PRESET_8_TEMPLATE_1, _PRESET_8_TEMPLATE_2),
+)
 
-PRESETS = {7: PRESET_7, 8: PRESET_8}
+PRESETS = {8: PRESET_8}
 
 
 def get_preset(level_id):

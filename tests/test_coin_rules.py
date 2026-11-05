@@ -135,24 +135,24 @@ def test_logging_out_forgets_the_paid_clear_rewards():
 
 def test_random_map_clear_pays_once_per_seed():
     manager = _manager()
-    _arrive(_scene(7, manager, seed=123))
+    _arrive(_scene(8, manager, seed=123))
     assert int(manager.session.money) == config.CLEAR_REWARD
 
-    _arrive(_scene(7, manager, seed=123))                  # Retry, same map
+    _arrive(_scene(8, manager, seed=123))                  # Retry, same map
     assert int(manager.session.money) == config.CLEAR_REWARD
 
-    _arrive(_scene(7, manager, seed=456))                  # a new map pays again
+    _arrive(_scene(8, manager, seed=456))                  # a new map pays again
     assert int(manager.session.money) == 2 * config.CLEAR_REWARD
 
 
 def test_random_map_clear_reward_is_not_saved():
     manager = _manager()
-    _arrive(_scene(7, manager, seed=123))
+    _arrive(_scene(8, manager, seed=123))
     row = session_to_profile(manager.session, "u1").to_row()
 
     loaded = _manager()
     apply_profile_to_session(loaded.session, PlayerProfile.from_row(row, "u1"), "u1")
-    _arrive(_scene(7, loaded, seed=123))
+    _arrive(_scene(8, loaded, seed=123))
     assert int(loaded.session.money) == 2 * config.CLEAR_REWARD
 
 
@@ -169,12 +169,12 @@ def test_solution_used_clear_pays_nothing_and_keeps_the_fixed_reward():
 
 def test_solution_used_clear_keeps_the_random_map_reward():
     manager = _manager()
-    scene = _scene(7, manager, seed=123)
+    scene = _scene(8, manager, seed=123)
     scene._reveal_solution()
     _arrive(scene)
     assert int(manager.session.money) == 0
 
-    _arrive(_scene(7, manager, seed=123))
+    _arrive(_scene(8, manager, seed=123))
     assert int(manager.session.money) == config.CLEAR_REWARD
 
 
@@ -195,15 +195,15 @@ def test_fixed_coin_pays_once_and_stays_gone_after_reset_and_reentry():
 
 def test_random_coin_pays_once_per_map():
     manager = _manager()
-    scene = _scene(7, manager, seed=123)
+    scene = _scene(8, manager, seed=123)
     coin = _coins(scene)[0]
     _collect(scene, coin)
     assert int(manager.session.money) == 1
 
-    retry = _scene(7, manager, seed=123)                    # same map: already taken
+    retry = _scene(8, manager, seed=123)                    # same map: already taken
     assert [p.consumed for p in _coins(retry)][0]
 
-    other = _scene(7, manager, seed=456)                    # a new map pays again
+    other = _scene(8, manager, seed=456)                    # a new map pays again
     fresh = [p for p in _coins(other) if not p.consumed][0]
     _collect(other, fresh)
     assert int(manager.session.money) == 2
@@ -251,6 +251,6 @@ def test_win_stats_after_a_reveal_count_nothing():
 
 def test_win_stats_on_a_random_map():
     manager = _manager()
-    scene = _scene(7, manager, seed=123)
+    scene = _scene(8, manager, seed=123)
     _arrive(scene)
     assert _finish(scene)["coins_earned"] == config.CLEAR_REWARD

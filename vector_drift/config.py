@@ -108,7 +108,7 @@ CHECKPOINT_PAN_DURATION = 1.2       # camera pan to the next section (s, ease-in
 PLANNED_LEVELS = 24
 
 # --- Random levels -----------------------------------------------------------
-# All tunables live in level_presets.py (one RandomPreset per dynamic level).
+# All tunables live in level_presets.py (optionally with multiple templates per level).
 # Tweak difficulty or add a new random level by editing PRESETS only.
 
 # Field arrows: linear length, the largest |F| on screen gets ARROW_MAX_M

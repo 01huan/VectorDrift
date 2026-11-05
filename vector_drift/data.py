@@ -1,7 +1,8 @@
 """Static game data: ships and hand-designed levels.
 
-Dynamic levels (e.g. 7, 8) are NOT hard-coded here: their tunables live in
-level_presets.py and their layouts are generated fresh by random_level.py.
+Dynamic levels (e.g. 8) are NOT hard-coded here: their tunables and
+optional per-level templates live in level_presets.py; their layouts are
+generated fresh by random_level.py.
 get_level() routes any id in level_presets.dynamic_ids() to the generator,
 so gameplay always uses get_level() instead of reading LEVELS directly.
 To add another random level: register_preset(RandomPreset(level_id=N, ...))

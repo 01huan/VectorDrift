@@ -29,9 +29,9 @@ class FakeSolver:
 
 
 def test_generate_benchmark_levels():
-    cases = generate_benchmark_levels(n=2, level_id=7)
+    cases = generate_benchmark_levels(n=2, level_id=8)
     assert len(cases) == 2
-    assert all(c.level_id == 7 for c in cases)
+    assert all(c.level_id == 8 for c in cases)
     assert cases[0].seed != cases[1].seed
 
 
@@ -45,7 +45,7 @@ def test_generate_benchmark_levels_invalid():
 
 
 def test_run_benchmark_and_result():
-    cases = generate_benchmark_levels(n=2, level_id=7)
+    cases = generate_benchmark_levels(n=2, level_id=8)
     res = run_benchmark(FakeSolver(), cases, time_budget_s=1.0, simulation_budget=5)
     assert res.n_cases == 2
     assert res.successes == 2

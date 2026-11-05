@@ -21,14 +21,13 @@ def test_fixed_level_n_flies_ship01_to_ship_n():
 
 
 def test_random_levels_fly_every_ship():
-    assert usable(7) == ["ship01"]
     assert usable(8) == ["ship01"]
 
 
 def test_a_level_starts_on_its_newest_ship():
     assert default_ship_id(1) == "ship01"
     assert default_ship_id(2) == "ship01"
-    assert default_ship_id(7) == "ship01"
+    assert default_ship_id(8) == "ship01"
 
 
 class Quiet:
@@ -39,7 +38,7 @@ class Quiet:
 def game_on(manager, level_id):
     from vector_drift.scenes.game import GameScene
     manager.session.level_id = level_id
-    if level_id >= 7:
+    if level_id >= 8:
         manager.session.random_seed = 123
     return GameScene(manager)
 
@@ -92,7 +91,7 @@ def test_retry_keeps_the_chosen_ship_and_level_select_resets_it():
 
 
 def test_random_level_starts_on_ship06_and_flies_any_ship():
-    scene = game_on(SceneManager(Quiet()), 7)
+    scene = game_on(SceneManager(Quiet()), 8)
     assert scene.ship.id == "ship01"
     for _ in range(5):
         scene._switch_ship(-1)
@@ -110,4 +109,3 @@ def test_locked_ship_preview_is_grey():
     assert opaque.any()
     assert (rgb[..., 0][opaque] == rgb[..., 1][opaque]).all()
     assert (rgb[..., 1][opaque] == rgb[..., 2][opaque]).all()
-

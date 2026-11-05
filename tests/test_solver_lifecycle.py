@@ -24,7 +24,7 @@ def _manager():
 
 
 def _random_scene(manager):
-    manager.session.level_id = 7
+    manager.session.level_id = 8
     manager.session.random_seed = 123
     scene = GameScene(manager)
     manager.switch(scene)

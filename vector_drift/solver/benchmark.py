@@ -76,7 +76,7 @@ class BenchmarkResult:
         dest.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
 
 
-def generate_benchmark_levels(n: int = 12, level_id: int = 7,
+def generate_benchmark_levels(n: int = 12, level_id: int = 8,
                               base_seed: int = 20240101) -> list[BenchmarkCase]:
     """Generate ``n`` unseen random levels with independent seeds."""
     if not is_dynamic_level(level_id):

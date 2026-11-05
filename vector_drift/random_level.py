@@ -1,4 +1,4 @@
-"""Random solvable level generator (dynamic levels: 7, 8, ...).
+"""Random solvable level generator (dynamic levels: 8, ...).
 
 Strategy (guaranteed solvable by construction):
 
@@ -15,7 +15,7 @@ Strategy (guaranteed solvable by construction):
 
 How to extend (no core edits needed):
 
-* New random level (e.g. Level 9): add ``RandomPreset(level_id=9, ...)``
+* New random level (e.g. Level 10): add ``RandomPreset(level_id=10, ...)``
   in level_presets.py -- done. Different params, same generator.
 * New obstacle flavour (e.g. kind="super"): add a renderer in
   ``sprites.OBSTACLE_RENDERERS`` and, only if placement must change,
@@ -27,16 +27,16 @@ How to extend (no core edits needed):
 Pure logic (no pygame); tunables live in level_presets.py.
 Pass ``seed`` for deterministic output in tests.
 Backward compat: all public functions accept ``preset=None`` (defaults to
-Level 7) and ``generate_random_level(seed=...)`` keyword style still works.
+Level 8) and ``generate_random_level(seed=...)`` keyword style still works.
 """
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from . import config
 from .data import LevelSpec, ObstacleSpec
-from .level_presets import get_preset
+from .level_presets import RandomPreset, get_preset
 from .physics import segment_hits_circle
 
 
@@ -62,8 +62,24 @@ def _rand_point(rng, margin):
     return (x, y)
 
 
-def _preset_or_default(preset=None, level_id=7):
+def _preset_or_default(preset=None, level_id=8):
     return preset if preset is not None else get_preset(level_id)
+
+
+def _choose_template(preset, rng):
+    """Choose one complete generation config while keeping the level identity."""
+    templates = getattr(preset, "templates", ())
+    if not templates:
+        return preset
+    template = rng.choice(templates)
+    if not isinstance(template, RandomPreset):
+        raise TypeError("preset.templates must contain RandomPreset instances")
+    return replace(
+        template,
+        level_id=preset.level_id,
+        name=preset.name,
+        card_blurb=preset.card_blurb,
+    )
 
 
 def sample_endpoints(rng, preset=None):
@@ -371,14 +387,14 @@ def _make_spec(start, target, obstacles, preset=None, pickups=(), holes=()):
     )
 
 
-def generate_with_corridor(seed=None, level_id=7, preset=None):
+def generate_with_corridor(seed=None, level_id=8, preset=None):
     """Build a level; also return hidden corridor (for tests/debug).
 
     Retries whole layouts a bounded number of times; as a last resort
     falls back to an obstacle-free (always solvable) layout.
     """
-    preset = _preset_or_default(preset, level_id)
     rng = random.Random(seed)
+    preset = _choose_template(_preset_or_default(preset, level_id), rng)
     for _ in range(preset.max_level_attempts):
         try:
             start, target = sample_endpoints(rng, preset)
@@ -408,17 +424,17 @@ def generate_with_corridor(seed=None, level_id=7, preset=None):
     return _make_spec(start, target, (), preset), [start, target], [(start, target)]
 
 
-def generate_random_level(level_id=7, seed=None, preset=None):
-    """Generate a random-but-solvable level (default: Level 7).
+def generate_random_level(level_id=8, seed=None, preset=None):
+    """Generate a random-but-solvable level (default: Level 8).
 
     ``generate_random_level(seed=123)`` (old keyword style) still means
-    Level 7 with that seed.
+    Level 8 with that seed.
     """
     if isinstance(level_id, random.Random):
         raise TypeError("pass seed=..., not a Random instance")
     if preset is None and not isinstance(level_id, int):
-        # Backward compat: generate_random_level(seed_value) -> Level 7.
-        seed, level_id = level_id, 7
+        # Backward compat: generate_random_level(seed_value) -> Level 8.
+        seed, level_id = level_id, 8
     preset = _preset_or_default(preset, level_id)
     level, _, _ = generate_with_corridor(seed=seed, preset=preset)
     return level

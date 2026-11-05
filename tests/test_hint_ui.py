@@ -108,7 +108,7 @@ def test_fixed_levels_show_hint_and_never_start_the_solver(level_id, no_solver):
     assert no_solver == []
 
 
-@pytest.mark.parametrize("level_id", [7, 8])
+@pytest.mark.parametrize("level_id", [8])
 def test_random_levels_keep_the_ai_solver(level_id, no_solver):
     scene = _scene(level_id)
     _draw(scene)
@@ -315,7 +315,7 @@ def test_reentering_the_level_clears_the_solution_mark():
 
 # --- 6. No "try Hint" reminder after lost lives ------------------------------------
 
-@pytest.mark.parametrize("level_id", [1, 7])
+@pytest.mark.parametrize("level_id", [1, 6])
 def test_losing_lives_never_pops_a_hint_reminder(monkeypatch, level_id):
     texts = []
     real = game_module.draw_text

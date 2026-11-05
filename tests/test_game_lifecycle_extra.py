@@ -32,7 +32,7 @@ def _scene(level_id=1, fx="1", fy="0"):
     return scene, mgr
 
 
-@pytest.mark.parametrize("level_id", [1, 2, 3, 4, 7, 8])
+@pytest.mark.parametrize("level_id", [1, 2, 3, 4, 8])
 def test_game_construct_and_draw(level_id):
     scene, mgr = _scene(level_id)
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
@@ -41,7 +41,7 @@ def test_game_construct_and_draw(level_id):
     assert scene.level is not None
 
 
-@pytest.mark.parametrize("level_id", [1, 2, 3, 4, 7, 8])
+@pytest.mark.parametrize("level_id", [1, 2, 3, 4, 8])
 def test_game_update_setup(level_id):
     scene, mgr = _scene(level_id)
     scene.update(0.1)
@@ -299,8 +299,8 @@ def test_game_handle_ai_button_with_money():
 
 
 def test_game_handle_hint_mode():
-    # dynamic level 7 has hint_mode? check; just toggle attribute
-    scene, mgr = _scene(7)
+    # Dynamic level 8 has hint_mode? check; just toggle attribute
+    scene, mgr = _scene(8)
     scene.hint_mode = True
     scene.hint = None
     scene.session.money.add(1000)

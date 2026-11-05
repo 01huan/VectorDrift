@@ -162,8 +162,7 @@ def test_random_pickups_on_route_and_unstacked():
     from vector_drift.random_level import generate_with_corridor, place_pickups
     import random as _random
 
-    # PRESET_8 has pickup_groups; PRESET_7 is () so use a custom preset with
-    # shockwaves to actually exercise on-route + unstacked placement.
+    # Use a custom preset with shockwaves to exercise on-route + unstacked placement.
     preset = RandomPreset(
         level_id=99, name="PickupTest",
         pickup_groups=(("shockwave", 2, 0.45),),

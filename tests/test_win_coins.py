@@ -54,7 +54,7 @@ def test_solution_used_explains_why_there_are_no_coins(monkeypatch):
     assert any("no coins" in t for t in texts)
 
 
-@pytest.mark.parametrize("level_id, where", [(1, "level"), (7, "map")])
+@pytest.mark.parametrize("level_id, where", [(1, "level"), (8, "map")])
 def test_reward_already_collected_is_explained(monkeypatch, level_id, where):
     _scene, texts, _coins = _shown(monkeypatch, level_id, coins_earned=0, clear_reward=0)
     assert f"Clear reward already collected for this {where}" in texts

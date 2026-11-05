@@ -37,7 +37,7 @@ def _manager(coins=0):
 
 
 def _scene(manager, seed=123):
-    manager.session.level_id = 7
+    manager.session.level_id = 8
     manager.session.random_seed = seed
     scene = GameScene(manager)
     manager.switch(scene)
@@ -46,7 +46,7 @@ def _scene(manager, seed=123):
 
 def _found(scene):
     """Pretend the background solver has found an answer."""
-    scene.ai_result = SolveResult(solver_name="pso", solver_version="1", level_id=7,
+    scene.ai_result = SolveResult(solver_name="pso", solver_version="1", level_id=8,
                                   level_seed=None, success=True, best_score=1.8,
                                   best=SimulationSpec(template="t", fx_text=FX, fy_text=FY))
 
