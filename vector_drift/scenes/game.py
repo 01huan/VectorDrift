@@ -1548,19 +1548,19 @@ class GameScene(Scene):
         The stars stay put (far backdrop); the grid and labels are drawn at
         the zoomed scale, the arrows come from _zoomed_arrows. Drawn straight
         onto the screen: the zoom changes nearly every frame, so a cached
-        composite would only cost a copy.
+        composite would only cost a copy; the grid goes on line by line
+        (render.blit_grid) instead of through a plot-sized layer.
         """
         if self._space_screen is None:
             self._space_screen = (self._space.convert() if pygame.display.get_surface()
                                   else self._space)
         surface.blit(self._space_screen, plot.topleft)
-        layer = self._scratch_layer()
-        render.draw_grid(layer, self.camera)
-        surface.blit(layer, plot.topleft)
+        on_plot = surface.subsurface(plot)
+        render.blit_grid(on_plot, self.camera)      # no plot-sized layer to fill and blend
         arrows = self._zoomed_arrows()
         if arrows is not None:
             surface.blit(arrows, plot.topleft)
-        render.draw_plot_labels(surface.subsurface(plot), self.camera)
+        render.draw_plot_labels(on_plot, self.camera)
 
     def _draw_world_trails(self, surface, plot, current):
         """The earlier legs (dimmed), or with ``current`` this flight's trail, at the camera's zoom.

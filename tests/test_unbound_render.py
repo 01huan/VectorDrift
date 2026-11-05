@@ -294,3 +294,33 @@ def test_arrow_zoom_levels_step_by_at_most_a_cube_root_of_two():
         i = game_module.zoom_level(zoom)
         assert game_module.level_zoom(i) <= zoom + 1e-12
         assert zoom / game_module.level_zoom(i) <= 2 ** (1 / 3) + 1e-9
+
+
+# --- performance paths look the same -----------------------------------------------
+@pytest.mark.parametrize("zoom", [0.9, 0.4, 0.02])
+def test_grid_drawn_straight_onto_the_screen_matches_the_layer(zoom):
+    import numpy as np
+    vp = Viewport(zoom=zoom)
+    size = (vp.width, vp.height)
+    back = pygame.Surface(size)
+    back.fill((20, 26, 60))
+    layered, direct = back.copy(), back.copy()
+    grid = pygame.Surface(size, pygame.SRCALPHA)
+    render.draw_grid(grid, vp)
+    layered.blit(grid, (0, 0))
+    render.blit_grid(direct, vp)
+    a = pygame.surfarray.array3d(layered).astype(int)
+    b = pygame.surfarray.array3d(direct).astype(int)
+    diff = np.abs(a - b).max(axis=2)
+    # Only where a vertical and a horizontal line cross may a pixel differ
+    # (blended twice instead of once), and only slightly.
+    crossing = np.zeros(size, bool)
+    cols = np.zeros(size[0], bool)
+    rows = np.zeros(size[1], bool)
+    for _color, vertical, pos, width in render.grid_lines(vp):
+        span = slice(max(0, pos - width), max(0, pos + width + 1))
+        (cols if vertical else rows)[span] = True
+    crossing = cols[:, None] & rows[None, :]
+    assert diff[~crossing].max() == 0
+    assert diff.max() <= 45                      # the two axes at the origin
+    assert diff[crossing].mean() <= 15

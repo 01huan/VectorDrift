@@ -228,12 +228,11 @@ def make_plot_background(viewport, space=None):
     return surf
 
 
-def draw_grid(grid, viewport):
-    """Minor/major grid + axes onto ``grid`` (plot-sized, per-pixel alpha).
+def grid_lines(viewport):
+    """The grid as (color, vertical, position px, width px), plot-local, drawing order.
 
-    Plot-local pixels at the viewport's scale, so a zoomed viewport draws the
-    same metre grid smaller; zoomed far out the major step grows (grid_step)
-    so the number of lines stays about the same.
+    Minor/major lines + axes at the viewport's scale; zoomed far out the major
+    step grows (grid_step) so the number of lines stays about the same.
     """
     w, h = viewport.width, viewport.height
     ox, oy = viewport.left, viewport.top
@@ -249,21 +248,67 @@ def draw_grid(grid, viewport):
     max_x = int(viewport.half_w / step) + 1
     max_y = int(viewport.half_h / step) + 1
     minor, major, axis = (130, 160, 230, 22), (130, 160, 230, 52), (180, 200, 245, 170)
-
+    lines = []
     if step / 5 * s >= MINOR_GRID_MIN_PX * config.UI_SCALE:
-        for i in range(-max_x * 5, max_x * 5 + 1):
-            if i % 5:
-                pygame.draw.line(grid, minor, (sx(i * step / 5), 0), (sx(i * step / 5), h))
-        for j in range(-max_y * 5, max_y * 5 + 1):
-            if j % 5:
-                pygame.draw.line(grid, minor, (0, sy(j * step / 5)), (w, sy(j * step / 5)))
-    for i in range(-max_x, max_x + 1):
-        pygame.draw.line(grid, major, (sx(i * step), 0), (sx(i * step), h))
-    for j in range(-max_y, max_y + 1):
-        pygame.draw.line(grid, major, (0, sy(j * step)), (w, sy(j * step)))
+        lines += [(minor, True, sx(i * step / 5), 1)
+                  for i in range(-max_x * 5, max_x * 5 + 1) if i % 5]
+        lines += [(minor, False, sy(j * step / 5), 1)
+                  for j in range(-max_y * 5, max_y * 5 + 1) if j % 5]
+    # The axes are drawn over the major lines at 0, so those are left out.
+    lines += [(major, True, sx(i * step), 1) for i in range(-max_x, max_x + 1) if i]
+    lines += [(major, False, sy(j * step), 1) for j in range(-max_y, max_y + 1) if j]
     axis_w = max(2, px(1.5))
-    pygame.draw.line(grid, axis, (sx(0), 0), (sx(0), h), axis_w)
-    pygame.draw.line(grid, axis, (0, sy(0)), (w, sy(0)), axis_w)
+    lines += [(axis, True, sx(0), axis_w), (axis, False, sy(0), axis_w)]
+    return lines
+
+
+def draw_grid(grid, viewport):
+    """Minor/major grid + axes onto ``grid`` (plot-sized, per-pixel alpha), plot-local."""
+    w, h = viewport.width, viewport.height
+    for color, vertical, pos, width in grid_lines(viewport):
+        if vertical:
+            pygame.draw.line(grid, color, (pos, 0), (pos, h), width)
+        else:
+            pygame.draw.line(grid, color, (0, pos), (w, pos), width)
+
+
+_grid_strips = {}
+
+
+def _grid_strip(color, vertical, length, width):
+    """One grid line on its own small transparent strip, drawn exactly like draw_grid."""
+    key = (color, vertical, length, width)
+    strip = _grid_strips.get(key)
+    if strip is None:
+        if len(_grid_strips) > 64:
+            _grid_strips.clear()
+        pad = width if width > 1 else 0        # a 1 px line fills its strip exactly
+        if vertical:
+            strip = pygame.Surface((2 * pad + 1, length), pygame.SRCALPHA)
+            pygame.draw.line(strip, color, (pad, 0), (pad, length), width)
+        else:
+            strip = pygame.Surface((length, 2 * pad + 1), pygame.SRCALPHA)
+            pygame.draw.line(strip, color, (0, pad), (length, pad), width)
+        _grid_strips[key] = strip
+    return strip
+
+
+def blit_grid(surface, viewport):
+    """The grid straight onto ``surface`` (plot-sized, any format), line by line.
+
+    Same lines and blending as drawing draw_grid on a layer and blitting it,
+    but without a plot-sized layer: only the thin strips the lines cover are
+    blended, which is much cheaper on large screens (the zoomed view redraws
+    the grid every frame). Only where lines cross can a pixel differ.
+    """
+    w, h = viewport.width, viewport.height
+    for color, vertical, pos, width in grid_lines(viewport):
+        pad = width if width > 1 else 0
+        if vertical:
+            if -width <= pos <= w + width:
+                surface.blit(_grid_strip(color, True, h, width), (pos - pad, 0))
+        elif -width <= pos <= h + width:
+            surface.blit(_grid_strip(color, False, w, width), (0, pos - pad))
 
 
 def draw_dashed_rect(surface, rect, color, width=2, dash=10, gap=7):
