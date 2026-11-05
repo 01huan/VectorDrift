@@ -17,7 +17,7 @@ The ship starts at rest at (-7, 0) and must reach the planet at (7, 0). Each lau
 
 The **Unbound** pickup (from level 6) opens the map edge:
 
-* For the rest of that life the ship may fly past the map edge. It only goes out of bounds past an outer edge twice the map's size (±20 m × ±15 m), and the camera zooms out to keep it in view.
+* For the rest of that life the ship never goes out of bounds: it may fly as far from the map as it likes, and the camera zooms out to keep both the map and the ship in view. That life ends only by reaching the planet, running out of time, or a diverged flight. Passing a point of infinite force counts as **Diverged** (the ship is not flung away).
 * Unbound comes back at the start of every life; the other pickups stay taken.
 * If time runs out while the ship is outside the map, the next launch starts back at the level start instead of where the ship stopped.
 * With a shield active as well, the map edge is Unbound's job: crossing it does not use up the shield, which stays for the rocks.
