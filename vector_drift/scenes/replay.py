@@ -470,8 +470,13 @@ class ReplayScene(Scene):
         draw_text(surface, f"({cur.get('x', 0):.2f}, {cur.get('y', 0):.2f}) m", (px(220), ty + px(24)), 16, config.TEXT, anchor="midleft")
         draw_text(surface, "Velocity", (px(40), ty + px(48)), 16, config.TEXT_DIM, anchor="midleft")
         draw_text(surface, f"({cur.get('vx', 0):.2f}, {cur.get('vy', 0):.2f}) m/s", (px(220), ty + px(48)), 16, config.TEXT, anchor="midleft")
-        draw_text(surface, "Force", (px(40), ty + px(72)), 16, config.TEXT_DIM, anchor="midleft")
-        draw_text(surface, f"({cur.get('fx', 0):.2f}, {cur.get('fy', 0):.2f}) N", (px(220), ty + px(72)), 16, config.TEXT, anchor="midleft")
+        draw_text(surface, "Force formula", (px(40), ty + px(72)), 16, config.TEXT_DIM, anchor="midleft")
+        fx_text = rec.get("fx_text", "")
+        fy_text = rec.get("fy_text", "")
+        if fx_text or fy_text:
+            draw_text(surface, f"({fx_text}, {fy_text})", (px(220), ty + px(72)), 16, config.TEXT, anchor="midleft")
+        draw_text(surface, "Force", (px(40), ty + px(96)), 16, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, f"({cur.get('fx', 0):.2f}, {cur.get('fy', 0):.2f}) N", (px(220), ty + px(96)), 16, config.TEXT, anchor="midleft")
 
         draw_text(surface, "Space: play/pause   Left/Right: step   Play resumes from current position",
                   (config.WINDOW_W // 2, config.WINDOW_H - px(30)), 14, config.TEXT_FAINT, anchor="center")
