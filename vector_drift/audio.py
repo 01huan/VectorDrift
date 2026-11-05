@@ -10,7 +10,7 @@ from . import config
 
 SOUND_SLOTS = ["click", "error", "launch", "thruster_loop", "life_lost", "win", "game_over",
                "shield_break", "shockwave", "extratime", "shield", "life", "money",
-               "bounce", "warp", "blip", "purchase"]
+               "bounce", "warp", "blip", "purchase", "unbound"]
 # Music tracks (assets/music) and whether each one loops.
 MUSIC_SLOTS = {"menu": True, "opening": False, "level": True}
 FADE_OUT_S = 0.6

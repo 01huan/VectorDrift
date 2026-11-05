@@ -177,11 +177,39 @@ def make_space_background(size, seed=7, star_count=150):
 
 
 # --- grid ---------------------------------------------------------------------
-def make_plot_background(viewport):
-    """Space background + translucent minor/major grid + axes, sized to the plot."""
+PLOT_SPACE_SEED, PLOT_SPACE_STARS = 11, 170
+# Minor grid lines (every 0.2 m) are left out once closer than this (logical px),
+# i.e. when the camera zooms far out.
+MINOR_GRID_MIN_PX = 7
+
+
+def make_plot_space(viewport):
+    """The plot's star background alone (no grid), sized to the plot."""
+    return make_space_background((viewport.width, viewport.height),
+                                 seed=PLOT_SPACE_SEED, star_count=PLOT_SPACE_STARS)
+
+
+def make_plot_background(viewport, space=None):
+    """Space background + translucent minor/major grid + axes, sized to the plot.
+
+    ``space`` is a ready star background (make_plot_space) to draw on; it is
+    copied, never changed.
+    """
     w, h = viewport.width, viewport.height
-    surf = make_space_background((w, h), seed=11, star_count=170)
+    surf = space.copy() if space is not None else make_plot_space(viewport)
     grid = pygame.Surface((w, h), pygame.SRCALPHA)
+    draw_grid(grid, viewport)
+    surf.blit(grid, (0, 0))
+    return surf
+
+
+def draw_grid(grid, viewport):
+    """Minor/major grid + axes onto ``grid`` (plot-sized, per-pixel alpha).
+
+    Plot-local pixels at the viewport's scale, so a zoomed viewport draws the
+    same metre grid smaller.
+    """
+    w, h = viewport.width, viewport.height
     ox, oy = viewport.left, viewport.top
     s = viewport.scale
 
@@ -195,12 +223,13 @@ def make_plot_background(viewport):
     max_y = int(viewport.half_h) + 1
     minor, major, axis = (130, 160, 230, 22), (130, 160, 230, 52), (180, 200, 245, 170)
 
-    for i in range(-max_x * 5, max_x * 5 + 1):
-        if i % 5:
-            pygame.draw.line(grid, minor, (sx(i / 5), 0), (sx(i / 5), h))
-    for j in range(-max_y * 5, max_y * 5 + 1):
-        if j % 5:
-            pygame.draw.line(grid, minor, (0, sy(j / 5)), (w, sy(j / 5)))
+    if s / 5 >= MINOR_GRID_MIN_PX * config.UI_SCALE:
+        for i in range(-max_x * 5, max_x * 5 + 1):
+            if i % 5:
+                pygame.draw.line(grid, minor, (sx(i / 5), 0), (sx(i / 5), h))
+        for j in range(-max_y * 5, max_y * 5 + 1):
+            if j % 5:
+                pygame.draw.line(grid, minor, (0, sy(j / 5)), (w, sy(j / 5)))
     for i in range(-max_x, max_x + 1):
         pygame.draw.line(grid, major, (sx(i), 0), (sx(i), h))
     for j in range(-max_y, max_y + 1):
@@ -208,14 +237,35 @@ def make_plot_background(viewport):
     axis_w = max(2, px(1.5))
     pygame.draw.line(grid, axis, (sx(0), 0), (sx(0), h), axis_w)
     pygame.draw.line(grid, axis, (0, sy(0)), (w, sy(0)), axis_w)
-    surf.blit(grid, (0, 0))
-    return surf
+
+
+def draw_dashed_rect(surface, rect, color, width=2, dash=10, gap=7):
+    """Outline ``rect`` (x, y, w, h in px) with a dashed line."""
+    x, y, w, h = (float(v) for v in rect)
+    corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]
+    for (x0, y0), (x1, y1) in zip(corners, corners[1:]):
+        length = math.hypot(x1 - x0, y1 - y0)
+        if length <= 0:
+            continue
+        ux, uy = (x1 - x0) / length, (y1 - y0) / length
+        d = 0.0
+        while d < length:
+            e = min(d + dash, length)
+            pygame.draw.line(surface, color, (x0 + ux * d, y0 + uy * d),
+                             (x0 + ux * e, y0 + uy * e), width)
+            d = e + gap
 
 
 def make_plot_labels(viewport):
     """Tick labels on a transparent layer, drawn above the arrow field."""
+    surf = pygame.Surface((viewport.width, viewport.height), pygame.SRCALPHA)
+    draw_plot_labels(surf, viewport)
+    return surf
+
+
+def draw_plot_labels(surf, viewport):
+    """Tick labels onto ``surf`` (plot-sized, per-pixel alpha), plot-local pixels."""
     w, h = viewport.width, viewport.height
-    surf = pygame.Surface((w, h), pygame.SRCALPHA)
     ox, oy = viewport.left, viewport.top
     s = viewport.scale
 
@@ -245,7 +295,6 @@ def make_plot_labels(viewport):
     label("0", (sx(0) - px(6), sy(0) + px(6)), "topright")
     label("x (m)", (w - px(8), sy(0) - px(6)), "bottomright")
     label("y (m)", (sx(0) + px(8), px(6)), "topleft")
-    return surf
 
 
 # --- arrows -------------------------------------------------------------------
@@ -276,11 +325,14 @@ def field_arrow_shape(length_px):
     return 1.3 * u, head, head * 0.85
 
 
-def make_field_layer(viewport, field):
+def make_field_layer(viewport, field, max_mag=None):
     """Arrow field as a transparent plot-sized surface, plus the largest |F| shown.
 
     All arrows share one color. Length is linear in |F|, scaled so the largest
     force on screen gets the longest arrow (like a quiver plot).
+    ``max_mag`` fixes that scale instead (the map's largest |F|, for the
+    zoomed-out view); arrows for larger forces are capped at the longest
+    length.
     """
     k = SUPERSAMPLE
     w, h = viewport.width, viewport.height
@@ -292,8 +344,9 @@ def make_field_layer(viewport, field):
 
     samples = field_samples(viewport, field)
     mags = [math.hypot(fx, fy) for _, _, fx, fy in samples]
-    finite = [m for m in mags if math.isfinite(m)]
-    max_mag = max(finite) if finite else 0.0
+    if max_mag is None:
+        finite = [m for m in mags if math.isfinite(m)]
+        max_mag = max(finite) if finite else 0.0
     max_len_px = config.ARROW_MAX_M * s
 
     for (x, y, fx, fy), mag in zip(samples, mags):
@@ -301,7 +354,7 @@ def make_field_layer(viewport, field):
         if max_mag <= 1e-12 or not math.isfinite(mag):
             pygame.draw.circle(big, color, (qx, qy), dot)
             continue
-        length = max_len_px * mag / max_mag
+        length = max_len_px * min(1.0, mag / max_mag)
         if length < 2.5 * config.UI_SCALE:
             pygame.draw.circle(big, color, (qx, qy), dot * 0.85)
             continue

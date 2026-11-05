@@ -9,7 +9,7 @@ import pygame
 from .. import config, render, sprites
 from ..config import px
 from ..desktop import set_cursor
-from ..coords import Viewport
+from ..coords import Viewport, fit_zoom
 from ..data import (SHIPS, default_ship_id, get_level, section_count, section_level,
                     section_shift, ship_unlocked)
 from ..expr_parser import diagnose_expression
@@ -17,6 +17,7 @@ from ..hints import get_hint
 from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
+from ..pickups import UNBOUND_OUTER_SCALE
 from ..image_assets import COIN_BALANCE
 from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
                   draw_panel_box, draw_text, icon_surface)
@@ -63,6 +64,13 @@ RESPAWN_EVERY_LIFE = ("unbound",)
 START_MARKER_RADIUS_M = 0.45
 CHECKPOINT_LIFE_POP_S = 0.45  # the taken checkpoint life grows and fades out this long
 HISTORY_ALPHA = 110          # earlier legs of the current run
+CAMERA_EASE_S = 0.1          # zoom time constant: about 0.3 s to settle
+CAMERA_MARGIN_M = 1.0        # room kept between an off-map ship and the plot edge
+UNBOUND_EDGE = (190, 130, 255)   # dashed map edge while Unbound is active
+# Zooms the field arrows are drawn at for the zoomed-out view (1 down to the
+# outer edge's 0.5, evenly spaced in ratio); in between, the next one down
+# is stretched, so by at most 0.5 ** (-1/3) ~ 1.26.
+ZOOM_LEVELS = tuple(UNBOUND_OUTER_SCALE ** (-i / 3) for i in range(4))
 RUN_GREEN = (137, 209, 133)
 
 
@@ -177,13 +185,23 @@ class GameScene(Scene):
         self.ship = SHIPS[ship_id]
         self.flyable_ship = self.ship           # what flies (and fills the lives row)
 
+        # viewport: the map at zoom 1, for the cached layers and trail pixels.
+        # camera: what the plot is drawn through; it zooms out while an
+        # unbound ship is off the map (_update_camera).
         self.viewport = Viewport()
-        self.background = render.make_plot_background(self.viewport)
+        self.camera = Viewport()
+        self._space = render.make_plot_space(self.viewport)
+        self.background = render.make_plot_background(self.viewport, space=self._space)
         self.labels = render.make_plot_labels(self.viewport)
         plot_size = (self.viewport.width, self.viewport.height)
         self.trail = sprites.TrailLayer(plot_size)
         self.history = pygame.Surface(plot_size, pygame.SRCALPHA)
         self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self._history_legs = []         # the same earlier legs as world points (zoomed drawing)
+        self._overlay = None            # plot-sized scratch layer for zoomed drawing
+        self._space_screen = None       # the stars in the display's format (zoomed drawing)
+        self._mips, self._mips_key = [], None       # arrow layers at ZOOM_LEVELS
+        self._arrows, self._arrows_key = None, None # arrow layer at the current zoom
         self._trail_count = 0
         self._plot_base = None          # background + arrows + labels, pre-composited
         self._plot_key = None
@@ -502,6 +520,8 @@ class GameScene(Scene):
         self.attempts += 1
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
+        if any(p.kind == "unbound" for p in self.pickups or ()):
+            self._arrow_mips()          # ready before the camera can zoom out
         self.trail.clear()
         self._trail_count = 0
         self._bounces_heard = 0
@@ -608,11 +628,11 @@ class GameScene(Scene):
                 self.trail.draw(self.history, (0, 0), HISTORY_ALPHA)
                 hb = self.history_bounds
                 self.history_bounds = hb.union(leg) if hb.w and hb.h else leg.copy()
+            self._history_legs.append((list(self.flight.trail), list(self.flight.trail_breaks)))
             where = f"resume from ({self.launch_pos[0]:.2f}, {self.launch_pos[1]:.2f})"
         else:
             self.launch_pos = self.level.start
-            self.history.fill((0, 0, 0, 0), self.history_bounds)
-            self.history_bounds = pygame.Rect(0, 0, 0, 0)
+            self._clear_history()
             where = "back to start"
         self.trail.clear()
         self.banner = (reason, f"{self.lives} {noun} left · {where}", config.BANNER_DURATION)
@@ -620,6 +640,12 @@ class GameScene(Scene):
         self.heading = self._heading_to_target()
         self.state = SETUP
         self._validate()                # launch point moved: re-check the formulas there
+
+    def _clear_history(self):
+        """Drop the dimmed earlier legs (pixels and world points)."""
+        self.history.fill((0, 0, 0, 0), self.history_bounds)
+        self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self._history_legs = []
 
     def _respawn_every_life_pickups(self):
         """A new life starts: the RESPAWN_EVERY_LIFE pickups (unbound) are back."""
@@ -658,6 +684,7 @@ class GameScene(Scene):
         self.banner = None
         self.flight = None
         self.state = PANNING
+        self.camera.zoom = 1.0          # the pan is drawn at the map's own scale
         self._refresh_buttons()
 
     def _finish_pan(self):
@@ -665,8 +692,7 @@ class GameScene(Scene):
         self.pan = None
         self.trail.clear()
         self._trail_count = 0
-        self.history.fill((0, 0, 0, 0), self.history_bounds)
-        self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self._clear_history()
         self.heading = self._heading_to_target()
         self.state = SETUP
         self._validate()                # new launch point: re-check the formulas there
@@ -782,6 +808,12 @@ class GameScene(Scene):
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("money sfx skipped", exc_info=True)
+            elif event.get("kind") == "unbound":
+                # Flight._apply_pickup_events already opened the map edge.
+                try:
+                    self.audio.play("unbound")
+                except Exception:  # noqa: BLE001 - sfx slot is optional
+                    log.debug("unbound sfx skipped", exc_info=True)
             elif event.get("kind") == "shield_used":
                 # The protection broke on a bumper (the ship still passes it).
                 try:
@@ -838,6 +870,33 @@ class GameScene(Scene):
             self.dialogue.update(dt)
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
             self._update_flight(dt)
+            self._update_camera(dt)
+
+    def _camera_target(self):
+        """(zoom the camera eases toward, most it may lag behind while zooming out).
+
+        Out while an unbound ship is off the map, else 1. The second value is
+        the zoom that still keeps the whole ship on screen.
+        """
+        flight = self.flight
+        if flight is None or not getattr(flight, "unbound", False) or self.state not in (FLIGHT, ARRIVED):
+            return 1.0, 1.0
+        pos = (flight.x, flight.y)
+        return (fit_zoom(pos, flight.bounds, flight.outer_bounds, margin=CAMERA_MARGIN_M),
+                fit_zoom(pos, flight.bounds, flight.outer_bounds, margin=0.5 * self.ship.length))
+
+    def _update_camera(self, dt):
+        """Ease the camera zoom toward its target (smooth out and back in).
+
+        Zooming out never falls behind a fast ship: it stays on screen.
+        """
+        target, keep_ship = self._camera_target()
+        zoom = self.camera.zoom
+        if zoom == target:
+            return
+        zoom += (target - zoom) * (1.0 - math.exp(-dt / CAMERA_EASE_S))
+        zoom = min(zoom, keep_ship)
+        self.camera.zoom = target if abs(target - zoom) < 1e-3 else zoom
 
     def _update_ai(self):
         """Random levels: restart the solver on a new state, poll the running job."""
@@ -1118,10 +1177,10 @@ class GameScene(Scene):
         self.level = section_level(self.full_level, self.section_index)
         self._load_section_props()
         self.launch_pos = self.level.start
+        self.camera.zoom = 1.0
         self.trail.clear()
         self._trail_count = 0
-        self.history.fill((0, 0, 0, 0), self.history_bounds)
-        self.history_bounds = pygame.Rect(0, 0, 0, 0)
+        self._clear_history()
         self.banner = None
         self.heading = self._heading_to_target()
         self._validate()
@@ -1400,11 +1459,145 @@ class GameScene(Scene):
             self._plot_key = key
         return self._plot_base
 
+    # ------------------------------------------------------------------ zoomed view
+    def _scratch_layer(self):
+        """The plot-sized transparent scratch layer, cleared."""
+        size = (self.viewport.width, self.viewport.height)
+        if self._overlay is None or self._overlay.get_size() != size:
+            self._overlay = pygame.Surface(size, pygame.SRCALPHA)
+        self._overlay.fill((0, 0, 0, 0))
+        return self._overlay
+
+    def _arrow_mips(self):
+        """Arrow layers drawn at ZOOM_LEVELS, each covering what that zoom shows (cached).
+
+        The zoom-1 one is the map's own field layer. All share its length per
+        newton (arrows for larger forces off the map are capped at the
+        longest length), so the arrows keep their size as the camera zooms.
+        """
+        if self.field_layer is None:
+            return []
+        key = self._field_version
+        if key != self._mips_key:
+            mips = []
+            for zoom in ZOOM_LEVELS:
+                if zoom == 1.0:
+                    mips.append((zoom, self.field_layer))
+                    continue
+                try:
+                    layer, _ = render.make_field_layer(Viewport(zoom=zoom), self.field,
+                                                       max_mag=self.max_force)
+                except _PHYSICS_ERRORS + _RENDER_ERRORS as exc:
+                    log.warning("zoomed field layer contained: %r", exc)
+                    continue
+                mips.append((zoom, layer))
+            self._mips, self._mips_key = mips, key
+        return self._mips
+
+    def _zoomed_arrows(self):
+        """The arrow layer at the camera's zoom: the nearest prepared one, stretched.
+
+        Stretching from the next zoom down is at most ZOOM_LEVELS' ratio
+        (about 1.26), so arrows stay sharp. Cached while the zoom holds still.
+        """
+        zoom = self.camera.zoom
+        dim = not self.valid and self.state == SETUP
+        key = (self._field_version, dim, zoom)
+        if key == self._arrows_key:
+            return self._arrows
+        arrows = None
+        below = [(z, layer) for z, layer in self._arrow_mips() if z <= zoom + 1e-9]
+        if below:
+            base_zoom, layer = max(below, key=lambda m: m[0])
+            w, h = layer.get_size()
+            part = pygame.Rect(0, 0, round(w * base_zoom / zoom), round(h * base_zoom / zoom))
+            part.center = (w // 2, h // 2)
+            part = part.clip(layer.get_rect())
+            if part.size != (w, h) and part.w and part.h:
+                arrows = pygame.transform.smoothscale(layer.subsurface(part), (w, h))
+            elif part.size == (w, h):
+                arrows = layer.copy() if dim else layer     # never change the shared layer
+            if arrows is not None and dim:
+                arrows.set_alpha(70)
+        self._arrows, self._arrows_key = arrows, key
+        return arrows
+
+    def _draw_zoomed_base(self, surface, plot):
+        """Stars, grid, arrows and tick labels at the camera's zoom.
+
+        The stars stay put (far backdrop); the grid and labels are drawn at
+        the zoomed scale, the arrows come from _zoomed_arrows. Drawn straight
+        onto the screen: the zoom changes nearly every frame, so a cached
+        composite would only cost a copy.
+        """
+        if self._space_screen is None:
+            self._space_screen = (self._space.convert() if pygame.display.get_surface()
+                                  else self._space)
+        surface.blit(self._space_screen, plot.topleft)
+        layer = self._scratch_layer()
+        render.draw_grid(layer, self.camera)
+        surface.blit(layer, plot.topleft)
+        arrows = self._zoomed_arrows()
+        if arrows is not None:
+            surface.blit(arrows, plot.topleft)
+        render.draw_plot_labels(surface.subsurface(plot), self.camera)
+
+    def _draw_world_trails(self, surface, plot, current):
+        """The earlier legs (dimmed), or with ``current`` this flight's trail, at the camera's zoom.
+
+        Used while zoomed: the trail layers hold zoom-1 pixels, so these are
+        drawn from the world points instead (same width and colour).
+        """
+        cam = self.camera
+        if current:
+            legs = [] if self.flight is None else [
+                (self.flight.trail, getattr(self.flight, "trail_breaks", ()))]
+            target, color = surface.subsurface(plot), config.TRAIL
+        else:
+            legs = self._history_legs
+            target, color = self._scratch_layer(), (*config.TRAIL, HISTORY_ALPHA)
+        if not legs:
+            return
+        width = max(1, round(2.4 * config.UI_SCALE))
+        cull = config.MAX_PX_CULL
+        for pts, breaks in legs:
+            cut = sorted({0, *breaks, len(pts)})
+            for lo, hi in zip(cut, cut[1:]):
+                if hi - lo < 2:
+                    continue
+                try:
+                    line = [(min(max(sx - plot.x, -cull), plot.w + cull),
+                             min(max(sy - plot.y, -cull), plot.h + cull))
+                            for sx, sy in (cam.to_screen(x, y) for x, y in pts[lo:hi])]
+                    pygame.draw.lines(target, color, False, line, width)
+                except (TypeError, ValueError, OverflowError) as exc:
+                    log.debug("zoomed trail skipped: %r", exc)
+        if not current:
+            surface.blit(target, plot.topleft)
+
+    def _draw_unbound_edge(self, surface):
+        """While Unbound is active the map edge is a dashed line: it is open."""
+        flight = self.flight
+        if flight is None or not getattr(flight, "unbound", False):
+            return
+        hx, hy = flight.bounds
+        left, top = self.camera.to_screen(-hx, hy)
+        right, bottom = self.camera.to_screen(hx, -hy)
+        width = max(2, px(2))
+        inset = width / 2           # at zoom 1 the edge is the plot's own edge
+        render.draw_dashed_rect(surface, (left + inset, top + inset,
+                                          right - left - 2 * inset, bottom - top - 2 * inset),
+                                UNBOUND_EDGE, width, dash=px(10), gap=px(7))
+
     def _draw_plot(self, surface):
-        vp = self.viewport
+        vp = self.camera
+        zoomed = vp.zoom != 1.0
         plot = pygame.Rect(vp.rect)
         try:
-            surface.blit(self._plot_base_surface(), plot.topleft)
+            if zoomed:
+                self._draw_zoomed_base(surface, plot)
+            else:
+                surface.blit(self._plot_base_surface(), plot.topleft)
         except _RENDER_ERRORS as exc:
             log.warning("plot base blit contained: %r", exc)
 
@@ -1423,8 +1616,11 @@ class GameScene(Scene):
             else:
                 offset = (0.0, 0.0)
                 hb = self.history_bounds
-                if hb.w and hb.h:
+                if zoomed:
+                    self._draw_world_trails(surface, plot, current=False)
+                elif hb.w and hb.h:
                     surface.blit(self.history, (plot.x + hb.x, plot.y + hb.y), hb)
+                self._draw_unbound_edge(surface)
 
             flash = 0.0
             if self.state == ARRIVED:
@@ -1445,7 +1641,10 @@ class GameScene(Scene):
                 self._draw_panning_ship(surface, pan, old_offset)
                 return                  # (no labels or banner while panning)
             if self.flight is not None:
-                self.trail.draw(surface, plot.topleft)
+                if zoomed:
+                    self._draw_world_trails(surface, plot, current=True)
+                else:
+                    self.trail.draw(surface, plot.topleft)
 
             x, y, vx, vy, fx, fy = self._ship_state()
             for v in (x, y, vx, vy, fx, fy):
@@ -1508,7 +1707,7 @@ class GameScene(Scene):
         ``target=False`` skips the target (while panning, the section being
         left shares its checkpoint with the next section's start).
         """
-        vp = self.viewport
+        vp = self.camera
         ox, oy = offset
 
         def at(x, y):
@@ -1574,7 +1773,7 @@ class GameScene(Scene):
 
     def _draw_panning_ship(self, surface, pan, offset):
         """The ship glides from where it touched the checkpoint onto its center."""
-        vp = self.viewport
+        vp = self.camera
         p = pan.progress
         (ax, ay), (tx, ty) = pan.arrival, pan.level.target_center
         x, y = ax + (tx - ax) * p, ay + (ty - ay) * p
