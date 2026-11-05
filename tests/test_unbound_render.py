@@ -410,3 +410,15 @@ def test_a_missing_level_falls_back_to_a_farther_ready_one(scene, monkeypatch):
     assert scene._zoomed_arrows() is not None
     scene.camera.zoom = game_module.level_zoom(3) * 0.99    # needs level 4, not ready: uses 5
     assert scene._zoomed_arrows() is not None
+
+
+def test_moving_frames_reuse_one_arrow_surface(scene):
+    _launch(scene, "0", "10")
+    _run_until(scene, lambda: scene.flight.unbound)
+    scene._arrow_layer(1)
+    surfaces = []
+    for zoom in (0.9, 0.88, 0.86, 0.86):
+        scene.camera.zoom = zoom
+        surfaces.append(scene._zoomed_arrows())
+    assert all(s is surfaces[0] for s in surfaces)
+    assert scene._mips[1] is not surfaces[0]       # the cached level itself is never drawn over

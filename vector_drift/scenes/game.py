@@ -220,6 +220,7 @@ class GameScene(Scene):
         self._arrows_smooth = True      # False: a fast stretch, redone smoothly once still
         self._arrows_level = 0          # the zoom level the current arrows were stretched from
         self._layer_builder = None      # background worker for arrow layers (Unbound levels)
+        self._arrows_surface = None     # reused target of the arrow stretch
         self._trail_count = 0
         self._plot_base = None          # background + arrows + labels, pre-composited
         self._plot_key = None
@@ -1503,6 +1504,8 @@ class GameScene(Scene):
 
     def _keep_arrow_layer(self, i, layer):
         """Cache a level's layer; the ZOOM_LEVELS_KEPT most recently used stay."""
+        if layer is not None and pygame.display.get_surface() is not None:
+            layer = layer.convert_alpha()               # display format: faster to stretch
         self._mips[i] = layer
         while len(self._mips) > ZOOM_LEVELS_KEPT:
             gone = next(iter(self._mips))
@@ -1573,6 +1576,16 @@ class GameScene(Scene):
         self._keep_arrow_layer(i, layer)
         return layer
 
+    def _arrows_target(self, size):
+        """The surface stretched arrows are drawn into, made once (display format)."""
+        target = self._arrows_surface
+        if target is None or target.get_size() != size:
+            target = pygame.Surface(size, pygame.SRCALPHA)
+            if pygame.display.get_surface() is not None:
+                target = target.convert_alpha()
+            self._arrows_surface = target
+        return target
+
     def _zoomed_arrows(self):
         """The arrow layer at the camera's zoom: the next level out, stretched.
 
@@ -1606,13 +1619,18 @@ class GameScene(Scene):
             part.center = (w // 2, h // 2)
             part = part.clip(layer.get_rect())
             if part.size != (w, h) and part.w and part.h:
+                # Into one reused surface: making a new plot-sized one every
+                # frame cost more than the stretch itself.
+                arrows = self._arrows_target((w, h))
                 stretch = pygame.transform.smoothscale if smooth else pygame.transform.scale
-                arrows = stretch(layer.subsurface(part), (w, h))
+                stretch(layer.subsurface(part), (w, h), arrows)
+                arrows.set_alpha(70 if dim else 255)
                 exact = smooth
             elif part.size == (w, h):
-                arrows = layer.copy() if dim else layer     # never change the shared layer
-            if arrows is not None and dim:
-                arrows.set_alpha(70)
+                arrows = layer
+                if dim:                                 # never change the shared layer
+                    arrows = layer.copy()
+                    arrows.set_alpha(70)
         self._arrows, self._arrows_key, self._arrows_smooth = arrows, key, exact
         self._arrows_level = i
         return arrows
@@ -1650,6 +1668,8 @@ class GameScene(Scene):
             target, color = surface.subsurface(plot), config.TRAIL
         else:
             legs = self._history_legs
+            if not legs:
+                return                              # (no layer to clear for nothing)
             target, color = self._scratch_layer(), (*config.TRAIL, HISTORY_ALPHA)
         if not legs:
             return
