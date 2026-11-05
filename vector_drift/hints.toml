@@ -1,7 +1,10 @@
-# Hints for the FIXED levels 1-6 only. Random levels (7, 8) use the AI Solver instead.
+# Hints for every FIXED level in data.LEVELS. Random levels (7, 8) use the AI Solver instead.
 # Each level: `steps` are shown one at a time; the last page shows `answer_note`
 # plus every entry of `answers` (each one can be applied to the Fx / Fy editor).
-# tests/test_hints.py checks that every answer actually reaches the target.
+# A multi-section level instead has one hint per section, [level.N.section.K] with
+# K = 1 .. its number of sections; it cannot also have the plain keys above.
+# tests/test_hints.py checks that every answer actually reaches the target
+# (for a section: that section's target, flown from that section's start).
 
 [level.1]
 steps = [

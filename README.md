@@ -150,6 +150,13 @@ fails for any fixed level without a hint, and flies every answer from the
 level start to check that it reaches the planet. Random levels (7, 8) use the
 AI Solver and need no hint.
 
+A multi-section level gets one hint per section instead: `[level.N.section.K]`
+tables numbered 1 to its number of sections, each with the same keys. Every
+answer is flown from its own section's start and must reach that section's
+target. In a level, Hint shows the hint of the section on screen, and its
+answer page resets only that section (back to its start, which after a
+checkpoint is the checkpoint).
+
 ## Tests
 
 ```

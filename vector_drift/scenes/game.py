@@ -231,7 +231,7 @@ class GameScene(Scene):
         # Solver and never start it. The answer page marks this run as
         # "solution used": the win is flagged and not recorded as a best.
         self.hint_mode = not is_dynamic_level(self.level.id)
-        self.hint = get_hint(self.level.id) if self.hint_mode else None
+        self.hint = self._section_hint()
         self.hint_popup = None
         self.solution_used = False
         self._run_coins = []            # (coin key, amount) paid out this run, before any reveal
@@ -636,6 +636,8 @@ class GameScene(Scene):
         self.section_index += 1
         self.level = section_level(self.full_level, self.section_index)
         self._load_section_props()
+        self.hint = self._section_hint()
+        self.hint_popup = None          # the old section's hint no longer applies
         self.launch_pos = self.level.start
         self.banner = None
         self.flight = None
@@ -1000,6 +1002,10 @@ class GameScene(Scene):
             save_progress(self.manager.account, self.session)
             
     # ------------------------------------------------------------------ Hint
+    def _section_hint(self):
+        """The hint for the section on screen (one per section on multi-section levels)."""
+        return get_hint(self.level.id, self.section_index) if self.hint_mode else None
+
     def _open_hint(self):
         if self.hint is None or self.state == ARRIVED:
             return
@@ -1075,18 +1081,18 @@ class GameScene(Scene):
         self._reset_level()
 
     def _reset_level(self):
-        """Back to the level as it started (start, pickups, rocks); lives stay.
+        """Back to the current section as it started (start, pickups, rocks); lives stay.
 
+        On a multi-section level only this section resets: its start is the
+        checkpoint just reached, and sections already passed stay passed.
         A flight in progress just stops: it costs no life.
         """
-        from ..pickups import PickupState
         if self.state == FLIGHT:
             self.audio.stop_loop("thruster_loop")
             self.flight = None
             self.state = SETUP
-        self.level = get_level(self.level.id)
-        self.pickups = [PickupState.from_spec(s) for s in self.level.pickups]
-        self._hide_collected_coins()
+        self.level = section_level(self.full_level, self.section_index)
+        self._load_section_props()
         self.launch_pos = self.level.start
         self.trail.clear()
         self._trail_count = 0
