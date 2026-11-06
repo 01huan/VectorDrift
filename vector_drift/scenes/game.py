@@ -264,11 +264,15 @@ class GameScene(Scene):
             self.editor.history = saved[2]
         self._remember_editor_history()
 
-        # --- Hint (fixed levels) ----------------------------------------------
+        # --- Hint (fixed levels) / AI Solver (random + custom levels) ---------
         # Fixed levels show hand-written hints (hints.toml) in place of the AI
-        # Solver and never start it. The answer page marks this run as
-        # "solution used": the win is flagged and not recorded as a best.
-        self.hint_mode = not is_dynamic_level(self.level.id)
+        # Solver and never start it. Random levels and custom levels use the AI
+        # Solver instead: opening it is free, revealing the full answer costs
+        # config.AI_SOLVER_COST coins once per map/level this launch.
+        # The answer page marks this run as "solution used": the win is flagged
+        # and not recorded as a best.
+        self.hint_mode = not (is_dynamic_level(self.level.id)
+                              or self.level.id in getattr(self.session, "custom_level_ids", set()))
         self.hint = self._section_hint()
         self.hint_popup = None
         self.solution_used = False
