@@ -74,6 +74,34 @@ def upload_community_level(
     _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
+def delete_community_level(
+    level_id: str,
+    account: Any,
+    on_success: Optional[Callable[[], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Delete a community level the current user uploaded.
+
+    Row level security (``community_levels_delete_own``) also enforces that
+    only the owner can delete the row; the extra ``eq("user_id", ...)`` below
+    is a client-side guard so a wrong user never reaches the database.
+    """
+
+    def _fn() -> Any:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        return (
+            client.table(TABLE)
+            .delete()
+            .eq("id", level_id)
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
 def fetch_community_levels(
     on_success: Optional[Callable[[list[dict]], None]] = None,
     on_error: Optional[Callable[[Exception], None]] = None,

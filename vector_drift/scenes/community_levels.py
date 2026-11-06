@@ -28,6 +28,8 @@ class CommunityLevelsScene(Scene):
                                      style="plain", font_size=17)
         self.cards = []
         self.levels = []
+        self.delete_rects = []        # parallel to self.cards: delete button per row
+        self.deleting = None          # level id currently being deleted
         self.busy = False
         self.status = ""
         self._load()
@@ -43,6 +45,12 @@ class CommunityLevelsScene(Scene):
             self._load()
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not self.busy:
+            # Delete own upload first (small button in the top-right corner).
+            for (lvl, rect), del_rect in zip(self.cards, self.delete_rects):
+                if del_rect.collidepoint(event.pos):
+                    self._delete(lvl)
+                    return
+            # Otherwise open the level.
             for lvl, rect in self.cards:
                 if rect.collidepoint(event.pos):
                     self.audio.play("click")
@@ -53,6 +61,7 @@ class CommunityLevelsScene(Scene):
         self.busy = True
         self.status = "Loading community levels..."
         self.cards = []
+        self.delete_rects = []
         self.levels = []
         community.fetch_community_levels(on_success=self._on_loaded, on_error=self._on_error)
 
@@ -65,12 +74,42 @@ class CommunityLevelsScene(Scene):
         self.status = f"Failed to load community levels: {exc}"
         self.busy = False
 
+    def _is_owner(self, lvl: dict) -> bool:
+        account = self.manager.account
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            return False
+        return str(lvl.get("user_id")) == str(account.current_user.id)
+
+    def _delete(self, lvl: dict):
+        if not self._is_owner(lvl):
+            self.status = "You can only delete your own uploads."
+            return
+        account = self.manager.account
+        level_id = str(lvl.get("id"))
+        self.deleting = level_id
+        self.status = "Deleting..."
+
+        def on_ok():
+            self.deleting = None
+            self.status = "Deleted."
+            self._load()
+
+        def on_err(exc):
+            self.deleting = None
+            self.status = f"Delete failed: {exc}"
+
+        community.delete_community_level(level_id, account, on_success=on_ok, on_error=on_err)
+
     def _rebuild(self):
         self.cards = []
+        self.delete_rects = []
         x, y = px(60), px(100)
         for i, lvl in enumerate(self.levels):
             rect = pygame.Rect(x + (i % 4) * px(260), y + (i // 4) * px(180), px(240), px(160))
             self.cards.append((lvl, rect))
+            self.delete_rects.append(
+                pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
+            )
 
     def _deserialize(self, d: dict) -> LevelSpec:
         obstacles = tuple(
@@ -119,6 +158,51 @@ class CommunityLevelsScene(Scene):
         from .game import GameScene
         self.manager.switch(GameScene(self.manager))
 
+    # ------------------------------------------------------------------ preview
+
+    def _draw_preview(self, surface, lvl: dict, rect: pygame.Rect):
+        """Draw a tiny preview of the level layout inside ``rect``."""
+        preview = pygame.Rect(rect.x + px(10), rect.y + px(56), px(220), px(80))
+        pygame.draw.rect(surface, (26, 34, 60), preview, border_radius=px(3))
+        pygame.draw.rect(surface, config.PANEL_EDGE, preview, width=1, border_radius=px(3))
+
+        data_ = lvl.get("level_data") or {}
+        pts = [tuple(data_.get("start", (-7.0, 0.0))), tuple(data_.get("target_center", (7.0, 0.0)))]
+        for o in data_.get("obstacles", ()):
+            pts.append(tuple(o["center"]))
+        for p in data_.get("pickups", ()):
+            pts.append(tuple(p["center"]))
+        if not pts:
+            return
+
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        pad = 1.0
+        minx, maxx = min(xs) - pad, max(xs) + pad
+        miny, maxy = min(ys) - pad, max(ys) + pad
+        world_w = maxx - minx or 1.0
+        world_h = maxy - miny or 1.0
+        scale = min(preview.w / world_w, preview.h / world_h)
+
+        def to_screen(wx, wy):
+            return (preview.x + (wx - minx) * scale, preview.bottom - (wy - miny) * scale)
+
+        for o in data_.get("obstacles", ()):
+            cx, cy = to_screen(*o["center"])
+            r = max(2, int(float(o.get("radius", 0.4)) * scale))
+            pygame.draw.circle(surface, (140, 140, 160), (int(cx), int(cy)), r)
+        for p in data_.get("pickups", ()):
+            cx, cy = to_screen(*p["center"])
+            color = (240, 200, 80) if p.get("kind") == "money" else (120, 220, 140)
+            r = max(2, int(float(p.get("radius", 0.3)) * scale))
+            pygame.draw.circle(surface, color, (int(cx), int(cy)), r)
+        sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
+        pygame.draw.circle(surface, (100, 220, 100), (int(sx), int(sy)), max(3, int(0.25 * scale)))
+        tx, ty = to_screen(*data_.get("target_center", (7.0, 0.0)))
+        pygame.draw.circle(surface, (220, 100, 100), (int(tx), int(ty)), max(4, int(0.35 * scale)), width=1)
+
+    # ------------------------------------------------------------------ draw
+
     def draw(self, surface):
         surface.fill(config.BG)
         self.back_button.draw(surface)
@@ -126,16 +210,24 @@ class CommunityLevelsScene(Scene):
         self._rebuild()
         draw_text(surface, "Community Levels", (config.WINDOW_W // 2, px(40)), 30,
                   config.TEXT, kind="bold", anchor="center")
-        for lvl, rect in self.cards:
+        for (lvl, rect), del_rect in zip(self.cards, self.delete_rects):
             pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, width=max(1, px(1)), border_radius=px(6))
+            self._draw_preview(surface, lvl, rect)
             name = str(lvl.get("level_name") or "Community")
             draw_text(surface, name, (rect.x + px(10), rect.y + px(10)), 16, config.TEXT, kind="bold")
             email = str(lvl.get("uploader_email") or "")
-            draw_text(surface, email, (rect.x + px(10), rect.y + px(38)), 13, config.TEXT_DIM)
+            draw_text(surface, email, (rect.x + px(10), rect.y + px(146)), 12, config.TEXT_DIM)
             created = str(lvl.get("created_at") or "")[:10]
-            draw_text(surface, created, (rect.right - px(10), rect.y + px(10)), 13, config.TEXT_DIM,
+            draw_text(surface, created, (rect.right - px(10), rect.y + px(10)), 12, config.TEXT_DIM,
                       anchor="topright")
+            # Delete button (only shown for the uploader).
+            if self._is_owner(lvl):
+                hover = del_rect.collidepoint(pygame.mouse.get_pos())
+                bg = config.DANGER if hover else (140, 60, 70)
+                pygame.draw.rect(surface, bg, del_rect, border_radius=px(3))
+                draw_text(surface, "×", del_rect.center, 16, (255, 255, 255),
+                          kind="bold", anchor="center")
         if self.busy:
             draw_text(surface, self.status or "Loading...", (config.WINDOW_W // 2, config.WINDOW_H - px(60)),
                       15, config.WARNING, anchor="center")
