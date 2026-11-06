@@ -215,6 +215,16 @@ def reset_session_to_guest(session: Any) -> None:
     session.stats = {}
     session.story_seen = set()
     session.clear_rewarded_levels = set()
+    # Delete player-created (local custom) levels together with the rest of
+    # local data, so "Delete local data" removes them from memory and the
+    # data registry (the guest profile file is already cleared by the caller).
+    from vector_drift import data
+
+    session.custom_levels = []
+    session.custom_level_ids = set()
+    custom_ids = set(data.CUSTOM_LEVELS)
+    data.CUSTOM_LEVELS.clear()
+    data.LEVELS[:] = [lv for lv in data.LEVELS if lv.id not in custom_ids]
     session.user_id = None
     session.email = None
     session.display_name = None
