@@ -15,6 +15,8 @@ class LevelEditorMenuScene(Scene):
                                   style="plain", font_size=17)
         self.new_button = Button((config.WINDOW_W - px(200), px(20), px(180), px(40)), "New",
                                  style="primary", font_size=17)
+        self.community_button = Button((px(60), px(20), px(200), px(40)), "Public Levels",
+                                       style="plain", font_size=17)
         self.cards = []
 
     def _rebuild(self):
@@ -35,6 +37,11 @@ class LevelEditorMenuScene(Scene):
             self.audio.play("click")
             from .level_editor import LevelEditorScene
             self.manager.switch(LevelEditorScene(self.manager))
+            return
+        if self.community_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .community_levels import CommunityLevelsScene
+            self.manager.switch(CommunityLevelsScene(self.manager))
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lv, rect in self.cards:
@@ -62,6 +69,7 @@ class LevelEditorMenuScene(Scene):
         surface.fill(config.BG)
         self.back_button.draw(surface)
         self.new_button.draw(surface)
+        self.community_button.draw(surface)
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(40)), 30, config.TEXT, kind="bold", anchor="center")
         for lv, rect in self.cards:
             pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))

@@ -23,6 +23,8 @@ class LevelEditorScene(Scene):
                                  "Leave", style="plain", font_size=16)
         self.save_button = Button((config.WINDOW_W - px(130), config.WINDOW_H - px(60), px(120), px(40)),
                                  "Save", style="primary", font_size=16)
+        self.upload_button = Button((config.WINDOW_W - px(390), config.WINDOW_H - px(60), px(120), px(40)),
+                                    "Upload", style="primary", font_size=16)
         self.palette = ["start", "target", "obstacle", "shockwave", "extratime", "shield", "life", "money", "unbound"]
         self.dragging = None
         self.moving = None
@@ -37,8 +39,10 @@ class LevelEditorScene(Scene):
         self._placed_start = False
         self._placed_target = False
         self.naming = False
+        self._naming_upload = False   # naming mode is used for uploading to the community
         self.name_buffer = ""
         self.message = ""
+        self.busy = False             # set while a community upload is in flight
         if level is not None:
             self.start = getattr(level, "start", self.start)
             self.target = getattr(level, "target_center", self.target)
@@ -210,7 +214,12 @@ class LevelEditorScene(Scene):
         if self.naming:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
-                    if self._save(self.name_buffer or "Custom"):
+                    name = self.name_buffer or "Custom"
+                    if self._naming_upload:
+                        self._naming_upload = False
+                        self.naming = False
+                        self._try_upload(name)
+                    elif self._save(name):
                         self.naming = False
                         from .level_editor_menu import LevelEditorMenuScene
                         self.manager.switch(LevelEditorMenuScene(self.manager))
@@ -229,6 +238,15 @@ class LevelEditorScene(Scene):
         if self.save_button.handle_event(event) == "click":
             self.audio.play("click")
             self.naming = True
+            self._naming_upload = False
+            if not self.name_buffer:
+                self.name_buffer = "Custom"
+            return
+        if self.upload_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.naming = True
+            self._naming_upload = True
+            self.message = ""
             if not self.name_buffer:
                 self.name_buffer = "Custom"
             return
@@ -277,17 +295,29 @@ class LevelEditorScene(Scene):
             elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                 self._resize_selected(-0.1)
 
-    def _save(self, name="Custom"):
+    def update(self, dt):
+        account = self.manager.account
+        authenticated = bool(
+            account is not None
+            and account.is_configured()
+            and account.is_authenticated()
+            and account.current_user is not None
+        )
+        self.upload_button.enabled = authenticated
+        self.upload_button.label = "Upload" if authenticated else "Upload (login)"
+
+    def _build_spec(self, name="Custom"):
+        """Validate the current layout and build a ``LevelSpec`` (or None)."""
         if any(self._overlaps(self._object_center(ref), self._object_radius(ref), ignore=ref)
                for ref in self._object_refs()):
             self.message = "Objects cannot overlap"
-            return False
+            return None
         level_id = self.level.id if self.level is not None else None
         if level_id is None:
             existing_ids = {lv.id for lv in data.LEVELS} | self.session.custom_level_ids
             level_id = max(existing_ids or {0}) + 1
             level_id = max(level_id, 1000)
-        spec = LevelSpec(
+        return LevelSpec(
             id=level_id,
             name=name,
             start=tuple(self.start),
@@ -297,12 +327,49 @@ class LevelEditorScene(Scene):
             obstacles=tuple(ObstacleSpec(center=tuple(o["center"]), radius=o["radius"]) for o in self.obstacles),
             pickups=tuple(PickupSpec(center=tuple(p["center"]), radius=p["radius"], kind=p["kind"]) for p in self.pickups),
         )
+
+    def _save(self, name="Custom"):
+        spec = self._build_spec(name)
+        if spec is None:
+            return False
         data.register_custom_level(spec)
         self.session.custom_levels = [lv for lv in self.session.custom_levels if lv.id != spec.id]
         self.session.custom_levels.append(spec)
         self.session.custom_level_ids.add(spec.id)
         save_progress(self.manager.account, self.session)
         return True
+
+    def _try_upload(self, name):
+        """Upload the current editor layout to the public community table."""
+        account = self.manager.account
+        if account is None or not account.is_configured():
+            self.message = "Supabase is not configured."
+            return
+        if not account.is_authenticated() or account.current_user is None:
+            self.message = "Please log in to upload."
+            return
+        if self.busy:
+            return
+        spec = self._build_spec(name)
+        if spec is None:
+            return  # _build_spec already showed the overlap message
+        self.busy = True
+        self.message = "Uploading to community..."
+
+        def on_ok(_resp):
+            self.busy = False
+            self.message = "Uploaded to the community."
+
+        def on_err(exc):
+            self.busy = False
+            self.message = f"Upload failed: {exc}"
+
+        from ..account import community
+
+        community.upload_community_level(
+            account, spec.name, community.serialize_level(spec),
+            on_success=on_ok, on_error=on_err,
+        )
 
     def update(self, dt):
         pass
@@ -325,6 +392,7 @@ class LevelEditorScene(Scene):
             draw_text(surface, label, (r.x + px(90), r.centery), 12, config.TEXT, anchor="midleft")
         self.back_button.draw(surface)
         self.save_button.draw(surface)
+        self.upload_button.draw(surface)
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(30)), 24, config.TEXT, kind="bold", anchor="center")
         cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
         sx, sy = cx + self.start[0] * self.SCALE, cy - self.start[1] * self.SCALE

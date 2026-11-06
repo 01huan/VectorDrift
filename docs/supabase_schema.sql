@@ -41,3 +41,22 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
     after insert on auth.users
     for each row execute function public.handle_new_user();
+
+-- Community custom levels: anybody can read, only signed-in users can upload.
+create table if not exists public.community_levels (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id) on delete cascade,
+    uploader_email text not null default '',
+    level_name text not null,
+    level_data jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
+);
+
+alter table public.community_levels enable row level security;
+
+create policy "community_levels_select_public" on public.community_levels
+    for select using (true);
+create policy "community_levels_insert_authenticated" on public.community_levels
+    for insert with check (auth.uid() = user_id);
+create policy "community_levels_delete_own" on public.community_levels
+    for delete using (auth.uid() = user_id);
