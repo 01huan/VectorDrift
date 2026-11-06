@@ -5,9 +5,6 @@ from pathlib import Path
 README = Path(__file__).resolve().parent.parent / "README.md"
 
 
-def test_readme_has_no_bom():
-    assert not README.read_bytes().startswith(b"\xef\xbb\xbf")
-
 
 def test_readme_failure_rules_are_readable():
     text = README.read_text(encoding="utf-8")

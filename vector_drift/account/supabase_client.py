@@ -27,19 +27,21 @@ def _load_env() -> None:
 
 _load_env()
 
-from .supabase_config import SUPABASE_URL, SUPABASE_KEY
+from .supabase_config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_ANON_KEY
+
+
 def get_supabase_url() -> str:
-    url = SUPABASE_URL.strip()
+    url = os.getenv("SUPABASE_URL", SUPABASE_URL)
     if not url:
         raise RuntimeError("SUPABASE_URL is not set (check .env)")
-    return url
+    return url.strip()
 
 
 def get_supabase_anon_key() -> str:
-    key = SUPABASE_KEY.strip()
+    key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY", SUPABASE_KEY or SUPABASE_ANON_KEY)
     if not key:
         raise RuntimeError("SUPABASE_KEY / SUPABASE_ANON_KEY is not set (check .env)")
-    return key
+    return key.strip()
 
 
 @lru_cache(maxsize=1)

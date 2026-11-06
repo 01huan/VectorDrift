@@ -7,8 +7,8 @@ from vector_drift.account import supabase_client as sc
 
 def test_get_supabase_url_missing(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
-    with pytest.raises(RuntimeError):
-        sc.get_supabase_url()
+    from vector_drift.account.supabase_config import SUPABASE_URL as DEFAULT_URL
+    assert sc.get_supabase_url() == DEFAULT_URL.strip()
 
 
 def test_get_supabase_url_present(monkeypatch):
@@ -31,8 +31,8 @@ def test_get_supabase_anon_key_fallback(monkeypatch):
 def test_get_supabase_anon_key_missing(monkeypatch):
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
     monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
-    with pytest.raises(RuntimeError):
-        sc.get_supabase_anon_key()
+    from vector_drift.account.supabase_config import SUPABASE_KEY as DEFAULT_KEY
+    assert sc.get_supabase_anon_key() == DEFAULT_KEY.strip()
 
 
 def test_is_configured_true(monkeypatch):
@@ -45,4 +45,4 @@ def test_is_configured_false(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
     monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
-    assert sc.is_configured() is False
+    assert sc.is_configured() is True
