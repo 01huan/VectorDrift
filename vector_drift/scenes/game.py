@@ -802,7 +802,8 @@ class GameScene(Scene):
                 if not self.solution_used and key not in collected:
                     collected.add(key)
                     amount = event.get("amount", 1)
-                    self.session.money.add(amount)
+                    if self.level.id not in getattr(self.session, "custom_level_ids", set()):
+                        self.session.money.add(amount)
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
                     self._save_progress()
@@ -1236,6 +1237,8 @@ class GameScene(Scene):
         """
         self._clear_reward = 0
         if self.solution_used:
+            return
+        if self.level.id in getattr(self.session, "custom_level_ids", set()):
             return
         if is_dynamic_level(self.level.id):
             paid, key = self.session.clear_rewarded_maps, (self.level.id, self.session.random_seed)

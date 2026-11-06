@@ -34,6 +34,8 @@ class Session:
     clear_rewarded_levels: set = field(default_factory=set)    # fixed level ids whose clear reward was paid (saved)
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
     story_seen: set = field(default_factory=set)    # story.py keys: the crawl and level lines already shown
+    custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
+    custom_level_ids: set = field(default_factory=set)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None

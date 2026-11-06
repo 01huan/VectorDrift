@@ -54,6 +54,8 @@ class LevelSelectScene(Scene):
                                   style="plain", font_size=17)
         self.shop_button = Button((config.WINDOW_W - px(180), px(20), px(160), px(40)), "Shop",
                                  style="primary", font_size=17)
+        self.editor_button = Button((config.WINDOW_W - px(360), px(20), px(160), px(40)), "Level Editor",
+                                   style="plain", font_size=17)
         self._rebuild_cards()
 
     def _start(self, level_id):
@@ -89,6 +91,7 @@ class LevelSelectScene(Scene):
             if self.prev_button is not None:
                 self.prev_button.handle_event(event)
             self.shop_button.handle_event(event)
+            self.editor_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lid, rect in self.cards:
                 if rect.collidepoint(event.pos):
@@ -106,6 +109,11 @@ class LevelSelectScene(Scene):
             if self.shop_button.handle_event(event) == "click":
                 self._open_shop()
                 return
+            if self.editor_button.handle_event(event) == "click":
+                self.audio.play("click")
+                from .level_editor_menu import LevelEditorMenuScene
+                self.manager.switch(LevelEditorMenuScene(self.manager))
+                return
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self._to_menu()
@@ -120,6 +128,10 @@ class LevelSelectScene(Scene):
             self._open_shop()
         if self.next_button is not None and self.next_button.handle_event(event) == "click":
             self._next_page()
+        if self.editor_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .level_editor_menu import LevelEditorMenuScene
+            self.manager.switch(LevelEditorMenuScene(self.manager))
         if self.prev_button is not None and self.prev_button.handle_event(event) == "click":
                 self._prev_page()
 
@@ -135,6 +147,7 @@ class LevelSelectScene(Scene):
             self.next_button.draw(surface)
         if self.prev_button is not None:
             self.prev_button.draw(surface)
+        self.editor_button.draw(surface)
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)
 

@@ -409,7 +409,28 @@ def all_levels():
     return cards
 
 
+# Custom (player-created) levels registry.
+CUSTOM_LEVELS: dict[int, "LevelSpec"] = {}
+
+
+def register_custom_level(spec):
+    CUSTOM_LEVELS[spec.id] = spec
+    for index, level in enumerate(LEVELS):
+        if level.id == spec.id:
+            LEVELS[index] = spec
+            break
+    else:
+        LEVELS.append(spec)
+    return spec
+
+
+def is_custom_level(level_id):
+    return level_id in CUSTOM_LEVELS
+
+
 def get_level(level_id, seed=None):
+    if level_id in CUSTOM_LEVELS:
+        return CUSTOM_LEVELS[level_id]
     """Return the spec for ``level_id``.
 
     Dynamic ids (see level_presets.dynamic_ids()) generate a fresh solvable

@@ -18,6 +18,78 @@ from .profile_manager import _profile_updated_at, _ts_gte
 STORY_SEEN_KEY = "story_seen"
 # Fixed levels whose clear reward was paid ride along the same way.
 CLEAR_REWARDED_KEY = "clear_rewarded_levels"
+CUSTOM_LEVELS_KEY = "custom_levels"
+
+
+def _custom_levels_to_rows(levels: Any) -> list[dict]:
+    rows = []
+    for level in levels or ():
+        rows.append({
+            "id": int(level.id),
+            "name": level.name,
+            "start": list(level.start),
+            "target_center": list(level.target_center),
+            "target_radius": float(level.target_radius),
+            "ship_id": level.ship_id,
+            "time_limit": float(level.time_limit),
+            "lives": int(level.lives),
+            "obstacles": [
+                {"center": list(item.center), "radius": float(item.radius),
+                 "restitution": float(item.restitution), "kind": item.kind}
+                for item in level.obstacles
+            ],
+            "pickups": [
+                {"center": list(item.center), "radius": float(item.radius), "kind": item.kind}
+                for item in level.pickups
+            ],
+        })
+    return rows
+
+
+def _restore_custom_levels(session: Any, rows: Any) -> None:
+    from vector_drift import data
+    from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
+
+    levels = []
+    for row in rows if isinstance(rows, list) else ():
+        if not isinstance(row, dict):
+            continue
+        try:
+            obstacles = tuple(
+                ObstacleSpec(
+                    center=tuple(item["center"]),
+                    radius=float(item["radius"]),
+                    restitution=float(item.get("restitution", 1.0)),
+                    kind=item.get("kind", "bumper"),
+                )
+                for item in row.get("obstacles", ())
+            )
+            pickups = tuple(
+                PickupSpec(
+                    center=tuple(item["center"]),
+                    radius=float(item.get("radius", 0.45)),
+                    kind=item.get("kind", "shockwave"),
+                )
+                for item in row.get("pickups", ())
+            )
+            level = LevelSpec(
+                id=int(row["id"]),
+                name=str(row["name"]),
+                start=tuple(row["start"]),
+                target_center=tuple(row["target_center"]),
+                target_radius=float(row["target_radius"]),
+                ship_id=str(row.get("ship_id", "ship01")),
+                time_limit=float(row.get("time_limit", 10.0)),
+                lives=int(row.get("lives", 5)),
+                obstacles=obstacles,
+                pickups=pickups,
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        data.register_custom_level(level)
+        levels.append(level)
+    session.custom_levels = levels
+    session.custom_level_ids = {level.id for level in levels}
 
 
 def _session_class():
@@ -36,6 +108,7 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         except (TypeError, ValueError):
             continue
     session.clear_rewarded_levels = rewarded
+    _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     if stats:
         session.stats = stats
 
@@ -124,7 +197,8 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         replays=list(getattr(session, "replays", None) or getattr(session, "launch_records", None) or [])[-10:],
         collected_money_pickups=set(session.collected_money_pickups or set()),
         stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ()),
-               CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ())},
+               CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
+               CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ()))},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
