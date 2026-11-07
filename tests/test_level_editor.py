@@ -28,10 +28,9 @@ def _event(event_type, **kwargs):
 
 
 def _screen_pos(world):
-    return (
-        config.WINDOW_W // 2 + int(world[0] * LevelEditorScene.SCALE),
-        config.WINDOW_H // 2 - int(world[1] * LevelEditorScene.SCALE),
-    )
+    # Use the editor's viewport for world-to-screen conversion
+    editor = LevelEditorScene(_Manager())
+    return editor.viewport.to_screen(*world)
 
 
 def test_custom_level_saves_and_loads_for_guest(tmp_path, monkeypatch):

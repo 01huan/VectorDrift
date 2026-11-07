@@ -6,12 +6,12 @@ from ..config import px
 from ..data import LevelSpec, ObstacleSpec, PickupSpec
 from ..ui import Button, draw_text
 from ..account.integration import save_progress
+from ..coords import Viewport
 from .base import Scene
 
 
 class LevelEditorScene(Scene):
     music = "menu"
-    SCALE = 40.0
     MIN_RADIUS = 0.1
     MAX_RADIUS = 5.0
     START_RADIUS = 0.45
@@ -19,6 +19,8 @@ class LevelEditorScene(Scene):
     def __init__(self, manager, level=None):
         super().__init__(manager)
         self.level = level
+        # Use the same viewport as the game scene for consistent coordinates
+        self.viewport = Viewport()
         self.back_button = Button((config.WINDOW_W - px(260), config.WINDOW_H - px(60), px(120), px(40)),
                                  "Leave", style="plain", font_size=16)
         self.save_button = Button((config.WINDOW_W - px(130), config.WINDOW_H - px(60), px(120), px(40)),
@@ -54,8 +56,7 @@ class LevelEditorScene(Scene):
             self.name_buffer = getattr(level, "name", "Custom")
 
     def _screen_to_world(self, pos):
-        cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
-        return ((pos[0] - cx) / self.SCALE, (cy - pos[1]) / self.SCALE)
+        return self.viewport.to_world(*pos)
 
     def _object_refs(self):
         refs = [("start", None), ("target", None)]
@@ -119,11 +120,9 @@ class LevelEditorScene(Scene):
         )
 
     def _in_playfield(self, pos):
-        return (
-            pos[0] >= px(170)
-            and pos[1] >= px(50)
-            and pos[1] < config.WINDOW_H - px(70)
-        )
+        # Check if the mouse position is within the viewport (plot area)
+        vp_rect = pygame.Rect(self.viewport.rect)
+        return vp_rect.collidepoint(pos)
 
     def _place(self, kind, center):
         radius = self.START_RADIUS if kind == "start" else 1.0 if kind == "target" else 0.5 if kind == "obstacle" else 0.45
@@ -394,26 +393,25 @@ class LevelEditorScene(Scene):
         self.save_button.draw(surface)
         self.upload_button.draw(surface)
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(30)), 24, config.TEXT, kind="bold", anchor="center")
-        cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
-        sx, sy = cx + self.start[0] * self.SCALE, cy - self.start[1] * self.SCALE
-        sprites.draw_start_marker(surface, (sx, sy), self.START_RADIUS * self.SCALE, 0.0)
-        tx, ty = cx + self.target[0] * self.SCALE, cy - self.target[1] * self.SCALE
-        sprites.draw_target(surface, (tx, ty), self.target_radius * self.SCALE, 0.0)
+        # Use viewport for world-to-screen conversion (same as gameplay)
+        sx, sy = self.viewport.to_screen(*self.start)
+        sprites.draw_start_marker(surface, (sx, sy), self.START_RADIUS * self.viewport.scale, 0.0)
+        tx, ty = self.viewport.to_screen(*self.target)
+        sprites.draw_target(surface, (tx, ty), self.target_radius * self.viewport.scale, 0.0)
         for i, o in enumerate(self.obstacles):
-            ox, oy = cx + o["center"][0] * self.SCALE, cy - o["center"][1] * self.SCALE
-            sprites.draw_obstacle(surface, (ox, oy), o["radius"] * self.SCALE, 0.0)
+            ox, oy = self.viewport.to_screen(*o["center"])
+            sprites.draw_obstacle(surface, (ox, oy), o["radius"] * self.viewport.scale, 0.0)
             if self.selected == ("obstacle", i):
-                pygame.draw.circle(surface, config.ACCENT, (int(ox), int(oy)), int(o["radius"] * self.SCALE) + px(3), 1)
+                pygame.draw.circle(surface, config.ACCENT, (int(ox), int(oy)), int(o["radius"] * self.viewport.scale) + px(3), 1)
         for i, p in enumerate(self.pickups):
-            px_ = cx + p["center"][0] * self.SCALE
-            py_ = cy - p["center"][1] * self.SCALE
-            sprites.draw_pickup(surface, (px_, py_), p["radius"] * self.SCALE, 0.0, kind=p["kind"])
+            px_, py_ = self.viewport.to_screen(*p["center"])
+            sprites.draw_pickup(surface, (px_, py_), p["radius"] * self.viewport.scale, 0.0, kind=p["kind"])
             if self.selected == ("pickup", i):
-                pygame.draw.circle(surface, config.ACCENT, (int(px_), int(py_)), int(p["radius"] * self.SCALE) + px(3), 1)
+                pygame.draw.circle(surface, config.ACCENT, (int(px_), int(py_)), int(p["radius"] * self.viewport.scale) + px(3), 1)
         if self.selected == ("start", None):
-            pygame.draw.circle(surface, config.ACCENT, (int(sx), int(sy)), int(self.START_RADIUS * self.SCALE) + px(3), 1)
+            pygame.draw.circle(surface, config.ACCENT, (int(sx), int(sy)), int(self.START_RADIUS * self.viewport.scale) + px(3), 1)
         elif self.selected == ("target", None):
-            pygame.draw.circle(surface, config.ACCENT, (int(tx), int(ty)), int(self.target_radius * self.SCALE) + px(3), 1)
+            pygame.draw.circle(surface, config.ACCENT, (int(tx), int(ty)), int(self.target_radius * self.viewport.scale) + px(3), 1)
         if self.dragging:
             mx, my = pygame.mouse.get_pos()
             draw_text(surface, self.dragging, (mx + 10, my + 10), 14, config.ACCENT)
@@ -430,8 +428,3 @@ class LevelEditorScene(Scene):
             pygame.draw.rect(surface, config.ACCENT, rect, width=1, border_radius=px(4))
             draw_text(surface, "Delete", (rect.centerx, rect.y + rect.height // 4), 13, config.TEXT, anchor="center")
             draw_text(surface, "Modify", (rect.centerx, rect.y + rect.height * 3 // 4), 13, config.TEXT, anchor="center")
-
-
-EditorScene = LevelEditorScene
-CustomLevelEditorScene = LevelEditorScene
-LevelEditor = LevelEditorScene
