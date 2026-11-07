@@ -16,10 +16,9 @@ from vector_drift.level_presets import is_dynamic_level
 from vector_drift.physics import Flight, ForceField, Outcome
 
 FIXED_IDS = [lv.id for lv in LEVELS if not is_dynamic_level(lv.id)]
-# Fixed levels whose hint is still to be written. Level 6 (First Unbound) gets
-# its hint and reference answers after it has been play-tested. Strict: the
-# check fails again as soon as the hint exists, so remember to drop it here.
-HINTS_PENDING = {6}
+# Fixed levels whose hint is still to be written. Strict: the check fails
+# again as soon as the hint exists, so remember to drop it here.
+HINTS_PENDING = set()
 
 
 def _hint_case(level_id):

@@ -67,6 +67,19 @@ answers = [
   { label = "Flat ellipse, over the rocks", fx = "2y", fy = "-x - 6.7" },
 ]
 
+[level.6]
+steps = [
+  "The wall runs from the top edge to the bottom edge, so no path inside the map gets around it. Grab an Unbound first: for the rest of that life you can fly past the map edge and go around the end of the wall.",
+  "Split the motion in two. A spring toward x = 0, Fx = -k*x, swings the ship from x = -7 across to x = 7. A spring toward a line y = c, Fy = c - y, swings it from y = 0 out to y = 2c and back. Pick c below -4.5 (or above 4.5) so the swing clears the end of the wall.",
+  "Try equal springs first, like Fx = -x and Fy = -7 - y. Both swings stay in step, so the ship flies a straight diagonal line and runs into the end of the wall.",
+  "Make the x spring weaker. Then the y swing finishes its trip out and back while x is still crossing, and the straight line bends into an arch around the wall. For an exact landing, the y swing must be twice as fast, and that needs the x spring to be 1/4 as strong.",
+]
+answer_note = "Two springs: toward x = 0 and toward y = -6 (or y = 6), with the y spring 4 times as strong."
+answers = [
+  { label = "Under the wall", fx = "-0.25x", fy = "-6 - y" },
+  { label = "Over the wall", fx = "-0.25x", fy = "6 - y" },
+]
+
 [level.9.section.1]
 steps = [
   "The checkpoint is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",

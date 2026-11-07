@@ -37,7 +37,7 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 3 | First Blast | A ring of bumpers and shockwave pickups. |
 | 4 | First Wormhole | A wall of bumpers, a black/white wormhole pair, and a coin pickup. |
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
-| 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. Its authored hint is still pending. |
+| 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. |
 | 7 | Coming soon | Placeholder; not currently a playable random level. |
 | 8 | Random Drift | Procedurally generated layouts. The generator currently selects between two complete presets. |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |
@@ -138,11 +138,10 @@ Fixed levels use hand-written, step-by-step hints loaded from `vector_drift/hint
 
 Current hint coverage is:
 
-- Levels 1–5: one hint per level.
+- Levels 1–6: one hint per level.
 - Level 9: one hint for each of its two sections.
-- Level 6: the hint and reference answer are still pending play-testing; no authored hint is currently available.
 
-The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–5, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
+The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–6, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
 
 ### Offline AI Solver for random and custom levels
 
@@ -172,7 +171,7 @@ Coins are the game's progression currency. They are shown in the level selector,
 
 - **Coin pickups:** a coin pickup on a fixed level pays once, ever. A coin pickup on a random level pays once per generated map; entering a new map can make a new set of coins available.
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
-- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 9. On Levels 3–5 it costs 10 coins after confirmation, once per level per game launch. Level 6 currently has no authored hint.
+- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 9. On Levels 3–6 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
 - **Solution-assisted runs:** when an answer is revealed, coins earned earlier in that run are **taken back** and their pickups can be collected again after a reset. Pickups collected after revealing do not pay out for that run. A solution-assisted clear receives no clear reward; the reward remains available for a later clear without revealing a solution.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
@@ -477,8 +476,6 @@ The test suite covers expression parsing/evaluation, physics and edge cases, lev
 1. Add a `LevelSpec` to `vector_drift/data.py` and register it in `LEVELS`.
 2. Add the level's hint to `vector_drift/hints.toml` as `[level.N]`, including `steps`, `answer_note`, and at least one valid `Fx`/`Fy` answer. A multi-section level uses one `[level.N.section.K]` entry for every section.
 3. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
-
-Level 6 is the current fixed-level exception: its hint is explicitly marked as pending play-testing in `tests/test_hints.py`.
 
 ### Add a random level
 

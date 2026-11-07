@@ -112,7 +112,7 @@ def _off_map(x, y):
 @pytest.mark.parametrize("side, f", [("top", 6.0), ("bottom", -6.0)])
 def test_reference_arch_takes_unbound_and_reaches_the_target(side, f):
     """Fx = -0.25x, Fy = +-6 - y: up (down) through an Unbound, out past the
-    wall's end and back down (up) onto the planet. Test-only; not a hint."""
+    wall's end and back down (up) onto the planet (the hints.toml answers)."""
     flight = Flight(ForceField(a=-0.25, e=-1.0, f=f), SHIP, LEVEL)
     left_the_map = False
     while flight.running:
