@@ -37,7 +37,7 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 3 | First Blast | A ring of bumpers and shockwave pickups. |
 | 4 | First Wormhole | A wall of bumpers, a black/white wormhole pair, and a coin pickup. |
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
-| 6 | First Unbound | A curved wall of bumpers that introduces the Unbound pickup. Its authored hint is still pending. |
+| 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. Its authored hint is still pending. |
 | 7 | Coming soon | Placeholder; not currently a playable random level. |
 | 8 | Random Drift | Procedurally generated layouts. The generator currently selects between two complete presets. |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |

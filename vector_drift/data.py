@@ -340,38 +340,35 @@ LEVELS = [
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
         ),
     ),
-    # Unbound intro: 15 rocks along x = 4.5 + y^2 / 12 wall the target in on
-    # the right. Neighbours are at most ~1.64 m apart, under the 2 m
-    # (2 x (0.8 + hull 0.2)) the ship needs, and both ends stick out past the
-    # top-right and bottom-right corners, so the only way round is outside the
-    # map: either Unbound (top or bottom, like level 3's two shockwaves).
+    # Unbound intro: 11 rocks in an arc across the middle of the map, bulging
+    # left (x = -1 at y = 0) and curving right toward the top and bottom
+    # edges, where the outermost rocks sit on y = +-7.5. Neighbours are about
+    # 1.50-1.65 m apart, under the 2 m (2 x (0.8 + hull 0.2)) the ship needs,
+    # so the only way to the target is one arch over (or under) the wall,
+    # outside the map: either Unbound (top or bottom) makes that legal.
     LevelSpec(
         id=6,
         name="First Unbound",
         start=(-7.0, 0.0),
-        target_center=(7.5, 0.0),
+        target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
         obstacles=(
-            ObstacleSpec(center=(10.38, -8.4), radius=0.8),
-            ObstacleSpec(center=(9.31, -7.6), radius=0.8),
-            ObstacleSpec(center=(8.24, -6.7), radius=0.8),
-            ObstacleSpec(center=(7.11, -5.6), radius=0.8),
-            ObstacleSpec(center=(6.11, -4.4), radius=0.8),
-            ObstacleSpec(center=(5.25, -3.0), radius=0.8),
-            ObstacleSpec(center=(4.69, -1.5), radius=0.8),
-            ObstacleSpec(center=(4.5, 0.0), radius=0.8),
-            ObstacleSpec(center=(4.69, 1.5), radius=0.8),
-            ObstacleSpec(center=(5.25, 3.0), radius=0.8),
-            ObstacleSpec(center=(6.11, 4.4), radius=0.8),
-            ObstacleSpec(center=(7.11, 5.6), radius=0.8),
-            ObstacleSpec(center=(8.24, 6.7), radius=0.8),
-            ObstacleSpec(center=(9.31, 7.6), radius=0.8),
-            ObstacleSpec(center=(10.38, 8.4), radius=0.8),
+            ObstacleSpec(center=(0.875, -7.5), radius=0.8),
+            ObstacleSpec(center=(0.2, -6.0), radius=0.8),
+            ObstacleSpec(center=(-0.325, -4.5), radius=0.8),
+            ObstacleSpec(center=(-0.7, -3.0), radius=0.8),
+            ObstacleSpec(center=(-0.925, -1.5), radius=0.8),
+            ObstacleSpec(center=(-1.0, 0.0), radius=0.8),
+            ObstacleSpec(center=(-0.925, 1.5), radius=0.8),
+            ObstacleSpec(center=(-0.7, 3.0), radius=0.8),
+            ObstacleSpec(center=(-0.325, 4.5), radius=0.8),
+            ObstacleSpec(center=(0.2, 6.0), radius=0.8),
+            ObstacleSpec(center=(0.875, 7.5), radius=0.8),
         ),
         pickups=(
-            PickupSpec(center=(-2.7, 6.3), radius=0.45, kind="unbound"),
-            PickupSpec(center=(-2.7, -6.3), radius=0.45, kind="unbound"),
+            PickupSpec(center=(-5.1, 5.6), radius=0.45, kind="unbound"),
+            PickupSpec(center=(-5.1, -5.6), radius=0.45, kind="unbound"),
         ),
     ),
     # Checkpoint intro: two level-1 screens side by side. In world terms the
