@@ -12,6 +12,7 @@ import pygame
 from .. import config, data
 from ..config import px
 from ..data import LevelSpec, ObstacleSpec, PickupSpec
+from ..image_assets import load_image
 from ..ui import Button, draw_text
 from ..account import community
 from .base import Scene
@@ -187,19 +188,64 @@ class CommunityLevelsScene(Scene):
         def to_screen(wx, wy):
             return (preview.x + (wx - minx) * scale, preview.bottom - (wy - miny) * scale)
 
-        for o in data_.get("obstacles", ()):
+        # 缩略图内对象半径上限：按最短边的 1/3 计算，避免障碍物/道具超出预览
+        max_r = max(8, min(preview.w, preview.h) // 4)
+
+        # Obstacles: use real rock pictures (fall back to light-grey circle if missing)
+        for idx, o in enumerate(data_.get("obstacles", ())):
             cx, cy = to_screen(*o["center"])
-            r = max(2, int(float(o.get("radius", 0.4)) * scale))
-            pygame.draw.circle(surface, (140, 140, 160), (int(cx), int(cy)), r)
+            r = max(2, min(max_r, int(float(o.get("radius", 0.4)) * scale)))
+            if r < 2:
+                continue
+            rock_key = f"obstacle.rock{(idx % 2) + 1:02d}"
+            img = load_image(rock_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if img is not None:
+                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                # Fallback: light-grey circle
+                pygame.draw.circle(surface, (130, 130, 150), (int(cx), int(cy)), r)
+                pygame.draw.circle(surface, (180, 180, 200), (int(cx), int(cy)), r, 1)
+
+        # Pickups: use real pickup pictures (fall back to colour disc)
         for p in data_.get("pickups", ()):
             cx, cy = to_screen(*p["center"])
-            color = (240, 200, 80) if p.get("kind") == "money" else (120, 220, 140)
-            r = max(2, int(float(p.get("radius", 0.3)) * scale))
-            pygame.draw.circle(surface, color, (int(cx), int(cy)), r)
+            kind = p.get("kind", "shockwave")
+            r = max(2, min(max_r, int(float(p.get("radius", 0.3)) * scale)))
+            if r < 2:
+                continue
+            pickup_key = {
+                "shockwave": "pickup.shockwave",
+                "extratime": "pickup.extratime",
+                "shield": "pickup.shield",
+                "life": "pickup.life",
+                "money": "pickup.money",
+                "unbound": "pickup.unbound",
+            }.get(kind, "pickup.shockwave")
+            img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if img is not None:
+                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                # Fallback: gold disc with dark edge
+                pygame.draw.circle(surface, (240, 190, 60), (int(cx), int(cy)), r)
+                pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
+
+        # Start: use the launch-pad marker picture
         sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
-        pygame.draw.circle(surface, (100, 220, 100), (int(sx), int(sy)), max(3, int(0.25 * scale)))
+        r_start = max(3, min(max_r, int(0.25 * scale)))
+        img = load_image("ui.start_marker", size_px=(max(1, 2 * r_start), max(1, 2 * r_start)))
+        if img is not None:
+            surface.blit(img, img.get_rect(center=(int(sx), int(sy))))
+        else:
+            pygame.draw.circle(surface, (80, 200, 90), (int(sx), int(sy)), r_start)
+
+        # Target: use the destination planet picture
         tx, ty = to_screen(*data_.get("target_center", (7.0, 0.0)))
-        pygame.draw.circle(surface, (220, 100, 100), (int(tx), int(ty)), max(4, int(0.35 * scale)), width=1)
+        r_target = max(4, min(max_r, int(0.35 * scale)))
+        img = load_image("target.planet", size_px=(max(1, 2 * r_target), max(1, 2 * r_target)))
+        if img is not None:
+            surface.blit(img, img.get_rect(center=(int(tx), int(ty))))
+        else:
+            pygame.draw.circle(surface, (210, 90, 90), (int(tx), int(ty)), r_target)
 
     # ------------------------------------------------------------------ draw
 
