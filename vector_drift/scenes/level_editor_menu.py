@@ -1,7 +1,9 @@
 """Level editor menu: list of player-created levels + new button."""
 import pygame
+
 from .. import config, data
 from ..config import px
+from ..image_assets import load_image
 from ..ui import Button, draw_text
 from .base import Scene
 
@@ -29,7 +31,8 @@ class LevelEditorMenuScene(Scene):
         x, y = px(60), px(100)
         for i, lv in enumerate(levels):
             rect = pygame.Rect(x + (i % 4) * px(260), y + (i // 4) * px(180), px(240), px(160))
-            self.cards.append((lv, rect))
+            preview = pygame.Rect(rect.x + px(10), rect.y + px(30), px(80), px(100))
+            self.cards.append((lv, rect, preview))
             self.delete_rects.append(
                 pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
             )
@@ -52,12 +55,12 @@ class LevelEditorMenuScene(Scene):
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             # Delete a locally created level (not uploaded to the community).
-            for (lv, rect), del_rect in zip(self.cards, self.delete_rects):
+            for (lv, rect, _preview), del_rect in zip(self.cards, self.delete_rects):
                 if del_rect.collidepoint(event.pos):
                     self.audio.play("click")
                     self._delete_local_level(lv)
                     return
-            for lv, rect in self.cards:
+            for lv, rect, _preview in self.cards:
                 if rect.collidepoint(event.pos):
                     self.audio.play("click")
                     self.session.level_id = lv.id
@@ -67,7 +70,7 @@ class LevelEditorMenuScene(Scene):
                     self.manager.switch(GameScene(self.manager))
                     return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
-            for lv, rect in self.cards:
+            for lv, rect, _preview in self.cards:
                 if rect.collidepoint(event.pos):
                     # right click: edit
                     self.audio.play("click")
@@ -98,16 +101,98 @@ class LevelEditorMenuScene(Scene):
                 self.message = ""
 
 
+    def _draw_level_preview(self, surface, lv, rect: pygame.Rect) -> None:
+        """Draw a small layout preview of a player-created level inside ``rect``."""
+        preview = rect
+        pygame.draw.rect(surface, (26, 34, 60), preview, border_radius=px(3))
+        pygame.draw.rect(surface, config.PANEL_EDGE, preview, width=1, border_radius=px(3))
+
+        data_ = data.custom_level_to_snapshot(lv) or {}
+        pts = [tuple(data_.get("start", (-7.0, 0.0))), tuple(data_.get("target_center", (7.0, 0.0)))]
+        for o in data_.get("obstacles", ()):
+            pts.append(tuple(o["center"]))
+        for p in data_.get("pickups", ()):
+            pts.append(tuple(p["center"]))
+        if not pts:
+            return
+
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        pad = 1.0
+        minx, maxx = min(xs) - pad, max(xs) + pad
+        miny, maxy = min(ys) - pad, max(ys) + pad
+        world_w = maxx - minx or 1.0
+        world_h = maxy - miny or 1.0
+        scale = min(preview.w / world_w, preview.h / world_h)
+
+        def to_screen(wx, wy):
+            return (preview.x + (wx - minx) * scale, preview.bottom - (wy - miny) * scale)
+
+        # Object radius cap so large objects do not overflow the preview.
+        max_r = max(8, min(preview.w, preview.h) // 4)
+
+        for idx, o in enumerate(data_.get("obstacles", ())):
+            cx, cy = to_screen(*o["center"])
+            r = max(2, min(max_r, int(float(o.get("radius", 0.4)) * scale)))
+            if r < 2:
+                continue
+            rock_key = f"obstacle.rock{(idx % 2) + 1:02d}"
+            img = load_image(rock_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if img is not None:
+                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                pygame.draw.circle(surface, (130, 130, 150), (int(cx), int(cy)), r)
+                pygame.draw.circle(surface, (180, 180, 200), (int(cx), int(cy)), r, 1)
+
+        for p in data_.get("pickups", ()):
+            cx, cy = to_screen(*p["center"])
+            kind = p.get("kind", "shockwave")
+            r = max(2, min(max_r, int(float(p.get("radius", 0.3)) * scale)))
+            if r < 2:
+                continue
+            pickup_key = {
+                "shockwave": "pickup.shockwave",
+                "extratime": "pickup.extratime",
+                "shield": "pickup.shield",
+                "life": "pickup.life",
+                "money": "pickup.money",
+                "unbound": "pickup.unbound",
+            }.get(kind, "pickup.shockwave")
+            img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if img is not None:
+                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                pygame.draw.circle(surface, (240, 190, 60), (int(cx), int(cy)), r)
+                pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
+
+        sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
+        r_start = max(3, min(max_r, int(0.25 * scale)))
+        img = load_image("ui.start_marker", size_px=(max(1, 2 * r_start), max(1, 2 * r_start)))
+        if img is not None:
+            surface.blit(img, img.get_rect(center=(int(sx), int(sy))))
+        else:
+            pygame.draw.circle(surface, (80, 200, 90), (int(sx), int(sy)), r_start)
+
+        tx, ty = to_screen(*data_.get("target_center", (7.0, 0.0)))
+        r_target = max(4, min(max_r, int(0.35 * scale)))
+        img = load_image("target.planet", size_px=(max(1, 2 * r_target), max(1, 2 * r_target)))
+        if img is not None:
+            surface.blit(img, img.get_rect(center=(int(tx), int(ty))))
+        else:
+            pygame.draw.circle(surface, (210, 90, 90), (int(tx), int(ty)), r_target)
+
     def draw(self, surface):
         surface.fill(config.BG)
         self.back_button.draw(surface)
         self.new_button.draw(surface)
         self.community_button.draw(surface)
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(40)), 30, config.TEXT, kind="bold", anchor="center")
-        for (lv, rect), del_rect in zip(self.cards, self.delete_rects):
+        for (lv, rect, preview), del_rect in zip(self.cards, self.delete_rects):
             pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, width=max(1, px(1)), border_radius=px(6))
-            draw_text(surface, getattr(lv, "name", f"Level {lv.id}"), (rect.x + px(10), rect.y + px(10)), 16, config.TEXT, kind="bold")
+            self._draw_level_preview(surface, lv, preview)
+            draw_text(surface, getattr(lv, "name", f"Level {lv.id}"),
+                      (rect.x + px(90), rect.y + px(10)), 16, config.TEXT, kind="bold")
             hover = del_rect.collidepoint(pygame.mouse.get_pos())
             bg = config.DANGER if hover else (140, 60, 70)
             pygame.draw.rect(surface, bg, del_rect, border_radius=px(3))

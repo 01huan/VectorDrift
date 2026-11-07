@@ -4,6 +4,7 @@ import pygame
 from .. import config, data, sprites
 from ..config import px
 from ..data import LevelSpec, ObstacleSpec, PickupSpec
+from ..image_assets import load_image
 from ..ui import Button, draw_text
 from ..account.integration import save_progress
 from ..coords import Viewport
@@ -381,13 +382,37 @@ class LevelEditorScene(Scene):
             label = kind
             center = (r.centerx - px(40), r.centery)
             if kind == "start":
-                pygame.draw.circle(surface, (100, 200, 100), center, px(8))
+                img = load_image("ui.start_marker", size_px=(px(24), px(24)))
+                if img is not None:
+                    surface.blit(img, img.get_rect(center=center))
+                else:
+                    pygame.draw.circle(surface, (100, 200, 100), center, px(8))
             elif kind == "target":
-                pygame.draw.circle(surface, (200, 100, 100), center, px(10))
+                img = load_image("target.planet", size_px=(px(24), px(24)))
+                if img is not None:
+                    surface.blit(img, img.get_rect(center=center))
+                else:
+                    pygame.draw.circle(surface, (200, 100, 100), center, px(10))
             elif kind == "obstacle":
-                sprites.draw_obstacle(surface, center, px(12), 0.0)
+                img = load_image("obstacle.rock01", size_px=(px(24), px(24)))
+                if img is not None:
+                    surface.blit(img, img.get_rect(center=center))
+                else:
+                    sprites.draw_obstacle(surface, center, px(12), 0.0)
             else:
-                sprites.draw_pickup(surface, center, px(12), 0.0, kind=kind)
+                pickup_key = {
+                    "shockwave": "pickup.shockwave",
+                    "extratime": "pickup.extratime",
+                    "shield": "pickup.shield",
+                    "life": "pickup.life",
+                    "money": "pickup.money",
+                    "unbound": "pickup.unbound",
+                }.get(kind, "pickup.shockwave")
+                img = load_image(pickup_key, size_px=(px(24), px(24)))
+                if img is not None:
+                    surface.blit(img, img.get_rect(center=center))
+                else:
+                    sprites.draw_pickup(surface, center, px(12), 0.0, kind=kind)
             draw_text(surface, label, (r.x + px(90), r.centery), 12, config.TEXT, anchor="midleft")
         self.back_button.draw(surface)
         self.save_button.draw(surface)
