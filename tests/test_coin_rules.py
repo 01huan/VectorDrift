@@ -1,6 +1,6 @@
 """Where coins come from: pickups (once per fixed coin, once per random map) and
-the clear reward (once per fixed level, once per random map, never for a run
-that used a solution)."""
+the clear reward (once per fixed level, once per random map). Seeing a full
+answer costs only its price: the run's coins stay and the clear still pays."""
 
 from types import SimpleNamespace
 

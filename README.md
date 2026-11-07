@@ -173,7 +173,7 @@ Coins are the game's progression currency. They are shown in the level selector,
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
 - **Hint answers:** the answer page is free on **levels 1 and 2** and Level 9. On Levels 3–6 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
-- **Solution-assisted runs:** when an answer is revealed, coins earned earlier in that run are **taken back** and their pickups can be collected again after a reset. Pickups collected after revealing do not pay out for that run. A solution-assisted clear receives no clear reward; the reward remains available for a later clear without revealing a solution.
+- **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
 
 The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`.
