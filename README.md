@@ -142,7 +142,7 @@ Current hint coverage is:
 - Level 9: one hint for each of its two sections.
 - Level 6: the hint and reference answer are still pending play-testing; no authored hint is currently available.
 
-The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–5, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint.
+The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–5, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
 
 ### Offline AI Solver for random and custom levels
 
@@ -164,7 +164,7 @@ The in-game PSO solver uses a 150-particle swarm and keeps searching in the back
 
 Opening the solver and running the search are free. The candidate formulas remain hidden until **Reveal** is purchased for 10 coins. One reveal payment covers that level/map for the current game launch. After revealing, **Apply** places the formulas in the editor.
 
-Revealing a complete answer marks the run as **Solution used**. Coins collected earlier in that run are **taken back** and become collectable again after the section/level reset. Coins collected after the reveal do not pay out for that run. A solution-assisted clear does not set a best time and does not receive the clear reward.
+Paying to reveal a complete answer costs 10 coins; that is the only cost. Coins collected during the run still pay out, the clear reward is still granted, and the clear still sets a best time. Applying the answer resets the current section to its start/checkpoint (lives stay).
 
 ## Coins
 

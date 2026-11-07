@@ -156,26 +156,30 @@ def test_random_map_clear_reward_is_not_saved():
     assert int(loaded.session.money) == 2 * config.CLEAR_REWARD
 
 
-def test_solution_used_clear_pays_nothing_and_keeps_the_fixed_reward():
+def test_solution_used_clear_still_pays_the_clear_reward():
     manager = _manager()
     scene = _scene(3, manager)
     scene._reveal_solution()
     _win(scene)
-    assert int(manager.session.money) == 0
+    assert int(manager.session.money) == config.CLEAR_REWARD
 
-    _win(_scene(3, manager))                                # a clean clear still pays
+    # A second clear of the same level pays nothing
+    _win(_scene(3, manager))
     assert int(manager.session.money) == config.CLEAR_REWARD
 
 
-def test_solution_used_clear_keeps_the_random_map_reward():
+def test_solution_used_clear_still_pays_random_map_reward():
     manager = _manager()
     scene = _scene(8, manager, seed=123)
     scene._reveal_solution()
     _arrive(scene)
-    assert int(manager.session.money) == 0
-
-    _arrive(_scene(8, manager, seed=123))
     assert int(manager.session.money) == config.CLEAR_REWARD
+
+    _arrive(_scene(8, manager, seed=123))   # same map: already paid
+    assert int(manager.session.money) == config.CLEAR_REWARD
+
+    _arrive(_scene(8, manager, seed=456))   # a new map pays again
+    assert int(manager.session.money) == 2 * config.CLEAR_REWARD
 
 
 def test_fixed_coin_pays_once_and_stays_gone_after_reset_and_reentry():
@@ -239,13 +243,14 @@ def test_win_stats_on_a_second_clear_count_no_reward():
     assert manager.session.stats["clear_reward"] == 0
 
 
-def test_win_stats_after_a_reveal_count_nothing():
+def test_win_stats_after_a_reveal_still_count_coins():
     manager = _manager()
     scene = _scene(2, manager)
-    _collect(scene, _coins(scene)[0])                       # taken back by the reveal
+    _collect(scene, _coins(scene)[0])                       # coins kept after reveal
     scene._reveal_solution()
     _win(scene)
-    assert manager.session.stats["coins_earned"] == 0
+    assert manager.session.stats["coins_earned"] == 1 + config.CLEAR_REWARD
+    assert manager.session.stats["clear_reward"] == config.CLEAR_REWARD
     assert manager.session.stats["solution_used"] is True
 
 

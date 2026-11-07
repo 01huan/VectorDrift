@@ -165,7 +165,7 @@ def test_new_map_needs_a_new_payment(monkeypatch):
     assert coin_price_parts(10, 0, "Need", config.WARNING) in _rows(other, monkeypatch)
 
 
-def test_reveal_takes_back_this_runs_coins_without_respawning_them():
+def test_reveal_keeps_this_runs_coins_after_paying_price():
     manager = _manager(coins=10)
     scene = _scene(manager)
     coin = next(p for p in scene.pickups if p.kind == "money")
@@ -174,25 +174,22 @@ def test_reveal_takes_back_this_runs_coins_without_respawning_them():
     _open(scene)
     _reveal(scene)
 
-    assert int(manager.session.money) == 0                  # 11 - 1 returned - 10 paid
+    assert int(manager.session.money) == 1                  # 11 - 10 paid, coin kept
     assert coin.consumed                                    # map is not reset
-    assert not manager.session.collected_random_coins
-    assert not next(p for p in _scene(manager).pickups if p.kind == "money").consumed
+    assert manager.session.collected_random_coins           # coin stays collected
 
 
-def test_this_runs_coins_do_not_count_toward_the_price(monkeypatch):
+def test_this_runs_coins_count_toward_the_price(monkeypatch):
     manager = _manager(coins=9)
     scene = _scene(manager)
     _collect(scene, next(p for p in scene.pickups if p.kind == "money"))
     _open(scene)
-    texts = _draw(scene, monkeypatch)
-    assert not scene.ai_reveal_button.enabled
-    assert coin_price_parts(10, 9, "Need", config.WARNING) in _rows(scene, monkeypatch)
+    assert scene.ai_reveal_button.enabled
 
 
-def test_a_win_after_the_reveal_is_marked_and_not_recorded(monkeypatch):
+def test_a_win_after_the_reveal_still_records_best_time(monkeypatch):
     manager = _manager(coins=10)
-    manager.session.records[7] = 99.0
+    manager.session.records[8] = 99.0
     scene = _scene(manager)
     _open(scene)
     _reveal(scene)
@@ -205,8 +202,8 @@ def test_a_win_after_the_reveal_is_marked_and_not_recorded(monkeypatch):
             break
         scene.update(1 / 60)
     assert isinstance(manager.scene, WinScene)
-    assert manager.session.records == {7: 99.0}
-    assert manager.session.stats["solution_used"]
+    assert manager.session.records[8] == 2.0
+    assert manager.session.stats["solution_used"] is True
 
     texts = []
     for module in (base_module, win_module):
@@ -214,7 +211,7 @@ def test_a_win_after_the_reveal_is_marked_and_not_recorded(monkeypatch):
         monkeypatch.setattr(module, "draw_text", lambda surface, text, *a, _real=real, **k:
                             (texts.append(text), _real(surface, text, *a, **k))[1])
     manager.scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
-    assert any("Solution used" in t for t in texts)
+    assert not any("Solution used" in t for t in texts)
 
 
 @pytest.mark.parametrize("coins, short", [(12, False), (9, True)])

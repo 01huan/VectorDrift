@@ -37,9 +37,6 @@ class WinScene(Scene):
 
     def _notes(self, s):
         """(text, colour) lines under the stats: why this run earned what it did."""
-        if s.get("solution_used"):
-            return [("Solution used · not counted as a best time", config.WARNING),
-                    ("Showing the answer means no coins for this run", config.WARNING)]
         if not s.get("clear_reward"):
             where = "map" if is_dynamic_level(self.session.level_id) else "level"
             return [(f"Clear reward already collected for this {where}", config.TEXT_DIM)]

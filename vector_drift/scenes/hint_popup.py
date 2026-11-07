@@ -12,13 +12,14 @@ TEXT_SIZE = 17
 LINE_H = 26
 BUTTON_W, BUTTON_H = 120, 40
 
-SOLUTION_USED_TEXT = ("Showing the answer marks this run as \"Solution used\": clearing the "
-                      "level now won't count toward your best time. The level also goes back "
-                      "to its start (your lives stay).")
+SOLUTION_USED_TEXT = ("Showing the answer reveals the full formulas. Applying it resets the "
+                      "current section to its start/checkpoint (your lives stay). The answer "
+                      "price is the only cost: best time, clear reward, and coins collected "
+                      "this run all still count as usual.")
 CONFIRM_TEXT = SOLUTION_USED_TEXT + " You won't be asked again until you restart the game."
 
 
-def confirm_text(price=0, returned=0):
+def confirm_text(price=0):
     """Body of the "Show the answer?" question.
 
     A paid answer's price sits above it with the coin pictures
@@ -26,8 +27,6 @@ def confirm_text(price=0, returned=0):
     wording.
     """
     text = SOLUTION_USED_TEXT if price else CONFIRM_TEXT
-    if returned:
-        text += f" The {returned} {'coin' if returned == 1 else 'coins'} collected this run will be taken back."
     return text
 
 

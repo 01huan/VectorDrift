@@ -268,7 +268,7 @@ def test_a_win_without_the_answer_sets_the_record():
     assert not scene.session.stats["solution_used"]
 
 
-def test_a_win_after_the_answer_is_marked_and_not_recorded(monkeypatch):
+def test_a_win_after_the_answer_still_records_best_time(monkeypatch):
     from vector_drift.scenes import base as base_module, win as win_module
     scene = _scene(1)
     scene.session.records[1] = 99.0
@@ -276,7 +276,7 @@ def test_a_win_after_the_answer_is_marked_and_not_recorded(monkeypatch):
     _key(scene, pygame.K_ESCAPE)
     _win(scene)
 
-    assert scene.session.records == {1: 99.0}
+    assert scene.session.records[1] < 99.0   # best time updated
     assert scene.session.stats["solution_used"]
 
     texts = []
@@ -285,7 +285,7 @@ def test_a_win_after_the_answer_is_marked_and_not_recorded(monkeypatch):
         monkeypatch.setattr(module, "draw_text", lambda surface, text, *a, _real=real, **k:
                             (texts.append(text), _real(surface, text, *a, **k))[1])
     scene.manager.scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
-    assert any("Solution used" in t for t in texts)
+    assert not any("Solution used" in t for t in texts)
 
 
 def test_replaying_clears_the_solution_mark():
@@ -451,7 +451,7 @@ def test_cancelling_the_payment_takes_nothing():
     assert int(manager.session.money) == 10 and not scene.solution_used
 
 
-def test_revealing_takes_back_this_runs_coins_and_they_return():
+def test_revealing_keeps_this_runs_coins():
     manager = _manager()
     scene = _scene(2, manager)                              # free answer, one coin
     coin_center = _coin(scene).center
@@ -460,28 +460,27 @@ def test_revealing_takes_back_this_runs_coins_and_they_return():
 
     _show_answer(scene)
 
-    assert int(manager.session.money) == 0
-    assert (2, coin_center) not in manager.session.collected_money_pickups
-    assert not _coin(scene).consumed                        # back on the reset map
+    assert int(manager.session.money) == 1                  # free answer: nothing to pay
+    assert (2, coin_center) in manager.session.collected_money_pickups
+    assert _coin(scene).consumed                            # stays taken on this attempt
 
-    _collect(scene, _coin(scene))                           # after the reveal: no pay
-    assert int(manager.session.money) == 0
-    assert (2, coin_center) not in manager.session.collected_money_pickups
-    assert not _coin(_scene(2, manager)).consumed           # still there next time
+    _collect(scene, _coin(scene))                           # already collected this map: no pay
+    assert int(manager.session.money) == 1
+    assert (2, coin_center) in manager.session.collected_money_pickups
 
 
-def test_this_runs_coins_do_not_count_toward_the_price(monkeypatch):
+def test_this_runs_coins_count_toward_the_price(monkeypatch):
     manager = _manager()
     manager.session.money.add(9)
     scene = _scene(4, manager)
-    _collect(scene, _coin(scene))                           # 10 on screen, 9 to spend
+    _collect(scene, _coin(scene))                           # 10 on screen, 10 to spend
     popup = _ask_for_answer(scene)
-    assert not popup.on_answer_page and not popup.confirming
-    assert coin_price_parts(10, 9, "Need", config.WARNING) in _rows_drawn(scene, monkeypatch)
+    assert popup.confirming                                 # 9 + 1 = 10, enough to pay
+    assert not popup.on_answer_page
     assert int(manager.session.money) == 10
 
 
-def test_paying_with_this_runs_coins_counts_only_earlier_coins():
+def test_paying_with_this_runs_coins_keeps_the_coin():
     manager = _manager()
     manager.session.money.add(10)
     scene = _scene(4, manager)
@@ -489,8 +488,8 @@ def test_paying_with_this_runs_coins_counts_only_earlier_coins():
     popup = _ask_for_answer(scene)
     assert popup.confirming
     _click(scene, popup.confirm_button.rect)
-    assert int(manager.session.money) == 0                  # 11 - 1 returned - 10 paid
-    assert not _coin(scene).consumed
+    assert int(manager.session.money) == 1                  # 11 - 10 paid, coin kept
+    assert _coin(scene).consumed
 
 
 # --- the answer's price on the last step -----------------------------------------

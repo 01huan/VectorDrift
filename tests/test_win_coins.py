@@ -46,12 +46,12 @@ def test_coins_earned_row_shows_coin_2_and_the_amount(monkeypatch):
     assert [amount for amount, _ in coins] == ["+6"]
 
 
-def test_solution_used_explains_why_there_are_no_coins(monkeypatch):
-    _scene, texts, coins = _shown(monkeypatch, coins_earned=0, clear_reward=0,
+def test_solution_used_no_longer_warns(monkeypatch):
+    _scene, texts, coins = _shown(monkeypatch, coins_earned=6, clear_reward=5,
                                   solution_used=True)
-    assert [amount for amount, _ in coins] == ["+0"]
-    assert "Solution used · not counted as a best time" in texts
-    assert any("no coins" in t for t in texts)
+    assert [amount for amount, _ in coins] == ["+6"]
+    assert not any("Solution used" in t for t in texts)
+    assert not any("no coins" in t for t in texts)
 
 
 @pytest.mark.parametrize("level_id, where", [(1, "level"), (8, "map")])

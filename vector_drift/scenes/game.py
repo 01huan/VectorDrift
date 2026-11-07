@@ -269,8 +269,8 @@ class GameScene(Scene):
         # Solver and never start it. Random levels and custom levels use the AI
         # Solver instead: opening it is free, revealing the full answer costs
         # config.AI_SOLVER_COST coins once per map/level this launch.
-        # The answer page marks this run as "solution used": the win is flagged
-        # and not recorded as a best.
+        # Revealing the answer costs its price once per launch; that price is the
+        # only cost. Clears still count toward best times, clear rewards, and coins.
         self.hint_mode = not (is_dynamic_level(self.level.id)
                               or self.level.id in getattr(self.session, "custom_level_ids", set()))
         self.hint = self._section_hint()
@@ -603,7 +603,7 @@ class GameScene(Scene):
             self.hint_popup = None
             self._pay_clear_reward()
             best = self.session.records.get(self.level.id)
-            if not self.solution_used and (best is None or self.total_time < best):
+            if best is None or self.total_time < best:
                 self.session.records[self.level.id] = self.total_time
             from vector_drift.account.integration import save_progress
 
@@ -803,7 +803,7 @@ class GameScene(Scene):
                 # and stay collectable for a later run.
                 key = self._coin_key(event.get("center"))
                 collected = self._collected_coins()
-                if not self.solution_used and key not in collected:
+                if key not in collected:
                     collected.add(key)
                     amount = event.get("amount", 1)
                     if self.level.id not in getattr(self.session, "custom_level_ids", set()):
@@ -1164,7 +1164,7 @@ class GameScene(Scene):
             popup.message = coin_price_parts(price, available, "Need", config.WARNING)
             return
         popup.message = None
-        popup.confirm_text = confirm_text(price, len(self._run_coins))
+        popup.confirm_text = confirm_text(price)
         popup.confirm_price = coin_price_parts(price, available) if price else None
         popup.confirming = True
 
@@ -1215,20 +1215,20 @@ class GameScene(Scene):
         return self.session.collected_money_pickups
 
     def _available_coins(self):
-        """Balance once this run's coins are taken back: what a reveal can spend."""
-        return int(self.session.money) - sum(amount for _key, amount in self._run_coins)
+        """Balance the player can spend on a reveal: the full current balance.
+
+        Revealing an answer costs its price; coins collected during the run are
+        not taken back, so everything the player holds is available.
+        """
+        return int(self.session.money)
 
     def _reveal_solution(self):
         """A full answer is shown (Hint answer page or AI Solver reveal).
 
-        This run's coins are taken back and become collectable again, and the
-        run is marked "solution used" so a clear won't set a best time.
+        The answer price is paid separately by the caller. Coins collected during
+        the run are kept: best time, clear reward, and run coins all still count
+        on a clear. The run is flagged so the UI can note that an answer was used.
         """
-        collected = self._collected_coins()
-        for key, amount in self._run_coins:
-            self.session.money.spend(amount)
-            collected.discard(key)
-        self._run_coins = []
         self.money = self.session.money
         self.solution_used = True
         self._save_progress()
@@ -1236,12 +1236,10 @@ class GameScene(Scene):
     def _pay_clear_reward(self):
         """Reaching the target pays once per fixed level (saved) or random map.
 
-        A run that used a solution pays nothing and leaves the reward for a
-        later clean clear.
+        The clear reward is paid regardless of whether an answer was revealed;
+        revealing an answer only costs its price.
         """
         self._clear_reward = 0
-        if self.solution_used:
-            return
         if self.level.id in getattr(self.session, "custom_level_ids", set()):
             return
         if is_dynamic_level(self.level.id):
