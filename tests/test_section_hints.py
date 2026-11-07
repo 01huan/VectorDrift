@@ -170,7 +170,6 @@ def test_the_answer_page_on_a_one_screen_level_still_resets_that_level():
     manager.session.hint_answer_confirmed = True
     scene = GameScene(manager)
     manager.switch(scene)
-    scene.dialogue = None
     scene.launch_pos = (-2.0, 0.0)
 
     _show_answer(scene)

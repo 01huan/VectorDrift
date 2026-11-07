@@ -47,12 +47,6 @@ def test_draw_pickup():
         sprites.draw_pickup(s, (100, 100), 12, 1.0, kind=kind)
 
 
-def test_draw_polandball():
-    s = _surf()
-    sprites.draw_polandball(s, (100, 100), 20, 1.0, talking=False)
-    sprites.draw_polandball(s, (100, 100), 20, 1.0, talking=True)
-
-
 def test_draw_start_marker():
     s = _surf()
     sprites.draw_start_marker(s, (100, 100), 10, 1.0)

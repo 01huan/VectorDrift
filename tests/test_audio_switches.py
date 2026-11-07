@@ -8,7 +8,6 @@ import pytest
 from vector_drift import audio
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import FLIGHT, GameScene
-from vector_drift.story import all_seen_keys
 
 
 # --- SoundBank -------------------------------------------------------------------------
@@ -113,7 +112,6 @@ def _scene():
     stub.toggle_music = lambda: setattr(stub, "music_on", not stub.music_on)
     stub.toggle_sfx = lambda: setattr(stub, "sfx_on", not stub.sfx_on)
     manager = SceneManager(stub)
-    manager.session.story_seen = all_seen_keys()
     manager.session.level_id = 1
     manager.session.random_seed = None
     scene = GameScene(manager)

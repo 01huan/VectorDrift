@@ -117,7 +117,6 @@ def test_reaching_a_checkpoint_is_not_a_win():
     assert scene.manager.scene is scene                 # no WinScene
     assert TWO.id not in scene.manager.session.records  # not a clear
     assert not isinstance(scene.manager.scene, WinScene)
-    assert scene.dialogue is None                       # no win line
     assert "win" not in scene.manager.audio.played
 
 
@@ -297,9 +296,6 @@ def test_three_sections_play_through_to_the_win():
         if manager.scene is not scene:
             break
         scene.update(0.05)
-        if scene.dialogue is not None:
-            scene.dialogue = None
-            scene._close_dialogue()
 
     assert isinstance(manager.scene, WinScene)
     assert manager.session.records[THREE.id] == pytest.approx(scene.total_time)
@@ -320,7 +316,6 @@ def test_one_screen_levels_still_store_replays_and_win_directly():
     manager.session.fx_text, manager.session.fy_text = "5", "0"
     scene = GameScene(manager)
     manager.switch(scene)
-    scene.dialogue = None
     _fly(scene)
     assert scene.state == ARRIVED and scene.section_index == 0
     assert len(manager.session.replays) == 1

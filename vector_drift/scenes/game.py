@@ -15,7 +15,6 @@ from ..data import (SHIPS, default_ship_id, get_level, section_count, section_le
                     section_shift, ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
-from ..story import get_level_story, level_intro_key, level_win_key, random_fail_line
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..image_assets import COIN_BALANCE
@@ -24,7 +23,6 @@ from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, 
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
-from .dialogue import DialogueBox
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
 
@@ -304,17 +302,6 @@ class GameScene(Scene):
         if not self.hint_mode:
             self._kick_ai_for_state()
 
-        # --- Story (fixed levels, story.toml) ---------------------------------
-        # Poland's intro lines play the first time a level opens, the win line
-        # the first time it is cleared, a fail line on every life lost.
-        self.story = None if is_dynamic_level(self.level.id) else get_level_story(self.level.id)
-        self.planet = self.story.planet if self.story else None
-        self.dialogue = None
-        self._dialogue_seen_key = None      # story_seen key to record when the box closes
-        self._win_pending = False           # WinScene waits for the win line
-        if self.story is not None:
-            self._say(self.story.intro, level_intro_key(self.level.id))
-
     def _load_section_props(self):
         """Pickups and black/white holes of the current section (self.level).
 
@@ -452,11 +439,6 @@ class GameScene(Scene):
             self._update_cursor()
         if self.state == PANNING:
             return                      # pan to the next section: no input at all
-        if self.dialogue is not None:
-            self.dialogue.handle_event(event)
-            if self.dialogue.done:
-                self._close_dialogue()
-            return                      # modal: nothing behind it takes input
         if self.hint_popup is not None:
             self._handle_hint_event(event)
             return                      # modal: nothing behind it takes input
@@ -622,8 +604,6 @@ class GameScene(Scene):
             return
 
         self.audio.play("life_lost")
-        if self.story is not None:
-            self._say((random_fail_line(),))
         noun = "life" if self.lives == 1 else "lives"
         self._respawn_every_life_pickups()
         if outcome in RESUME_OUTCOMES and not self._off_map(self.flight):
@@ -670,7 +650,7 @@ class GameScene(Scene):
     def _reach_checkpoint(self):
         """Reached a checkpoint: +1 life (capped), then pan to the next section.
 
-        Not a win: no Win screen, story line or clear. From now on a lost
+        Not a win: no Win screen or clear. From now on a lost
         life relaunches from this checkpoint, the next section's start.
         """
         flight = self.flight
@@ -873,8 +853,6 @@ class GameScene(Scene):
             log.warning("editor update contained: %r", exc)
         except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
             log.exception("unexpected editor failure")
-        if self.dialogue is not None:
-            self.dialogue.update(dt)
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
             self._update_flight(dt)
             self._update_camera(dt)
@@ -973,13 +951,7 @@ class GameScene(Scene):
                 self._finish_pan()
         elif self.state == ARRIVED:
             self.arrive_timer -= dt
-            if self.arrive_timer <= 0 and self.dialogue is None and not self._win_pending:
-                key = level_win_key(self.level.id)
-                if self.story is not None and key not in self.session.story_seen:
-                    self._win_pending = True
-                    self._say(self.story.win, key)
-                    return
-            if self.arrive_timer <= 0 and self.dialogue is None:
+            if self.arrive_timer <= 0:
                 self.session.stats = {
                     "time": self.flight.time,
                     "total_time": self.total_time,
@@ -1027,8 +999,6 @@ class GameScene(Scene):
             self.hint_popup.answer_price = self._answer_price()
             self.hint_popup.available = self._available_coins()
             self.hint_popup.draw(surface)
-        if self.dialogue is not None:
-            self.dialogue.draw(surface)
         self._draw_coins(surface)
         if self.pause_menu is not None:
             self.pause_menu.draw(surface)
@@ -1084,22 +1054,6 @@ class GameScene(Scene):
         elif action == "quit":
             self.manager.quit()
 
-    # ------------------------------------------------------------------ Story
-    def _say(self, lines, seen_key=None):
-        """Open the dialogue box; ``seen_key`` is recorded once it closes."""
-        if seen_key is not None and seen_key in self.session.story_seen:
-            return
-        self.dialogue = DialogueBox(lines, self.viewport.rect, self.audio)
-        self._dialogue_seen_key = seen_key
-
-    def _close_dialogue(self):
-        self.dialogue = None
-        key, self._dialogue_seen_key = self._dialogue_seen_key, None
-        if key is not None:
-            self.session.story_seen.add(key)
-            from vector_drift.account.integration import save_progress
-            save_progress(self.manager.account, self.session)
-            
     # ------------------------------------------------------------------ Hint
     def _section_hint(self):
         """The hint for the section on screen (one per section on multi-section levels)."""
@@ -1847,7 +1801,7 @@ class GameScene(Scene):
                 # Not reached yet: it still holds the life it gives.
                 sprites.draw_checkpoint_life(surface, center, radius, self.t, self.flyable_ship)
             else:
-                sprites.draw_target(surface, center, radius, self.t, flash, planet=self.planet)
+                sprites.draw_target(surface, center, radius, self.t, flash)
 
         for obstacle in getattr(level, "obstacles", ()) or ():
             sprites.draw_obstacle(surface, at(*obstacle.center),

@@ -95,7 +95,6 @@ def _game():
     manager.session.level_id = 1
     scene = GameScene(manager)
     manager.switch(scene)
-    scene.dialogue = None
     return scene
 
 

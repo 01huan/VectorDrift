@@ -11,7 +11,6 @@ from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.fail import FailScene
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
 from vector_drift.scenes.levels import LevelSelectScene
-from vector_drift.story import all_seen_keys
 from vector_drift.ui import CodeEditor
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
@@ -219,7 +218,6 @@ def _manager():
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
     return manager
 
 

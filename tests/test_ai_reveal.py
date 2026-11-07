@@ -13,7 +13,6 @@ from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.win import WinScene
 from vector_drift.solver.interface import SimulationSpec, SolveResult
 from vector_drift.image_assets import COIN_TRADE
-from vector_drift.story import all_seen_keys
 from vector_drift.ui import coin_price_parts
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
@@ -31,7 +30,6 @@ def _manager(coins=0):
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
     manager.session.money.add(coins)
     return manager
 
