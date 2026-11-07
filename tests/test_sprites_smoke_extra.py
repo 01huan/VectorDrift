@@ -31,8 +31,8 @@ def test_draw_ship_icon():
 
 def test_draw_target():
     s = _surf()
-    sprites.draw_target(s, (200, 200), 30, 1.0, flash=0.5, planet="mars")
-    sprites.draw_target(s, (200, 200), 30, 1.0, planet="moon")
+    sprites.draw_target(s, (200, 200), 30, 1.0, flash=0.5)
+    sprites.draw_target(s, (200, 200), 30, 1.0)
 
 
 def test_draw_obstacle():

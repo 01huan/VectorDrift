@@ -259,8 +259,6 @@ class ReplayScene(Scene):
         self._start_checkpoint_radius = 0.0
 
     def _setup_level_from_record(self, rec):
-        from ..story import get_level_story
-
         level_id = int(rec.get("level_id", 1))
         seed = rec.get("seed")
         try:
@@ -314,12 +312,6 @@ class ReplayScene(Scene):
         self._target_center = self._level.target_center
         self._target_radius = self._level.target_radius
         self._start = self._level.start
-        self._story_planet = None
-        try:
-            story = get_level_story(level_id)
-            self._story_planet = story.planet if story else None
-        except Exception:
-            self._story_planet = None
 
         # Reproduce the state the level was in when this launch happened:
         # pickups already consumed in previous runs and obstacles already
@@ -606,7 +598,7 @@ class ReplayScene(Scene):
             if not self._checkpoint_taken():
                 sprites.draw_checkpoint_life(surface, target, target_r, self._t, self._ship)
         else:
-            sprites.draw_target(surface, target, target_r, self._t, planet=self._story_planet)
+            sprites.draw_target(surface, target, target_r, self._t)
 
         self._sync_pickups_to_current()
 

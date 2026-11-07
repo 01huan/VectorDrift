@@ -24,7 +24,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Community levels** — browse public levels and upload or delete your own levels through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
 - **Progression and persistence** — earn coins, buy ship skins, keep best times, and save progress locally or to an optional online account.
-- **Story and audio** — an opening crawl, level dialogue, music, sound effects, and replaceable image/audio assets.
+- **Music and art** — music, sound effects, and replaceable image/audio assets.
 
 ## Current game content
 
@@ -239,11 +239,11 @@ Replay controls:
 
 ## Story, Music, and Art
 
-The first time **Start** is selected, the game can show an opening crawl. The current story data contains level-intro and first-clear dialogue for Levels 1–4, plus randomized failure dialogue during eligible life-loss events. Random levels do not have campaign story dialogue.
+The game currently has no story: levels open, finish, and lose lives without dialogue, and **Start** goes straight to the level selector. A new story (the Cosmic Architect comic on the main menu, leading into a tutorial mode) is planned separately. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
 
-Story content is stored in `vector_drift/story.toml`; story-seen progress is saved with the player profile. The target planet artwork can vary by level (moon, Mars, Saturn, or an exoplanet).
+Every level's target uses the same planet artwork, `assets/images/targets/planet.png`; if that image cannot be read, the game draws its built-in planet instead.
 
-Music tracks are assigned to the menu, opening crawl, and gameplay scenes. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
+Music tracks are assigned to the menu and gameplay scenes. The opening track in `assets/music/` is kept for the planned story comic but is not played at the moment. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
 
 Image assets are loaded from `assets/images/`. If an image is missing or unreadable, the game falls back to its Pygame-drawn artwork. The asset slots, file names, sizing, and recommended sources are documented in `assets/README.md` and `assets/images/README.md`.
 
@@ -251,7 +251,7 @@ Image assets are loaded from `assets/images/`. If an image is missing or unreada
 
 ### Requirements
 
-- Python **3.11 or newer** (`tomllib` is used to read the TOML story and hint files).
+- Python **3.11 or newer** (`tomllib` is used to read the TOML hint file).
 - The packages listed in `requirements.txt`.
 
 ### Install and launch
@@ -313,7 +313,7 @@ The formula editor detaches from the operating-system input method while the gam
 
 | Input | Action |
 |---|---|
-| `Enter` or Start | Open the opening crawl (first time) or the level selector. |
+| `Enter` or Start | Open the level selector. |
 | `L` | Open Login or Account. |
 | `Ctrl+M` | Toggle global mute. |
 | `Esc` in the level selector | Return to the main menu. |
@@ -327,7 +327,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Enter` or the Play button | Launch when both force expressions are valid and the selected ship is owned. |
 | Stop button during flight | Abort the flight and lose one life. |
 | `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels, Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
-| `Esc` with a popup open | Close the topmost story, Hint, or AI Solver popup first. |
+| `Esc` with a popup open | Close the topmost Hint or AI Solver popup first. |
 | `Tab`, `Up`, or `Down` | Switch between the `Fx` and `Fy` editor lines. |
 | Mouse drag / double-click | Select text in the active formula line. |
 | `Shift` + Arrow / `Home` / `End` | Extend the text selection. |
@@ -416,7 +416,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, story progress, clear-reward progress, custom levels, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
 
@@ -446,7 +446,6 @@ VectorDrift/
     ├── physics.py                  # Force fields and flight simulation
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
-    ├── story.py / story.toml       # Story parsing and dialogue data
     ├── replay.py                   # Replay records and playback data
     ├── render.py                   # World, grid, and force-field rendering
     ├── sprites.py                  # Ships, planets, obstacles, pickups, effects
@@ -471,14 +470,13 @@ Install the dependencies first, then run:
 python -m pytest tests
 ```
 
-The test suite covers expression parsing/evaluation, physics and edge cases, level definitions and generation, pickups, hints, story parsing, checkpoints, replay reconstruction, custom/community levels, account/profile integration, solver behavior, UI interactions, and README rules.
+The test suite covers expression parsing/evaluation, physics and edge cases, level definitions and generation, pickups, hints, checkpoints, replay reconstruction, custom/community levels, account/profile integration, solver behavior, UI interactions, and README rules.
 
 ### Add or change a fixed level
 
 1. Add a `LevelSpec` to `vector_drift/data.py` and register it in `LEVELS`.
 2. Add the level's hint to `vector_drift/hints.toml` as `[level.N]`, including `steps`, `answer_note`, and at least one valid `Fx`/`Fy` answer. A multi-section level uses one `[level.N.section.K]` entry for every section.
-3. Add story data in `vector_drift/story.toml` if the level should have dialogue. Valid target planet types are `moon`, `mars`, `saturn`, and `exoplanet`.
-4. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
+3. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
 
 Level 6 is the current fixed-level exception: its hint is explicitly marked as pending play-testing in `tests/test_hints.py`.
 
@@ -494,11 +492,10 @@ Register a `RandomPreset` in `vector_drift/level_presets.py`. `vector_drift/rand
 
 Register a `FieldTemplate` in `vector_drift/solver/templates.py`. A template renders parameter values into formula strings accepted by `expr_parser`. Candidate evaluation is centralized in `vector_drift/solver/engine.py` and runs through the formal `Flight` implementation, so candidate success uses the same reach/collision/time rules as the game.
 
-### Change assets or story
+### Change assets
 
 - Image resource keys, file names, sizing, and fallback behavior: `vector_drift/image_assets.py` and `assets/images/README.md`.
 - Music and sound slots: `vector_drift/audio.py` and `assets/README.md`.
-- Story text and per-level dialogue: `vector_drift/story.toml`.
 - Hints and reference formulas: `vector_drift/hints.toml`.
 - Display, physics, and economy constants: `vector_drift/config.py`.
 

@@ -274,157 +274,16 @@ def _render_planet(radius):
     return pygame.transform.smoothscale(body, (d, d))
 
 
-def _render_glow(radius, color=(110, 180, 255)):
-    return soft_glow(radius, color, max_alpha=210, extent=2.0, power=2.0)
+def _render_glow(radius):
+    return soft_glow(radius, (110, 180, 255), max_alpha=210, extent=2.0, power=2.0)
 
 
-# --- story planets (one per fixed level, story.toml picks the kind) ----------------
-def _wavy_band(body, c, r, yf, thick, color, phase, waves=1.5, amp=0.05):
-    top, bottom = [], []
-    for i in range(41):
-        x = c - r + 2 * r * i / 40
-        wave = amp * r * math.sin(i / 40 * 2 * math.pi * waves + phase)
-        top.append((x, c + yf * r + wave - thick * r / 2))
-        bottom.append((x, c + yf * r + wave + thick * r / 2))
-    pygame.draw.polygon(body, color, top + bottom[::-1])
-
-
-def _blob(body, c, r, fx, fy, fw, fh, color):
-    rect = pygame.Rect(0, 0, 2 * fw * r, 2 * fh * r)
-    rect.center = (c + fx * r, c + fy * r)
-    pygame.draw.ellipse(body, color, rect)
-
-
-def _finish_disc(body, c, r, night):
-    """Night side, highlight, clip to the disc and outline (as _render_planet)."""
-    D = body.get_width()
-    shadow = pygame.Surface((D, D), pygame.SRCALPHA)
-    pygame.draw.circle(shadow, (*night, 130), (c, c), r)
-    pygame.draw.circle(shadow, (0, 0, 0, 0), (c - 0.28 * r, c - 0.28 * r), r * 1.12)
-    body.blit(shadow, (0, 0))
-    shine = pygame.Surface((D, D), pygame.SRCALPHA)
-    hl = pygame.Rect(0, 0, 0.62 * r, 0.36 * r)
-    hl.center = (c - 0.42 * r, c - 0.52 * r)
-    pygame.draw.ellipse(shine, (255, 255, 255, 70), hl)
-    pygame.draw.circle(shine, (255, 255, 255, 160), (c - 0.52 * r, c - 0.40 * r), 0.07 * r)
-    body.blit(shine, (0, 0))
-    mask = pygame.Surface((D, D), pygame.SRCALPHA)
-    pygame.draw.circle(mask, (255, 255, 255, 255), (c, c), r)
-    body.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-    pygame.draw.circle(body, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
-    return body
-
-
-def _new_body(radius, base, margin=1.0):
-    """Supersampled square surface filled with ``base``; returns (surface, c, r)."""
-    D = round((2 * radius * margin + 6) * SS)
-    body = pygame.Surface((D, D), pygame.SRCALPHA)
-    body.fill((*base, 255))
-    return body, D / 2, radius * SS
-
-
-def _paint_moon(radius):
-    body, c, r = _new_body(radius, (176, 179, 192))
-    for fx, fy, fw, fh in ((-0.30, -0.25, 0.32, 0.22), (0.25, 0.10, 0.26, 0.30), (-0.10, 0.50, 0.30, 0.16)):
-        _blob(body, c, r, fx, fy, fw, fh, (138, 141, 156))           # dark maria
-    for fx, fy, fr in ((-0.45, 0.20, 0.12), (0.40, -0.45, 0.10), (0.05, -0.05, 0.08),
-                       (0.55, 0.45, 0.07), (-0.15, -0.62, 0.06)):
-        _blob(body, c, r, fx, fy, fr, fr * 0.85, (118, 120, 136))
-        _blob(body, c, r, fx + 0.02, fy + 0.02, fr * 0.65, fr * 0.55, (150, 153, 168))
-    return _finish_disc(body, c, r, (20, 22, 40))
-
-
-def _paint_mars(radius):
-    body, c, r = _new_body(radius, (204, 94, 60))
-    _wavy_band(body, c, r, 0.25, 0.22, (226, 136, 92), 0.8)            # dusty band
-    for fx, fy, fw, fh in ((-0.35, -0.05, 0.30, 0.14), (0.30, 0.45, 0.24, 0.12), (0.40, -0.25, 0.16, 0.10)):
-        _blob(body, c, r, fx, fy, fw, fh, (150, 62, 42))
-    _blob(body, c, r, 0.0, -0.95, 0.45, 0.22, (246, 238, 232))         # polar cap
-    return _finish_disc(body, c, r, (50, 12, 18))
-
-
-def _paint_saturn_body(body, c, r):
-    for yf, thick, color, phase in ((-0.55, 0.18, (240, 214, 162), 0.3), (-0.18, 0.14, (198, 158, 98), 1.1),
-                                    (0.20, 0.20, (240, 214, 162), 2.0), (0.62, 0.14, (198, 158, 98), 0.4)):
-        _wavy_band(body, c, r, yf, thick, color, phase, waves=1.0, amp=0.03)
-    return _finish_disc(body, c, r, (40, 26, 20))
-
-
-def _paint_saturn(radius):
-    """Body inside a tilted ring: back half of the ring, body, front half."""
-    ring_out, ring_in, flat, tilt = 1.75, 1.25, 0.32, -16
-    planet, pc, r = _new_body(radius, (222, 186, 128))
-    _paint_saturn_body(planet, pc, r)
-
-    D = round((2 * radius * ring_out + 8) * SS)
-    out = pygame.Surface((D, D), pygame.SRCALPHA)
-    c = D / 2
-    ring = pygame.Surface((D, D), pygame.SRCALPHA)
-    w = max(2, round(0.05 * r))
-    for f, color in ((ring_out, (206, 180, 132)), (1.55, (176, 148, 104)), (1.48, (226, 204, 160))):
-        rect = pygame.Rect(0, 0, 2 * f * r, 2 * f * r * flat)
-        rect.center = (c, c)
-        pygame.draw.ellipse(ring, color, rect)
-    hole = pygame.Rect(0, 0, 2 * ring_in * r, 2 * ring_in * r * flat)
-    hole.center = (c, c)
-    pygame.draw.ellipse(ring, (0, 0, 0, 0), hole)
-    outer = pygame.Rect(0, 0, 2 * ring_out * r, 2 * ring_out * r * flat)
-    outer.center = (c, c)
-    pygame.draw.ellipse(ring, OUTLINE, outer, w)
-    pygame.draw.ellipse(ring, OUTLINE, hole, w)
-
-    out.blit(ring, (0, 0))
-    out.blit(planet, planet.get_rect(center=(c, c)))
-    out.blit(ring, (0, c), pygame.Rect(0, c, D, D - c))                # front half over the body
-    out = pygame.transform.rotate(out, tilt)
-    size = round(out.get_width() / SS)
-    return pygame.transform.smoothscale(out, (size, size))
-
-
-def _paint_exoplanet(radius):
-    body, c, r = _new_body(radius, (54, 186, 168))
-    for yf, thick, color, phase in ((-0.60, 0.16, (120, 96, 214), 0.0), (-0.20, 0.22, (96, 226, 196), 1.7),
-                                    (0.22, 0.16, (168, 92, 200), 2.6), (0.60, 0.20, (96, 226, 196), 0.9)):
-        _wavy_band(body, c, r, yf, thick, color, phase, waves=2.0, amp=0.08)
-    _blob(body, c, r, 0.30, 0.05, 0.20, 0.13, (236, 120, 190))         # a storm
-    _blob(body, c, r, 0.30, 0.05, 0.10, 0.06, (255, 190, 225))
-    return _finish_disc(body, c, r, (24, 12, 52))
-
-
-def _scaled(painter):
-    """Wrap a painter that returns supersampled art so it returns final size."""
-    def render(radius):
-        big = painter(radius)
-        size = round(big.get_width() / SS)
-        return pygame.transform.smoothscale(big, (size, size))
-    return render
-
-
-# kind: (render(radius) -> surface centered on the planet, glow color)
-PLANETS = {
-    "moon": (_scaled(_paint_moon), (200, 210, 235)),
-    "mars": (_scaled(_paint_mars), (255, 140, 100)),
-    "saturn": (_paint_saturn, (255, 214, 150)),
-    "exoplanet": (_scaled(_paint_exoplanet), (190, 130, 255)),
-}
-
-
-def draw_target(surface, center, radius, t, flash=0.0, planet=None):
-    """The target planet. ``planet`` is a PLANETS kind (story levels); None
-    keeps the default art (targets/planet.png, else the code-drawn planet)."""
+def draw_target(surface, center, radius, t, flash=0.0):
+    """The target planet: targets/planet.png, else the code-drawn planet."""
     radius = round(radius)
-    glow_color = None
 
-    img = None if planet in PLANETS else load_image("target.planet", size_px=(radius * 2, radius * 2))
-    if planet in PLANETS:
-        # --- story planet (code-drawn) -------------------------------------
-        render, glow_color = PLANETS[planet]
-        art = _cached(("planet", planet, radius), lambda: render(radius))
-        try:
-            surface.blit(art, art.get_rect(center=center))
-        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
-            pass
-    elif img is not None:
+    img = load_image("target.planet", size_px=(radius * 2, radius * 2))
+    if img is not None:
         # --- image path -----------------------------------------------------
         try:
             surface.blit(img, img.get_rect(center=center))
@@ -439,10 +298,7 @@ def draw_target(surface, center, radius, t, flash=0.0, planet=None):
             pass
 
     # Glow remains code-drawn (dynamic pulse, not suitable for a static PNG).
-    if glow_color is None:
-        glow = _cached(("glow", radius), lambda: _render_glow(radius))
-    else:
-        glow = _cached(("glow", radius, glow_color), lambda: _render_glow(radius, glow_color))
+    glow = _cached(("glow", radius), lambda: _render_glow(radius))
     pulse = 0.5 + 0.5 * math.sin(t * 2.2)
     glow.set_alpha(round(140 + 115 * pulse))
     try:
