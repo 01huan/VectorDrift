@@ -445,7 +445,11 @@ def custom_level_to_snapshot(level):
             {"center": list(item.center), "radius": float(item.radius), "kind": str(item.kind)}
             for item in level.pickups
         ],
-    }
+    "holes": [
+        {"black_center": list(item.black_center), "white_center": list(item.white_center), "radius": float(item.radius)}
+        for item in getattr(level, "holes", ()) or ()
+    ],
+}
 
 
 def custom_level_from_snapshot(snapshot):
@@ -469,6 +473,14 @@ def custom_level_from_snapshot(snapshot):
         )
         for item in snapshot.get("pickups", ())
     )
+    holes = tuple(
+        HoleSpec(
+            black_center=tuple(item.get("black_center", item.get("black", (0.0, 0.0)))),
+            white_center=tuple(item.get("white_center", item.get("white", (0.0, 0.0)))),
+            radius=float(item.get("radius", 0.5)),
+        )
+        for item in snapshot.get("holes", ())
+    )
     return LevelSpec(
         id=int(snapshot["id"]),
         name=str(snapshot["name"]),
@@ -480,6 +492,7 @@ def custom_level_from_snapshot(snapshot):
         lives=int(snapshot.get("lives", 5)),
         obstacles=obstacles,
         pickups=pickups,
+        holes=holes,
     )
 
 

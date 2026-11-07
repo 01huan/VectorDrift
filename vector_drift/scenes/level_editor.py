@@ -28,7 +28,7 @@ class LevelEditorScene(Scene):
                                  "Save", style="primary", font_size=16)
         self.upload_button = Button((config.WINDOW_W - px(390), config.WINDOW_H - px(60), px(120), px(40)),
                                     "Upload", style="primary", font_size=16)
-        self.palette = ["start", "target", "obstacle", "shockwave", "extratime", "shield", "life", "money", "unbound"]
+        self.palette = ["start", "target", "obstacle", "hole", "shockwave", "extratime", "shield", "life", "money", "unbound"]
         self.dragging = None
         self.moving = None
         self.move_offset = (0.0, 0.0)
@@ -39,6 +39,7 @@ class LevelEditorScene(Scene):
         self.target_radius = 1.0
         self.obstacles = []
         self.pickups = []
+        self.holes = []
         self._placed_start = False
         self._placed_target = False
         self.naming = False
@@ -51,6 +52,7 @@ class LevelEditorScene(Scene):
             self.target = getattr(level, "target_center", self.target)
             self.target_radius = getattr(level, "target_radius", self.target_radius)
             self.obstacles = [dict(center=o.center, radius=o.radius) for o in getattr(level, "obstacles", ())]
+            self.holes = [dict(black_center=tuple(getattr(h, "black_center", h[0] if isinstance(h, (tuple,list)) else (0.0,0.0))), white_center=tuple(getattr(h, "white_center", h[1] if isinstance(h, (tuple,list)) else (0.0,0.0))), radius=float(getattr(h, "radius", (h[2] if isinstance(h, (tuple,list)) and len(h)>2 else 0.5)))) for h in getattr(level, "holes", ())]
             self.pickups = [dict(center=p.center, radius=getattr(p, "radius", 0.45), kind=getattr(p, "kind", "shockwave")) for p in getattr(level, "pickups", ())]
             self._placed_start = True
             self._placed_target = True
@@ -63,6 +65,8 @@ class LevelEditorScene(Scene):
         refs = [("start", None), ("target", None)]
         refs.extend(("obstacle", i) for i in range(len(self.obstacles)))
         refs.extend(("pickup", i) for i in range(len(self.pickups)))
+        refs.extend(("black_hole", i) for i in range(len(self.holes)))
+        refs.extend(("white_hole", i) for i in range(len(self.holes)))
         return refs
 
     def _object_center(self, ref):
@@ -72,6 +76,10 @@ class LevelEditorScene(Scene):
         if kind == "target":
             return self.target
         collection = self.obstacles if kind == "obstacle" else self.pickups
+        if kind in ("black_hole", "hole"):
+            return self.holes[index]["black_center"]
+        if kind == "white_hole":
+            return self.holes[index]["white_center"]
         return collection[index]["center"]
 
     def _object_radius(self, ref):
@@ -81,6 +89,8 @@ class LevelEditorScene(Scene):
         if kind == "target":
             return self.target_radius
         collection = self.obstacles if kind == "obstacle" else self.pickups
+        if kind in ("black_hole", "white_hole", "hole"):
+            return self.holes[index]["radius"]
         return collection[index]["radius"]
 
     def _set_object_center(self, ref, center):
@@ -90,8 +100,13 @@ class LevelEditorScene(Scene):
         elif kind == "target":
             self.target = center
         else:
-            collection = self.obstacles if kind == "obstacle" else self.pickups
-            collection[index]["center"] = center
+            if kind == "black_hole" or kind == "hole":
+                self.holes[index]["black_center"] = center
+            elif kind == "white_hole":
+                self.holes[index]["white_center"] = center
+            else:
+                collection = self.obstacles if kind == "obstacle" else self.pickups
+                collection[index]["center"] = center
 
     def _set_object_radius(self, ref, radius):
         kind, index = ref
@@ -100,25 +115,50 @@ class LevelEditorScene(Scene):
         elif kind == "start":
             return
         else:
-            collection = self.obstacles if kind == "obstacle" else self.pickups
-            collection[index]["radius"] = radius
+            if kind in ("black_hole", "white_hole", "hole"):
+                self.holes[index]["radius"] = radius
+            else:
+                collection = self.obstacles if kind == "obstacle" else self.pickups
+                collection[index]["radius"] = radius
 
     def _object_at(self, pos):
         world = self._screen_to_world(pos)
         for ref in reversed(self._object_refs()):
+            kind, index = ref
             radius = self._object_radius(ref)
-            center = self._object_center(ref)
-            if (world[0] - center[0]) ** 2 + (world[1] - center[1]) ** 2 <= radius ** 2:
-                return ref
+            if kind == "black_hole":
+                h = self.holes[index]
+                centers = [h["black_center"]]
+            elif kind == "white_hole":
+                h = self.holes[index]
+                centers = [h["white_center"]]
+            else:
+                centers = [self._object_center(ref)]
+            for c in centers:
+                if (world[0] - c[0]) ** 2 + (world[1] - c[1]) ** 2 <= radius ** 2:
+                    return ref
         return None
 
     def _overlaps(self, center, radius, ignore=None):
         from ..pickups import discs_overlap
-
-        return any(
-            ref != ignore and discs_overlap(center, radius, self._object_center(ref), self._object_radius(ref))
-            for ref in self._object_refs()
-        )
+        def centers_of(ref):
+            kind, index = ref
+            if kind == "black_hole":
+                h = self.holes[index]
+                return [h["black_center"]]
+            if kind == "white_hole":
+                h = self.holes[index]
+                return [h["white_center"]]
+            return [self._object_center(ref)]
+        for ref in self._object_refs():
+            if ref == ignore:
+                continue
+            for c in centers_of(ref):
+                r = self._object_radius(ref)
+                if discs_overlap(center, radius, c, r):
+                    return True
+        # also check the second center of a hole being placed? handled by caller? 
+        return False
 
     def _in_playfield(self, pos):
         # Check if the mouse position is within the viewport (plot area)
@@ -126,7 +166,16 @@ class LevelEditorScene(Scene):
         return vp_rect.collidepoint(pos)
 
     def _place(self, kind, center):
-        radius = self.START_RADIUS if kind == "start" else 1.0 if kind == "target" else 0.5 if kind == "obstacle" else 0.45
+        radius = self.START_RADIUS if kind == "start" else 1.0 if kind == "target" else 0.5 if kind == "obstacle" else 0.5 if kind in ("hole", "black_hole", "white_hole", "black", "white") else 0.45
+        if kind in ("hole", "black_hole", "white_hole", "black", "white"):
+            wc = (center[0] + 1.5, center[1])
+            if self._overlaps(center, radius) or self._overlaps(wc, radius):
+                self.message = "Objects cannot overlap"
+                return
+            self.holes.append({"black_center": center, "white_center": wc, "radius": radius})
+            self.selected = ("black_hole", len(self.holes) - 1)
+            self.message = ""
+            return
         if self._overlaps(center, radius):
             self.message = "Objects cannot overlap"
             return
@@ -156,6 +205,8 @@ class LevelEditorScene(Scene):
             self.target_radius = 1.0
         elif kind == "obstacle":
             self.obstacles.pop(index)
+        elif kind in ("hole", "black_hole", "white_hole"):
+            self.holes.pop(index)
         else:
             self.pickups.pop(index)
         self.selected = None
@@ -212,6 +263,14 @@ class LevelEditorScene(Scene):
 
     def handle_event(self, event):
         if self.naming:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Cancel naming if clicked outside the name box
+                box = pygame.Rect(config.WINDOW_W // 2 - px(220), config.WINDOW_H - px(120), px(440), px(44))
+                if not box.collidepoint(event.pos):
+                    self.naming = False
+                    self.name_buffer = ""
+                    self.message = ""
+                    return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     name = self.name_buffer or "Custom"
@@ -326,6 +385,7 @@ class LevelEditorScene(Scene):
             ship_id="ship01",
             obstacles=tuple(ObstacleSpec(center=tuple(o["center"]), radius=o["radius"]) for o in self.obstacles),
             pickups=tuple(PickupSpec(center=tuple(p["center"]), radius=p["radius"], kind=p["kind"]) for p in self.pickups),
+            holes=tuple(__import__("vector_drift.data", fromlist=["HoleSpec"]).HoleSpec(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=h["radius"]) for h in self.holes),
         )
 
     def _save(self, name="Custom"):
@@ -399,6 +459,9 @@ class LevelEditorScene(Scene):
                     surface.blit(img, img.get_rect(center=center))
                 else:
                     sprites.draw_obstacle(surface, center, px(12), 0.0)
+            elif kind in ("hole", "black_hole", "white_hole", "black", "white"):
+                pygame.draw.circle(surface, (20, 20, 40), center, px(10))
+                pygame.draw.circle(surface, (220, 220, 255), (center[0]+px(18), center[1]), px(10))
             else:
                 pickup_key = {
                     "shockwave": "pickup.shockwave",
@@ -433,6 +496,15 @@ class LevelEditorScene(Scene):
             sprites.draw_pickup(surface, (px_, py_), p["radius"] * self.viewport.scale, 0.0, kind=p["kind"])
             if self.selected == ("pickup", i):
                 pygame.draw.circle(surface, config.ACCENT, (int(px_), int(py_)), int(p["radius"] * self.viewport.scale) + px(3), 1)
+        for i, h in enumerate(self.holes):
+            bc = self.viewport.to_screen(*h["black_center"])
+            wc = self.viewport.to_screen(*h["white_center"])
+            r = h["radius"] * self.viewport.scale
+            sprites.draw_black_hole(surface, bc, r, 0.0)
+            sprites.draw_white_hole(surface, wc, r, 0.0)
+            if self.selected == ("hole", i):
+                pygame.draw.circle(surface, config.ACCENT, (int(bc[0]), int(bc[1])), int(r)+px(3), 1)
+                pygame.draw.circle(surface, config.ACCENT, (int(wc[0]), int(wc[1])), int(r)+px(3), 1)
         if self.selected == ("start", None):
             pygame.draw.circle(surface, config.ACCENT, (int(sx), int(sy)), int(self.START_RADIUS * self.viewport.scale) + px(3), 1)
         elif self.selected == ("target", None):
@@ -441,7 +513,10 @@ class LevelEditorScene(Scene):
             mx, my = pygame.mouse.get_pos()
             draw_text(surface, self.dragging, (mx + 10, my + 10), 14, config.ACCENT)
         if self.naming:
-            draw_text(surface, "Name: " + self.name_buffer, (config.WINDOW_W // 2, config.WINDOW_H - px(100)), 20, config.ACCENT, anchor="center")
+            box = pygame.Rect(config.WINDOW_W // 2 - px(220), config.WINDOW_H - px(120), px(440), px(44))
+            pygame.draw.rect(surface, config.PANEL_BG, box, border_radius=px(6))
+            pygame.draw.rect(surface, config.ACCENT, box, width=2, border_radius=px(6))
+            draw_text(surface, "Name: " + self.name_buffer + "_", (box.x + px(12), box.centery), 20, config.ACCENT, anchor="midleft")
         else:
             draw_text(surface, "Right-click an object: Delete / Modify | Drag to move | Wheel or +/- to resize",
                       (config.WINDOW_W // 2, config.WINDOW_H - px(28)), 13, config.TEXT_DIM, anchor="center")

@@ -31,7 +31,7 @@ class LevelEditorMenuScene(Scene):
         x, y = px(60), px(100)
         for i, lv in enumerate(levels):
             rect = pygame.Rect(x + (i % 4) * px(260), y + (i // 4) * px(180), px(240), px(160))
-            preview = pygame.Rect(rect.x + px(10), rect.y + px(30), px(80), px(100))
+            preview = pygame.Rect(rect.x + px(10), rect.y + px(30), px(220), px(120))
             self.cards.append((lv, rect, preview))
             self.delete_rects.append(
                 pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
@@ -113,6 +113,9 @@ class LevelEditorMenuScene(Scene):
             pts.append(tuple(o["center"]))
         for p in data_.get("pickups", ()):
             pts.append(tuple(p["center"]))
+        for h in data_.get("holes", ()):
+            pts.append(tuple(h.get("black_center", (0,0))))
+            pts.append(tuple(h.get("white_center", (0,0))))
         if not pts:
             return
 
@@ -124,9 +127,12 @@ class LevelEditorMenuScene(Scene):
         world_w = maxx - minx or 1.0
         world_h = maxy - miny or 1.0
         scale = min(preview.w / world_w, preview.h / world_h)
+        off_x = (preview.w - world_w * scale) / 2.0
+        off_y = (preview.h - world_h * scale) / 2.0
 
         def to_screen(wx, wy):
-            return (preview.x + (wx - minx) * scale, preview.bottom - (wy - miny) * scale)
+            return (preview.x + off_x + (wx - minx) * scale,
+                    preview.bottom - off_y - (wy - miny) * scale)
 
         # Object radius cap so large objects do not overflow the preview.
         max_r = max(8, min(preview.w, preview.h) // 4)
@@ -158,6 +164,13 @@ class LevelEditorMenuScene(Scene):
                 "money": "pickup.money",
                 "unbound": "pickup.unbound",
             }.get(kind, "pickup.shockwave")
+        for h in data_.get("holes", ()):
+            bc = to_screen(*h.get("black_center", (0,0)))
+            wc = to_screen(*h.get("white_center", (0,0)))
+            r = max(2, min(max_r, int(float(h.get("radius", 0.5)) * scale)))
+            if r < 2: continue
+            pygame.draw.circle(surface, (20,20,40), (int(bc[0]), int(bc[1])), r)
+            pygame.draw.circle(surface, (220,220,255), (int(wc[0]), int(wc[1])), r)
             img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
             if img is not None:
                 surface.blit(img, img.get_rect(center=(int(cx), int(cy))))

@@ -152,4 +152,12 @@ def serialize_level(level: Any) -> dict:
             }
             for item in level.pickups
         ],
+        "holes": [
+            {
+                "black_center": list(item.black_center),
+                "white_center": list(item.white_center),
+                "radius": float(item.radius),
+            }
+            for item in getattr(level, "holes", ()) or ()
+        ],
     }
