@@ -425,6 +425,64 @@ def is_custom_level(level_id):
     return level_id in CUSTOM_LEVELS
 
 
+def custom_level_to_snapshot(level):
+    """Return a JSON-compatible copy of the editable custom-level state."""
+    return {
+        "id": int(level.id),
+        "name": str(level.name),
+        "start": list(level.start),
+        "target_center": list(level.target_center),
+        "target_radius": float(level.target_radius),
+        "ship_id": str(level.ship_id),
+        "time_limit": float(level.time_limit),
+        "lives": int(level.lives),
+        "obstacles": [
+            {"center": list(item.center), "radius": float(item.radius),
+             "restitution": float(item.restitution), "kind": str(item.kind)}
+            for item in level.obstacles
+        ],
+        "pickups": [
+            {"center": list(item.center), "radius": float(item.radius), "kind": str(item.kind)}
+            for item in level.pickups
+        ],
+    }
+
+
+def custom_level_from_snapshot(snapshot):
+    """Rebuild a custom level from a replay's saved level state."""
+    if not isinstance(snapshot, dict):
+        raise ValueError("Custom level snapshot must be an object")
+    obstacles = tuple(
+        ObstacleSpec(
+            center=tuple(item["center"]),
+            radius=float(item["radius"]),
+            restitution=float(item.get("restitution", 1.0)),
+            kind=str(item.get("kind", "bumper")),
+        )
+        for item in snapshot.get("obstacles", ())
+    )
+    pickups = tuple(
+        PickupSpec(
+            center=tuple(item["center"]),
+            radius=float(item.get("radius", 0.45)),
+            kind=str(item.get("kind", "shockwave")),
+        )
+        for item in snapshot.get("pickups", ())
+    )
+    return LevelSpec(
+        id=int(snapshot["id"]),
+        name=str(snapshot["name"]),
+        start=tuple(snapshot["start"]),
+        target_center=tuple(snapshot["target_center"]),
+        target_radius=float(snapshot["target_radius"]),
+        ship_id=str(snapshot.get("ship_id", "ship01")),
+        time_limit=float(snapshot.get("time_limit", 10.0)),
+        lives=int(snapshot.get("lives", 5)),
+        obstacles=obstacles,
+        pickups=pickups,
+    )
+
+
 def get_level(level_id, seed=None):
     if level_id in CUSTOM_LEVELS:
         return CUSTOM_LEVELS[level_id]

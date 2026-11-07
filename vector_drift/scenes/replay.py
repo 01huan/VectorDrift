@@ -8,7 +8,8 @@ import pygame
 from .. import config, render, sprites
 from ..config import px
 from ..coords import Viewport
-from ..data import SHIPS, get_level, section_count, section_level
+from ..data import (SHIPS, custom_level_from_snapshot, get_level, section_count,
+                    section_level)
 from ..physics import ForceField
 from ..pickups import PickupState
 from ..expr_parser import diagnose_expression
@@ -265,7 +266,10 @@ class ReplayScene(Scene):
             seed = int(seed) if seed is not None else None
         except (TypeError, ValueError):
             seed = None
-        if seed is not None:
+        snapshot = rec.get("level_snapshot")
+        if isinstance(snapshot, dict):
+            full = custom_level_from_snapshot(snapshot)
+        elif seed is not None:
             full = get_level(level_id, seed=seed)
         else:
             full = get_level(level_id)

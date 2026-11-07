@@ -11,8 +11,9 @@ from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
-from ..data import (SHIPS, default_ship_id, get_level, section_count, section_level,
-                    section_shift, ship_unlocked)
+from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
+                    is_custom_level, section_count, section_level, section_shift,
+                    ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
 from ..level_presets import is_dynamic_level
@@ -523,6 +524,11 @@ class GameScene(Scene):
         if not self.valid or not self._ship_unlocked:
             self.audio.play("error")
             return
+        if (is_custom_level(self.level.id)
+                or self.level.id in getattr(self.session, "custom_level_ids", set())):
+            self._replay_level_snapshot = custom_level_to_snapshot(self.full_level)
+        else:
+            self._replay_level_snapshot = None
         self.attempts += 1
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
@@ -561,6 +567,7 @@ class GameScene(Scene):
                 # runs and obstacles already destroyed must not reappear.
                 "consumed_pickups": list(getattr(self, "_replay_initial_consumed", []) or []),
                 "obstacle_centers": list(getattr(self, "_replay_initial_obstacle_centers", []) or []),
+                "level_snapshot": getattr(self, "_replay_level_snapshot", None),
                 # Which screen this launch flew (multi-section levels); the
                 # replay rebuilds that section, not section 1.
                 "section_index": self.section_index,
