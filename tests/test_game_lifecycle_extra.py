@@ -314,21 +314,6 @@ def test_game_handle_hint_mode():
     scene.draw(surface)
 
 
-def test_game_dialogue_interaction():
-    scene, mgr = _scene(1)
-    if scene.story is not None:
-        scene._say(("hello", "world"))
-        assert scene.dialogue is not None
-        # mouse click to advance
-        evt = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(10, 10))
-        scene.handle_event(evt)
-        # enter key
-        evt2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
-        scene.handle_event(evt2)
-    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
-    scene.draw(surface)
-
-
 def test_game_draw_invalid_field():
     scene, mgr = _scene(1)
     scene.valid = False
@@ -380,9 +365,9 @@ def test_game_safe_end_flight_exception():
 
 def test_game_editor_handle_event():
     scene, mgr = _scene(1)
-    evt = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a)
+    evt = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode="a", scancode=0)
     scene.handle_event(evt)
-    evt2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
+    evt2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN, mod=0, unicode="", scancode=0)
     scene.handle_event(evt2)
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(surface)

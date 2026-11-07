@@ -24,7 +24,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Community levels** — browse public levels and upload or delete your own levels through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
 - **Progression and persistence** — earn coins, buy ship skins, keep best times, and save progress locally or to an optional online account.
-- **Story and audio** — an opening crawl, level dialogue, music, sound effects, and replaceable image/audio assets.
+- **Music and art** — music, sound effects, and replaceable image/audio assets.
 
 ## Current game content
 
@@ -37,7 +37,7 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 3 | First Blast | A ring of bumpers and shockwave pickups. |
 | 4 | First Wormhole | A wall of bumpers, a black/white wormhole pair, and a coin pickup. |
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
-| 6 | First Unbound | A curved wall of bumpers that introduces the Unbound pickup. Its authored hint is still pending. |
+| 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. |
 | 7 | Coming soon | Placeholder; not currently a playable random level. |
 | 8 | Random Drift | Procedurally generated layouts. The generator currently selects between two complete presets. |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |
@@ -138,11 +138,10 @@ Fixed levels use hand-written, step-by-step hints loaded from `vector_drift/hint
 
 Current hint coverage is:
 
-- Levels 1–5: one hint per level.
+- Levels 1–6: one hint per level.
 - Level 9: one hint for each of its two sections.
-- Level 6: the hint and reference answer are still pending play-testing; no authored hint is currently available.
 
-The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–5, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
+The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3–6, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
 
 ### Offline AI Solver for random and custom levels
 
@@ -172,9 +171,9 @@ Coins are the game's progression currency. They are shown in the level selector,
 
 - **Coin pickups:** a coin pickup on a fixed level pays once, ever. A coin pickup on a random level pays once per generated map; entering a new map can make a new set of coins available.
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
-- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 9. On Levels 3–5 it costs 10 coins after confirmation, once per level per game launch. Level 6 currently has no authored hint.
+- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 9. On Levels 3–6 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
-- **Solution-assisted runs:** when an answer is revealed, coins earned earlier in that run are **taken back** and their pickups can be collected again after a reset. Pickups collected after revealing do not pay out for that run. A solution-assisted clear receives no clear reward; the reward remains available for a later clear without revealing a solution.
+- **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
 
 The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`.
@@ -239,11 +238,11 @@ Replay controls:
 
 ## Story, Music, and Art
 
-The first time **Start** is selected, the game can show an opening crawl. The current story data contains level-intro and first-clear dialogue for Levels 1–4, plus randomized failure dialogue during eligible life-loss events. Random levels do not have campaign story dialogue.
+The game currently has no story: levels open, finish, and lose lives without dialogue, and **Start** goes straight to the level selector. A new story (the Cosmic Architect comic on the main menu, leading into a tutorial mode) is planned separately. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
 
-Story content is stored in `vector_drift/story.toml`; story-seen progress is saved with the player profile. The target planet artwork can vary by level (moon, Mars, Saturn, or an exoplanet).
+Every level's target uses the same planet artwork, `assets/images/targets/planet.png`; if that image cannot be read, the game draws its built-in planet instead.
 
-Music tracks are assigned to the menu, opening crawl, and gameplay scenes. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
+Music tracks are assigned to the menu and gameplay scenes. The opening track in `assets/music/` is kept for the planned story comic but is not played at the moment. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
 
 Image assets are loaded from `assets/images/`. If an image is missing or unreadable, the game falls back to its Pygame-drawn artwork. The asset slots, file names, sizing, and recommended sources are documented in `assets/README.md` and `assets/images/README.md`.
 
@@ -251,7 +250,7 @@ Image assets are loaded from `assets/images/`. If an image is missing or unreada
 
 ### Requirements
 
-- Python **3.11 or newer** (`tomllib` is used to read the TOML story and hint files).
+- Python **3.11 or newer** (`tomllib` is used to read the TOML hint file).
 - The packages listed in `requirements.txt`.
 
 ### Install and launch
@@ -313,7 +312,7 @@ The formula editor detaches from the operating-system input method while the gam
 
 | Input | Action |
 |---|---|
-| `Enter` or Start | Open the opening crawl (first time) or the level selector. |
+| `Enter` or Start | Open the level selector. |
 | `L` | Open Login or Account. |
 | `Ctrl+M` | Toggle global mute. |
 | `Esc` in the level selector | Return to the main menu. |
@@ -327,7 +326,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Enter` or the Play button | Launch when both force expressions are valid and the selected ship is owned. |
 | Stop button during flight | Abort the flight and lose one life. |
 | `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels, Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
-| `Esc` with a popup open | Close the topmost story, Hint, or AI Solver popup first. |
+| `Esc` with a popup open | Close the topmost Hint or AI Solver popup first. |
 | `Tab`, `Up`, or `Down` | Switch between the `Fx` and `Fy` editor lines. |
 | Mouse drag / double-click | Select text in the active formula line. |
 | `Shift` + Arrow / `Home` / `End` | Extend the text selection. |
@@ -416,7 +415,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, story progress, clear-reward progress, custom levels, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
 
@@ -446,7 +445,6 @@ VectorDrift/
     ├── physics.py                  # Force fields and flight simulation
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
-    ├── story.py / story.toml       # Story parsing and dialogue data
     ├── replay.py                   # Replay records and playback data
     ├── render.py                   # World, grid, and force-field rendering
     ├── sprites.py                  # Ships, planets, obstacles, pickups, effects
@@ -471,16 +469,13 @@ Install the dependencies first, then run:
 python -m pytest tests
 ```
 
-The test suite covers expression parsing/evaluation, physics and edge cases, level definitions and generation, pickups, hints, story parsing, checkpoints, replay reconstruction, custom/community levels, account/profile integration, solver behavior, UI interactions, and README rules.
+The test suite covers expression parsing/evaluation, physics and edge cases, level definitions and generation, pickups, hints, checkpoints, replay reconstruction, custom/community levels, account/profile integration, solver behavior, UI interactions, and README rules.
 
 ### Add or change a fixed level
 
 1. Add a `LevelSpec` to `vector_drift/data.py` and register it in `LEVELS`.
 2. Add the level's hint to `vector_drift/hints.toml` as `[level.N]`, including `steps`, `answer_note`, and at least one valid `Fx`/`Fy` answer. A multi-section level uses one `[level.N.section.K]` entry for every section.
-3. Add story data in `vector_drift/story.toml` if the level should have dialogue. Valid target planet types are `moon`, `mars`, `saturn`, and `exoplanet`.
-4. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
-
-Level 6 is the current fixed-level exception: its hint is explicitly marked as pending play-testing in `tests/test_hints.py`.
+3. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
 
 ### Add a random level
 
@@ -494,11 +489,10 @@ Register a `RandomPreset` in `vector_drift/level_presets.py`. `vector_drift/rand
 
 Register a `FieldTemplate` in `vector_drift/solver/templates.py`. A template renders parameter values into formula strings accepted by `expr_parser`. Candidate evaluation is centralized in `vector_drift/solver/engine.py` and runs through the formal `Flight` implementation, so candidate success uses the same reach/collision/time rules as the game.
 
-### Change assets or story
+### Change assets
 
 - Image resource keys, file names, sizing, and fallback behavior: `vector_drift/image_assets.py` and `assets/images/README.md`.
 - Music and sound slots: `vector_drift/audio.py` and `assets/README.md`.
-- Story text and per-level dialogue: `vector_drift/story.toml`.
 - Hints and reference formulas: `vector_drift/hints.toml`.
 - Display, physics, and economy constants: `vector_drift/config.py`.
 

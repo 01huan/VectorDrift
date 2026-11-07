@@ -24,9 +24,15 @@ def test_readme_documents_the_coin_rules():
     assert f"**Reveal** ({config.AI_SOLVER_COST} coins)" in coins
     assert "red" in coins                           # prices you can't afford
     assert "levels 1 and 2" in coins
-    assert "taken back" in coins
     assert f"pays {config.CLEAR_REWARD} coins" in coins
     assert "clearing a level pays nothing" not in coins
+    # Seeing a full answer costs only its price: coins stay, the clear still pays.
+    assert "only cost" in coins
+    assert "are kept" in coins
+    assert "clear reward is still paid" in coins
+    assert "taken back" not in coins
+    assert "receives no clear reward" not in coins
+    assert "do not pay out" not in coins
 
 
 def test_readme_documents_unbound():

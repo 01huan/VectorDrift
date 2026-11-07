@@ -12,7 +12,6 @@ from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
-from vector_drift.story import all_seen_keys
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -153,7 +152,6 @@ class Audio:
 def scene(monkeypatch):
     monkeypatch.setattr(game_module, "get_level", lambda *a, **k: LEVEL)
     manager = SceneManager(Audio())
-    manager.session.story_seen = all_seen_keys()
     manager.session.level_id = 1
     s = GameScene(manager)
     manager.switch(s)

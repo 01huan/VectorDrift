@@ -11,7 +11,6 @@ from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.fail import FailScene
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.win import WinScene
-from vector_drift.story import all_seen_keys
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -20,7 +19,6 @@ def _scene(level_id):
     audio = SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
                             stop_loop=lambda *a: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
     manager.session.level_id = level_id
     scene = GameScene(manager)
     manager.switch(scene)

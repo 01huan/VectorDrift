@@ -12,11 +12,12 @@ from typing import Any
 from .models import PlayerProfile
 from .profile_manager import _profile_updated_at, _ts_gte
 
-# The story keys already shown ride along in the profile's stats so the
-# cloud schema needs no new column; Session keeps them apart (session.stats
-# is overwritten by every win / fail).
-STORY_SEEN_KEY = "story_seen"
-# Fixed levels whose clear reward was paid ride along the same way.
+# Saves made before the story was removed carry the story lines already
+# shown in their stats; the key is dropped on load and no longer written.
+LEGACY_STORY_SEEN_KEY = "story_seen"
+# Fixed levels whose clear reward was paid ride along in the profile's stats
+# so the cloud schema needs no new column; Session keeps them apart
+# (session.stats is overwritten by every win / fail).
 CLEAR_REWARDED_KEY = "clear_rewarded_levels"
 CUSTOM_LEVELS_KEY = "custom_levels"
 
@@ -100,7 +101,7 @@ def _session_class():
 
 def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     stats = dict(stats or {})
-    session.story_seen = set(stats.pop(STORY_SEEN_KEY, None) or ())
+    stats.pop(LEGACY_STORY_SEEN_KEY, None)
     rewarded = set()
     for lid in stats.pop(CLEAR_REWARDED_KEY, None) or ():
         try:
@@ -196,7 +197,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         records=dict(session.records or {}),
         replays=list(getattr(session, "replays", None) or getattr(session, "launch_records", None) or [])[-10:],
         collected_money_pickups=set(session.collected_money_pickups or set()),
-        stats={**(session.stats or {}), STORY_SEEN_KEY: sorted(getattr(session, "story_seen", ()) or ()),
+        stats={**(session.stats or {}),
                CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
                CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ()))},
         updated_at=datetime.now(timezone.utc).isoformat(),
@@ -213,7 +214,6 @@ def reset_session_to_guest(session: Any) -> None:
     session.replays = []
     session.collected_money_pickups = set()
     session.stats = {}
-    session.story_seen = set()
     session.clear_rewarded_levels = set()
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the

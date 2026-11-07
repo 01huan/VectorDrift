@@ -340,38 +340,35 @@ LEVELS = [
             PickupSpec(center=(-4.2, 0.4), radius=0.45, kind="extratime"),
         ),
     ),
-    # Unbound intro: 15 rocks along x = 4.5 + y^2 / 12 wall the target in on
-    # the right. Neighbours are at most ~1.64 m apart, under the 2 m
-    # (2 x (0.8 + hull 0.2)) the ship needs, and both ends stick out past the
-    # top-right and bottom-right corners, so the only way round is outside the
-    # map: either Unbound (top or bottom, like level 3's two shockwaves).
+    # Unbound intro: 11 rocks in an arc across the middle of the map, bulging
+    # left (x = -1 at y = 0) and curving right toward the top and bottom
+    # edges, where the outermost rocks sit on y = +-7.5. Neighbours are about
+    # 1.50-1.65 m apart, under the 2 m (2 x (0.8 + hull 0.2)) the ship needs,
+    # so the only way to the target is one arch over (or under) the wall,
+    # outside the map: either Unbound (top or bottom) makes that legal.
     LevelSpec(
         id=6,
         name="First Unbound",
         start=(-7.0, 0.0),
-        target_center=(7.5, 0.0),
+        target_center=(7.0, 0.0),
         target_radius=1.0,
         ship_id="ship01",
         obstacles=(
-            ObstacleSpec(center=(10.38, -8.4), radius=0.8),
-            ObstacleSpec(center=(9.31, -7.6), radius=0.8),
-            ObstacleSpec(center=(8.24, -6.7), radius=0.8),
-            ObstacleSpec(center=(7.11, -5.6), radius=0.8),
-            ObstacleSpec(center=(6.11, -4.4), radius=0.8),
-            ObstacleSpec(center=(5.25, -3.0), radius=0.8),
-            ObstacleSpec(center=(4.69, -1.5), radius=0.8),
-            ObstacleSpec(center=(4.5, 0.0), radius=0.8),
-            ObstacleSpec(center=(4.69, 1.5), radius=0.8),
-            ObstacleSpec(center=(5.25, 3.0), radius=0.8),
-            ObstacleSpec(center=(6.11, 4.4), radius=0.8),
-            ObstacleSpec(center=(7.11, 5.6), radius=0.8),
-            ObstacleSpec(center=(8.24, 6.7), radius=0.8),
-            ObstacleSpec(center=(9.31, 7.6), radius=0.8),
-            ObstacleSpec(center=(10.38, 8.4), radius=0.8),
+            ObstacleSpec(center=(0.875, -7.5), radius=0.8),
+            ObstacleSpec(center=(0.2, -6.0), radius=0.8),
+            ObstacleSpec(center=(-0.325, -4.5), radius=0.8),
+            ObstacleSpec(center=(-0.7, -3.0), radius=0.8),
+            ObstacleSpec(center=(-0.925, -1.5), radius=0.8),
+            ObstacleSpec(center=(-1.0, 0.0), radius=0.8),
+            ObstacleSpec(center=(-0.925, 1.5), radius=0.8),
+            ObstacleSpec(center=(-0.7, 3.0), radius=0.8),
+            ObstacleSpec(center=(-0.325, 4.5), radius=0.8),
+            ObstacleSpec(center=(0.2, 6.0), radius=0.8),
+            ObstacleSpec(center=(0.875, 7.5), radius=0.8),
         ),
         pickups=(
-            PickupSpec(center=(-2.7, 6.3), radius=0.45, kind="unbound"),
-            PickupSpec(center=(-2.7, -6.3), radius=0.45, kind="unbound"),
+            PickupSpec(center=(-5.1, 5.6), radius=0.45, kind="unbound"),
+            PickupSpec(center=(-5.1, -5.6), radius=0.45, kind="unbound"),
         ),
     ),
     # Checkpoint intro: two level-1 screens side by side. In world terms the
@@ -426,6 +423,64 @@ def register_custom_level(spec):
 
 def is_custom_level(level_id):
     return level_id in CUSTOM_LEVELS
+
+
+def custom_level_to_snapshot(level):
+    """Return a JSON-compatible copy of the editable custom-level state."""
+    return {
+        "id": int(level.id),
+        "name": str(level.name),
+        "start": list(level.start),
+        "target_center": list(level.target_center),
+        "target_radius": float(level.target_radius),
+        "ship_id": str(level.ship_id),
+        "time_limit": float(level.time_limit),
+        "lives": int(level.lives),
+        "obstacles": [
+            {"center": list(item.center), "radius": float(item.radius),
+             "restitution": float(item.restitution), "kind": str(item.kind)}
+            for item in level.obstacles
+        ],
+        "pickups": [
+            {"center": list(item.center), "radius": float(item.radius), "kind": str(item.kind)}
+            for item in level.pickups
+        ],
+    }
+
+
+def custom_level_from_snapshot(snapshot):
+    """Rebuild a custom level from a replay's saved level state."""
+    if not isinstance(snapshot, dict):
+        raise ValueError("Custom level snapshot must be an object")
+    obstacles = tuple(
+        ObstacleSpec(
+            center=tuple(item["center"]),
+            radius=float(item["radius"]),
+            restitution=float(item.get("restitution", 1.0)),
+            kind=str(item.get("kind", "bumper")),
+        )
+        for item in snapshot.get("obstacles", ())
+    )
+    pickups = tuple(
+        PickupSpec(
+            center=tuple(item["center"]),
+            radius=float(item.get("radius", 0.45)),
+            kind=str(item.get("kind", "shockwave")),
+        )
+        for item in snapshot.get("pickups", ())
+    )
+    return LevelSpec(
+        id=int(snapshot["id"]),
+        name=str(snapshot["name"]),
+        start=tuple(snapshot["start"]),
+        target_center=tuple(snapshot["target_center"]),
+        target_radius=float(snapshot["target_radius"]),
+        ship_id=str(snapshot.get("ship_id", "ship01")),
+        time_limit=float(snapshot.get("time_limit", 10.0)),
+        lives=int(snapshot.get("lives", 5)),
+        obstacles=obstacles,
+        pickups=pickups,
+    )
 
 
 def get_level(level_id, seed=None):

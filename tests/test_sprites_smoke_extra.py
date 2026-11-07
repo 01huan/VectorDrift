@@ -31,8 +31,8 @@ def test_draw_ship_icon():
 
 def test_draw_target():
     s = _surf()
-    sprites.draw_target(s, (200, 200), 30, 1.0, flash=0.5, planet="mars")
-    sprites.draw_target(s, (200, 200), 30, 1.0, planet="moon")
+    sprites.draw_target(s, (200, 200), 30, 1.0, flash=0.5)
+    sprites.draw_target(s, (200, 200), 30, 1.0)
 
 
 def test_draw_obstacle():
@@ -45,12 +45,6 @@ def test_draw_pickup():
     s = _surf()
     for kind in ("shockwave", "extratime", "shield", "life", "money"):
         sprites.draw_pickup(s, (100, 100), 12, 1.0, kind=kind)
-
-
-def test_draw_polandball():
-    s = _surf()
-    sprites.draw_polandball(s, (100, 100), 20, 1.0, talking=False)
-    sprites.draw_polandball(s, (100, 100), 20, 1.0, talking=True)
 
 
 def test_draw_start_marker():

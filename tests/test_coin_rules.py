@@ -1,6 +1,6 @@
 """Where coins come from: pickups (once per fixed coin, once per random map) and
-the clear reward (once per fixed level, once per random map, never for a run
-that used a solution)."""
+the clear reward (once per fixed level, once per random map). Seeing a full
+answer costs only its price: the run's coins stay and the clear still pays."""
 
 from types import SimpleNamespace
 
@@ -18,7 +18,6 @@ from vector_drift.scenes import game as game_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.win import WinScene
-from vector_drift.story import all_seen_keys
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -33,7 +32,6 @@ def _manager():
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()     # no story dialogue in the way
     return manager
 
 
@@ -128,7 +126,6 @@ def test_logging_out_forgets_the_paid_clear_rewards():
     manager = _manager()
     _win(_scene(1, manager))
     reset_session_to_guest(manager.session)
-    manager.session.story_seen = all_seen_keys()
     _win(_scene(1, manager))
     assert int(manager.session.money) == config.CLEAR_REWARD
 

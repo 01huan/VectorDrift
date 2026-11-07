@@ -9,7 +9,6 @@ import pytest
 from vector_drift import config
 from vector_drift.image_assets import COIN_TRADE
 from vector_drift.hints import get_hint
-from vector_drift.story import all_seen_keys
 from vector_drift.ui import coin_price_parts
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes import game as game_module
@@ -36,7 +35,6 @@ def _manager():
     audio = SimpleNamespace(play=lambda *a: None, start_loop=lambda *a: None,
                             stop_loop=lambda *a: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()     # no story dialogue in the way
     return manager
 
 

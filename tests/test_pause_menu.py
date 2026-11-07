@@ -12,7 +12,6 @@ from vector_drift.scenes.game import ARRIVED, FLIGHT, SETUP, GameScene
 from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.menu import MenuScene
 from vector_drift.scenes.win import WinScene
-from vector_drift.story import all_seen_keys
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -23,7 +22,6 @@ def _manager():
                             start_loop=lambda name: sounds.append(("start", name)),
                             stop_loop=lambda name: sounds.append(("stop", name)))
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()     # no story dialogue in the way
     manager.sounds = sounds
     return manager
 
@@ -101,8 +99,6 @@ def _lose_a_life(scene):
     flight = scene.flight
     while scene.flight is flight and scene.state == FLIGHT:
         scene.update(1 / 60)
-    if scene.dialogue is not None:                  # fixed levels comment on a lost life
-        scene._close_dialogue()
 
 
 @pytest.fixture
@@ -245,17 +241,6 @@ def test_enter_confirms_quit():
     _press(scene, "quit")
     _key(scene, pygame.K_RETURN)
     assert not manager.running
-
-
-def test_esc_skips_the_story_dialogue_without_opening_the_menu():
-    manager = _manager()
-    manager.session.story_seen = set()
-    scene = _scene(1, manager)
-    assert scene.dialogue is not None
-
-    _key(scene, pygame.K_ESCAPE)
-    assert scene.dialogue is None
-    assert scene.pause_menu is None
 
 
 def test_esc_closes_the_hint_without_opening_the_menu():

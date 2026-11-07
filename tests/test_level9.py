@@ -65,7 +65,6 @@ def test_level_nine_plays_through_checkpoint_to_the_win():
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
 
     for expected in (PANNING, ARRIVED):
-        scene.dialogue = None
         scene._try_launch()
         while scene.state == FLIGHT:
             scene.update(0.05)
@@ -199,7 +198,6 @@ def test_level_nine_answer_is_free_after_the_usual_question():
     manager.session.level_id = 9
     scene = GameScene(manager)
     manager.switch(scene)
-    scene.dialogue = None
     scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
     scene._open_hint()
     popup = scene.hint_popup

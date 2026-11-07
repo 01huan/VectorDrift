@@ -15,7 +15,6 @@ from vector_drift.scenes import replay as replay_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import FLIGHT, GameScene
 from vector_drift.scenes.replay import ReplayScene, trail_strokes
-from vector_drift.story import all_seen_keys
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 LEVEL4 = get_level(4)
@@ -35,7 +34,6 @@ def _manager():
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None, toggle_mute=lambda: None)
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
     return manager
 
 

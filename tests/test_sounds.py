@@ -11,9 +11,7 @@ from vector_drift import config
 from vector_drift.audio import SOUND_SLOTS
 from vector_drift.hints import get_hint
 from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.dialogue import DialogueBox
 from vector_drift.scenes.game import FLIGHT, GameScene
-from vector_drift.story import all_seen_keys
 
 SOUNDS_DIR = config.ASSETS_DIR / "sounds"
 TOOL = config.ASSETS_DIR.parent / "tools" / "make_sounds.py"
@@ -87,7 +85,6 @@ pygame_scene = pytest.mark.usefixtures("pygame_display")
 
 def _scene(level_id, audio):
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
     manager.session.level_id = level_id
     scene = GameScene(manager)
     manager.switch(scene)
@@ -119,15 +116,3 @@ def test_passing_a_black_hole_plays_warp_once():
     answer = get_hint(4).answers[0]
     _fly(scene, answer.fx, answer.fy)
     assert audio.played.count("warp") == 1
-
-
-@pygame_scene
-def test_dialogue_blips_while_typing_only():
-    audio = RecordingAudio()
-    line = "They say Poland cannot into space."
-    box = DialogueBox((line,), (0, 0, 800, 600), audio)
-    for _ in range(120):
-        box.update(1 / 60)
-    assert audio.played.count("blip") == len(line) // 3
-    box.update(1.0)                                 # the line is done: no more blips
-    assert audio.played.count("blip") == len(line) // 3

@@ -160,3 +160,36 @@ def test_save_progress_writes_guest_local_profile(tmp_path, monkeypatch):
     assert local.user_id == "guest"
     assert local.money == 8
     assert session.sync_status == "idle"
+
+
+# --- saves from before the story was removed ------------------------------------
+OLD_STATS = {"reason": "TIME UP", "story_seen": ["intro", "level1.intro", "level1.win"],
+             "clear_rewarded_levels": [1]}
+
+
+def test_an_old_cloud_profile_with_story_seen_still_loads():
+    profile = PlayerProfile(user_id="u1", money=5, stats=dict(OLD_STATS))
+    s = _session()
+    apply_profile_to_session(s, profile, "u1")
+    assert s.money.amount == 5
+    assert s.clear_rewarded_levels == {1}
+    assert s.stats == {"reason": "TIME UP"}             # story_seen dropped, not kept as a stat
+    assert not hasattr(s, "story_seen")
+
+
+def test_an_old_guest_save_with_story_seen_still_loads(tmp_path, monkeypatch):
+    from vector_drift.account import local_profile_manager as lpm
+
+    monkeypatch.setattr(lpm, "_storage_path", lambda: tmp_path / "guest.json")
+    lpm.LocalProfileManager().save(PlayerProfile(user_id="guest", money=4, stats=dict(OLD_STATS)))
+
+    s = _session()
+    assert load_guest_profile_into_session(s) is True
+    assert s.money.amount == 4
+    assert "story_seen" not in s.stats
+
+
+def test_new_saves_no_longer_write_story_seen():
+    s = _session()
+    s.story_seen = {"intro"}                            # even if something still sets it
+    assert "story_seen" not in session_to_profile(s, "u1").stats

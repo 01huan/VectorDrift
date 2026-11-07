@@ -73,12 +73,13 @@ class ReplayRecord:
     seed: Optional[int] = None
     consumed_pickups: List = field(default_factory=list)
     obstacle_centers: List = field(default_factory=list)
+    level_snapshot: Optional[dict] = None
     # Which screen of a multi-section level the launch flew (0-based, like
     # data.section_level). One-screen levels and old saves are always 0.
     section_index: int = 0
 
     def to_dict(self):
-        return {
+        data = {
             "level_id": int(self.level_id) if self.level_id is not None else 0,
             "ship_id": self.ship_id,
             "fx_text": str(self.fx_text or ""),
@@ -91,6 +92,9 @@ class ReplayRecord:
             "obstacle_centers": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.obstacle_centers or [])],
             "section_index": section_index_from(self.section_index),
         }
+        if isinstance(self.level_snapshot, dict):
+            data["level_snapshot"] = self.level_snapshot
+        return data
 
     @staticmethod
     def from_dict(data):
@@ -126,6 +130,9 @@ class ReplayRecord:
             seed=seed,
             consumed_pickups=list(consumed or []),
             obstacle_centers=list(obstacles or []),
+            level_snapshot=(dict(data["level_snapshot"])
+                            if isinstance(data, dict) and isinstance(data.get("level_snapshot"), dict)
+                            else None),
             section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
         )
 
@@ -297,6 +304,5 @@ class ReplayPlayer:
 
     def decrease_speed(self):
         self.set_speed(max(self.MIN_SPEED, self.speed - 0.1))
-
 
 

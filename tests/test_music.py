@@ -107,15 +107,12 @@ class RecordingAudio:
 def test_each_scene_asks_for_its_track():
     from vector_drift.scenes.fail import FailScene
     from vector_drift.scenes.game import GameScene
-    from vector_drift.scenes.intro import IntroScene
     from vector_drift.scenes.levels import LevelSelectScene
     from vector_drift.scenes.menu import MenuScene
-    from vector_drift.story import all_seen_keys
 
     audio = RecordingAudio()
     manager = SceneManager(audio)
-    manager.session.story_seen = all_seen_keys()
-    for scene_class in (MenuScene, IntroScene, LevelSelectScene, GameScene):
+    for scene_class in (MenuScene, LevelSelectScene, GameScene):
         manager.switch(scene_class(manager))
     manager.switch(FailScene(manager))              # keeps the level music
-    assert audio.music == ["menu", "opening", "menu", "level"]
+    assert audio.music == ["menu", "menu", "level"]
