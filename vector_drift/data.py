@@ -17,6 +17,7 @@ section; only the last target is the planet. See multi_section_level.
 from dataclasses import dataclass, replace
 
 from .level_presets import dynamic_ids, get_preset, is_dynamic_level
+from .accessors import owned_ship_ids as _accessor_owned_ship_ids
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,65 @@ class LevelSpec:
     sections: tuple = ()        # tuple[SectionSpec, ...]; empty = one-screen level.
                               # Multi-section: the per-screen fields above are
                               # section 1's (see multi_section_level).
+
+
+    def to_row(self) -> dict:
+        return {
+            "id": int(self.id),
+            "name": self.name,
+            "start": list(self.start),
+            "target_center": list(self.target_center),
+            "target_radius": float(self.target_radius),
+            "ship_id": self.ship_id,
+            "time_limit": float(self.time_limit),
+            "lives": int(self.lives),
+            "obstacles": [
+                {"center": list(item.center), "radius": float(item.radius),
+                 "restitution": float(item.restitution), "kind": item.kind}
+                for item in self.obstacles
+            ],
+            "pickups": [
+                {"center": list(item.center), "radius": float(item.radius), "kind": item.kind}
+                for item in self.pickups
+            ],
+        }
+
+    @classmethod
+    def from_row(cls, row):
+        if not isinstance(row, dict):
+            return None
+        try:
+            obstacles = tuple(
+                ObstacleSpec(
+                    center=tuple(item["center"]),
+                    radius=float(item["radius"]),
+                    restitution=float(item.get("restitution", 1.0)),
+                    kind=item.get("kind", "bumper"),
+                )
+                for item in row.get("obstacles", ()) or ()
+            )
+            pickups = tuple(
+                PickupSpec(
+                    center=tuple(item["center"]),
+                    radius=float(item.get("radius", 0.45)),
+                    kind=item.get("kind", "shockwave"),
+                )
+                for item in row.get("pickups", ()) or ()
+            )
+            return cls(
+                id=int(row["id"]),
+                name=str(row["name"]),
+                start=tuple(row["start"]),
+                target_center=tuple(row["target_center"]),
+                target_radius=float(row["target_radius"]),
+                ship_id=str(row.get("ship_id", "ship01")),
+                time_limit=float(row.get("time_limit", 10.0)),
+                lives=int(row.get("lives", 5)),
+                obstacles=obstacles,
+                pickups=pickups,
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
 
 
 @dataclass(frozen=True)
@@ -177,21 +237,7 @@ SHIPS = {
 
 def _owned_ship_ids(session=None):
     """Resolve the set of owned ship ids from a session (or the default)."""
-    if session is not None:
-        for attr in ("owned_ships", "unlocked_ships", "purchased_ships", "owned_ship_ids"):
-            value = getattr(session, attr, None)
-            if value is not None:
-                try:
-                    return set(value)
-                except TypeError:
-                    pass
-        owned = {"ship01"}
-        try:
-            setattr(session, "owned_ships", owned)
-        except Exception:
-            pass
-        return owned
-    return {"ship01"}
+    return _accessor_owned_ship_ids(session)
 
 
 def ship_unlocked(ship, level_id=None, session=None, owned=None):

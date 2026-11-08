@@ -6,22 +6,11 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 
+from .accessors import owned_ship_ids as _accessor_owned_ship_ids
+
+
 def _owned_ship_ids(session) -> set:
-    for attr in ("owned_ships", "unlocked_ships", "purchased_ships", "owned_ship_ids"):
-        value = getattr(session, attr, None)
-        if value is not None:
-            if isinstance(value, set):
-                return value
-            try:
-                return set(value)
-            except TypeError:
-                pass
-    owned = {"ship01"}
-    try:
-        setattr(session, "owned_ships", owned)
-    except Exception:
-        pass
-    return owned
+    return _accessor_owned_ship_ids(session)
 
 
 def _coerce_money(value) -> int:
