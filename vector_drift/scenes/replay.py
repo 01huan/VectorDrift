@@ -83,6 +83,11 @@ class ReplayScene(Scene):
         self._section_total = 1
         self._start_checkpoint_radius = 0.0
 
+        # Unbound/camera zoom state (mirrors GameScene)
+        self._unbound = False
+        self._camera_ease_s = 0.1
+        self._camera_margin_m = 1.0
+
         self.back_button = Button((px(40), px(10), px(120), px(40)), "Back", style="plain", font_size=16)
         button_w = px(100)
         button_h = px(40)
@@ -126,6 +131,7 @@ class ReplayScene(Scene):
         self._frame_times = self._make_frame_times(frames)
         self._playback_time = self._frame_times[0] if self._frame_times else 0.0
         self.paused = True
+        self._unbound = False  # Reset unbound state for new recording
         self._setup_level_from_record(rec)
         self._sync_pickups_to_current()
 
@@ -258,6 +264,7 @@ class ReplayScene(Scene):
         self._section_index = 0
         self._section_total = 1
         self._start_checkpoint_radius = 0.0
+        self._unbound = False
 
     def _setup_level_from_record(self, rec):
         level_id = int(rec.get("level_id", 1))
@@ -324,8 +331,10 @@ class ReplayScene(Scene):
 
         self._base_pickups = tuple(self._pickups)
         self._base_obstacles = tuple(self._obstacles)
-
-        self._apply_pickup_events_from_record(rec)
+    
+        unbound_activated = self._apply_pickup_events_from_record(rec)
+        if unbound_activated:
+            self._unbound = True
 
     def _apply_pickup_events_from_record(self, rec):
         events = None
@@ -334,37 +343,17 @@ class ReplayScene(Scene):
         else:
             events = getattr(rec, "pickup_events", None)
         if not events:
-            return
-        try:
-            from ..pickups import obstacles_hit_by_blast
-        except Exception:
-            obstacles_hit_by_blast = None
-        pickups = list(self._pickups)
-        obstacles = list(self._obstacles)
+            return False
+        unbound_activated = False
         for ev in events:
             if not isinstance(ev, dict):
                 continue
             kind = ev.get("kind")
-            center = ev.get("center")
-            # Mark matching pickup as consumed (reuse identity, no game rule copy).
-            for p in pickups:
-                if getattr(p, "consumed", False):
-                    continue
-                try:
-                    if center is not None and tuple(getattr(p, "center", ())) == tuple(center):
-                        p.consumed = True
-                except Exception:
-                    pass
-            # Shockwave: reuse the shared blast rule for obstacle removal.
-            if kind == "shockwave" and center is not None and obstacles_hit_by_blast is not None:
-                try:
-                    blast = ev.get("blast_radius", 3.0)
-                    survivors, _destroyed = obstacles_hit_by_blast(center, blast, obstacles)
-                    obstacles = list(survivors)
-                except Exception:
-                    pass
-        self._pickups = tuple(pickups)
-        self._obstacles = tuple(obstacles)
+            # Unbound: mark that unbound was activated during this flight.
+            if kind == "unbound":
+                unbound_activated = True
+        return unbound_activated
+        return unbound_activated
 
     def _apply_initial_state_from_record(self, rec):
         # Mark pickups that were already consumed before this launch (from
@@ -431,10 +420,14 @@ class ReplayScene(Scene):
             if prev is not None:
                 self._consume_segment(prev, xy)
             prev = xy
-        # Re-apply recorded events (idempotent) for shockwave etc.
+        # Re-apply recorded events (idempotent) for shockwave, unbound, etc.
         try:
             rec = self.records[self.index] if 0 <= self.index < len(self.records) else None
-            self._apply_pickup_events_from_record(rec)
+            unbound_activated = self._apply_pickup_events_from_record(rec)
+            if unbound_activated:
+                self._unbound = True
+        except Exception:
+            pass
         except Exception:
             pass
 
@@ -531,12 +524,47 @@ class ReplayScene(Scene):
     def update(self, dt):
         self._t += dt * self.player.speed
         if self.paused or not self.records:
+            self._update_camera(dt)  # Update camera even when paused (for manual stepping)
             return
         self._playback_time += dt * self.player.speed
         self._sync_index_to_time()
         if self._frame_times and self._playback_time >= self._frame_times[-1]:
             self.player.pause()
             self.paused = True
+        self._update_camera(dt)
+
+    def _camera_target(self):
+        """(target_zoom, keep_ship_zoom) for the current frame.
+
+        Mirrors GameScene._camera_target: zooms out while unbound ship is off-map.
+        """
+        cur = self.player.frame
+        if cur is None or not self._unbound:
+            return 1.0, 1.0
+        pos = (cur.get("x", 0.0), cur.get("y", 0.0))
+        # Replay uses the same bounds as the level
+        bounds = getattr(self._level, "bounds", None)
+        if bounds is None:
+            bounds = (config.WORLD_HALF_W, config.WORLD_HALF_H)
+        from ..coords import fit_zoom
+        return (fit_zoom(pos, bounds, margin=self._camera_margin_m),
+                fit_zoom(pos, bounds, margin=0.5 * self._ship.length))
+
+    def _update_camera(self, dt):
+        """Ease the camera zoom toward its target (smooth out and back in).
+
+        Mirrors GameScene._update_camera.
+        """
+        if self._viewport is None:
+            return
+        target, keep_ship = self._camera_target()
+        zoom = self._viewport.zoom
+        if zoom == target:
+            return
+        import math
+        zoom += (target - zoom) * (1.0 - math.exp(-dt / self._camera_ease_s))
+        zoom = min(zoom, keep_ship)
+        self._viewport.zoom = target if abs(target - zoom) < 1e-3 else zoom
 
     @staticmethod
     def _frame_xy(frame):

@@ -74,6 +74,7 @@ class ReplayRecord:
     consumed_pickups: List = field(default_factory=list)
     obstacle_centers: List = field(default_factory=list)
     level_snapshot: Optional[dict] = None
+    pickup_events: List = field(default_factory=list)
     # Which screen of a multi-section level the launch flew (0-based, like
     # data.section_level). One-screen levels and old saves are always 0.
     section_index: int = 0
@@ -90,6 +91,7 @@ class ReplayRecord:
             "seed": self.seed,
             "consumed_pickups": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.consumed_pickups or [])],
             "obstacle_centers": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.obstacle_centers or [])],
+            "pickup_events": [e if isinstance(e, dict) else dict(e) for e in (self.pickup_events or [])],
             "section_index": section_index_from(self.section_index),
         }
         if isinstance(self.level_snapshot, dict):
@@ -133,6 +135,7 @@ class ReplayRecord:
             level_snapshot=(dict(data["level_snapshot"])
                             if isinstance(data, dict) and isinstance(data.get("level_snapshot"), dict)
                             else None),
+            pickup_events=list(data.get("pickup_events") or []) if isinstance(data, dict) else [],
             section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
         )
 

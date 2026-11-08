@@ -510,6 +510,7 @@ class GameScene(Scene):
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
         self._replay_frames = []
+        self._replay_pickup_events = []
         # Snapshot the level state at launch so replays can reproduce it
         # (pickups already consumed in previous runs, obstacles already
         # destroyed by an earlier shockwave).
@@ -568,6 +569,8 @@ class GameScene(Scene):
                 "consumed_pickups": list(getattr(self, "_replay_initial_consumed", []) or []),
                 "obstacle_centers": list(getattr(self, "_replay_initial_obstacle_centers", []) or []),
                 "level_snapshot": getattr(self, "_replay_level_snapshot", None),
+                # Pickup events during this flight (shockwave, unbound, etc.)
+                "pickup_events": list(getattr(self, "_replay_pickup_events", []) or []),
                 # Which screen this launch flew (multi-section levels); the
                 # replay rebuilds that section, not section 1.
                 "section_index": self.section_index,
@@ -746,6 +749,10 @@ class GameScene(Scene):
         events = self.flight.pickup_events
         if not events:
             return
+        try:
+            self._replay_pickup_events.extend(events)
+        except Exception:
+            pass
         for event in events:
             if event.get("kind") == "shockwave":
                 destroyed = event.get("destroyed") or ()
