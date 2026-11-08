@@ -6,6 +6,7 @@ from enum import Enum
 
 from . import config
 from .expr_parser import singular_parts
+from .data import level_holes
 
 # --- safety limits -----------------------------------------------------------
 # Huge-but-finite forces (e.g. tan(pi/2) ~= 1.6e16) pass every isfinite() check
@@ -278,9 +279,7 @@ class Flight:
         self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
         # Black/white hole pairs (wormholes). Persist for the whole flight.
         if holes is None:
-            holes = getattr(level, "holes", ()) or ()
-            for alias in ("portals", "wormholes"):
-                holes = holes or getattr(level, alias, ()) or ()
+            holes = level_holes(level)
         self.holes = []
         for h in (holes or ()):
             try:
