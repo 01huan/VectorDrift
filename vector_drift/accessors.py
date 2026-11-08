@@ -7,7 +7,7 @@ instead of duplicating them across ``shop`` and ``data``.
 from __future__ import annotations
 
 
-def owned_ship_ids(session) -> set:
+def owned_ship_ids(session=None) -> set:
     """Resolve the set of owned ship ids from a session (or the default)."""
     if session is None:
         return {"ship01"}

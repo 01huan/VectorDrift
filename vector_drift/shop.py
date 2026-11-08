@@ -6,11 +6,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 
-from .accessors import owned_ship_ids as _accessor_owned_ship_ids
-
-
-def _owned_ship_ids(session) -> set:
-    return _accessor_owned_ship_ids(session)
+from .accessors import owned_ship_ids as _owned_ship_ids
 
 
 def _coerce_money(value) -> int:

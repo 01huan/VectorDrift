@@ -17,7 +17,7 @@ section; only the last target is the planet. See multi_section_level.
 from dataclasses import dataclass, replace
 
 from .level_presets import dynamic_ids, get_preset, is_dynamic_level
-from .accessors import owned_ship_ids as _accessor_owned_ship_ids
+from .accessors import owned_ship_ids as _owned_ship_ids
 
 
 @dataclass(frozen=True)
@@ -235,9 +235,8 @@ SHIPS = {
 }
 
 
-def _owned_ship_ids(session=None):
-    """Resolve the set of owned ship ids from a session (or the default)."""
-    return _accessor_owned_ship_ids(session)
+
+
 
 
 def ship_unlocked(ship, level_id=None, session=None, owned=None):
