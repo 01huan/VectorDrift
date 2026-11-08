@@ -174,12 +174,18 @@ class GameScene(Scene):
     def __init__(self, manager):
         super().__init__(manager)
         self.pause_menu = None          # Esc menu; while open the level is paused
-        if is_dynamic_level(self.session.level_id):
-            # Same seed for the whole run: retry/replay keep one layout.
+        if is_dynamic_level(self.session.level_id) or is_custom_level(self.session.level_id) \
+                or self.session.level_id in getattr(self.session, "custom_level_ids", set()):
+            # Same seed for the whole run: random layout (random maps) and the
+            # offline AI solver both key off it, so it stays stable across
+            # retry/replay even for custom maps.
             if self.session.random_seed is None:
                 import random as _random
                 self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
-            self.full_level = get_level(self.session.level_id, seed=self.session.random_seed)
+            if is_dynamic_level(self.session.level_id):
+                self.full_level = get_level(self.session.level_id, seed=self.session.random_seed)
+            else:
+                self.full_level = get_level(self.session.level_id)
         else:
             self.full_level = get_level(self.session.level_id)
         # Multi-section levels: self.level is always the CURRENT section as an
@@ -271,6 +277,7 @@ class GameScene(Scene):
         # Revealing the answer costs its price once per launch; that price is the
         # only cost. Clears still count toward best times, clear rewards, and coins.
         self.hint_mode = not (is_dynamic_level(self.level.id)
+                              or is_custom_level(self.level.id)
                               or self.level.id in getattr(self.session, "custom_level_ids", set()))
         self.hint = self._section_hint()
         self.hint_popup = None

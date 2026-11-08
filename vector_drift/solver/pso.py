@@ -148,6 +148,10 @@ class PSOSolver(Solver):
             cfg.simulation_budget = simulation_budget
 
         seed = rng_seed if rng_seed is not None else cfg.seed
+        if seed is None:
+            # Avoid None-typed seeds so restart bookkeeping can always advance.
+            import random as _rng_seed_helper
+            seed = _rng_seed_helper.randrange(1 << 32)
         run_seed = seed
         rng = random.Random(run_seed)
 
@@ -386,6 +390,8 @@ class PSOSolver(Solver):
                 # new seed to keep exploring for potentially better solutions.
                 if success_found:
                     _publish_progress()
+                    if run_seed is None:
+                        run_seed = 0
                     run_seed += 1
                     rng = random.Random(run_seed)
                     particles = []
