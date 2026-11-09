@@ -90,7 +90,7 @@ class CommunityLevelsScene(Scene):
         self.deleting = level_id
         self.status = "Deleting..."
 
-        def on_ok():
+        def on_ok(_result=None):
             self.deleting = None
             self.status = "Deleted."
             self._load()

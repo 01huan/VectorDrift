@@ -10,6 +10,7 @@ from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_icon_row, draw_text
 from .base import Scene
 from .auth import _TextInput
+from ..account import community
 from ..account.integration import session_to_profile, reset_session_to_guest
 
 
@@ -151,6 +152,12 @@ class AccountScene(Scene):
 
     def _delete_local(self):
         account = self.manager.account
+        if account is not None and account.is_authenticated():
+            try:
+                # 帳號資料清除時，同時刪除該帳號上傳的所有社區關卡，避免孤立資料。
+                community.delete_user_community_levels(account)
+            except Exception:  # noqa: BLE001 - 本機資料清除不應被社區刪除阻擋
+                self.status = "Community uploads could not be removed."
         if account is not None:
             try:
                 account.delete_local_data(self.session)
@@ -181,6 +188,11 @@ class AccountScene(Scene):
             self.name_input.text = ""
             self.session.display_name = result or ""
             self.name_status = f"Name updated to \"{result}\"."
+            # 同步將該帳號上傳的所有社區關卡卡片上的上傳者名稱更新為新名稱。
+            try:
+                community.update_community_levels_uploader_name(account, result or "")
+            except Exception:  # noqa: BLE001 - 本機改名完成後不應被社區同步阻擋
+                self.name_status += " (社區名稱同步失敗)"
 
         def err(exc):
             self.name_status = f"Failed: {exc}"

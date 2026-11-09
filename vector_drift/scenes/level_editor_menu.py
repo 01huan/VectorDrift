@@ -5,6 +5,7 @@ from .. import config, data
 from ..config import px
 from ..image_assets import load_image
 from ..ui import Button, draw_text
+from ..account import community
 from .base import Scene
 
 
@@ -104,7 +105,7 @@ class LevelEditorMenuScene(Scene):
                     return
 
     def _delete_local_level(self, lv):
-        """Remove a player-created level that was never uploaded to the community."""
+        """Remove a player-created level and its community upload (if any)."""
         self.session.custom_levels = [x for x in self.session.custom_levels if x.id != lv.id]
         self.session.custom_level_ids.discard(lv.id)
         data.CUSTOM_LEVELS.pop(lv.id, None)
@@ -115,6 +116,13 @@ class LevelEditorMenuScene(Scene):
         # Persist locally and sync to the cloud if signed in.
         from ..account.integration import save_progress
         save_progress(self.manager.account, self.session)
+        # 若該關卡先前上傳到社區，同步刪除對應的社區關卡（只刪自己的上傳）。
+        account = self.manager.account
+        if account is not None and account.is_authenticated():
+            try:
+                community.delete_community_level_by_local_id(account, lv.id)
+            except Exception:  # noqa: BLE001 - 本機刪除已完成，社區刪除失敗不應回滾
+                pass
         self.message = "Deleted."
         self.message_timer = 1.5
 

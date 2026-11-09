@@ -6,6 +6,7 @@ from ..config import px
 from ..data import LevelSpec, ObstacleSpec, PickupSpec
 from ..image_assets import load_image
 from ..ui import Button, draw_text
+from ..account import community
 from ..account.integration import save_progress
 from ..coords import Viewport
 from .base import Scene
@@ -397,6 +398,15 @@ class LevelEditorScene(Scene):
         self.session.custom_levels.append(spec)
         self.session.custom_level_ids.add(spec.id)
         save_progress(self.manager.account, self.session)
+        # 若該關卡曾上傳到社區，同步更新名稱與內容，讓公開卡片保持一致。
+        account = self.manager.account
+        if account is not None and account.is_authenticated():
+            try:
+                community.update_community_level_by_local_id(
+                    account, spec.id, name, community.serialize_level(spec)
+                )
+            except Exception:  # noqa: BLE001 - 本機儲存已完成，社區同步失敗不應回滾
+                pass
         return True
 
     def _try_upload(self, name):
@@ -413,6 +423,9 @@ class LevelEditorScene(Scene):
         spec = self._build_spec(name)
         if spec is None:
             return  # _build_spec already showed the overlap message
+        # 先把本機關卡儲存（登入狀態下會同步到雲端），這樣社區上傳才有
+        # 正確的 id 與最新內容；若該關卡已上傳過，save 也會同步更新社區。
+        self._save(spec.name)
         self.busy = True
         self.message = "Uploading to community..."
 

@@ -63,3 +63,6 @@ create policy "community_levels_insert_authenticated" on public.community_levels
     for insert with check (auth.uid() = user_id);
 create policy "community_levels_delete_own" on public.community_levels
     for delete using (auth.uid() = user_id);
+-- 帳號上傳者可修改自己上傳的社區關卡（改名時同步 uploader_name、修改關卡時同步 level_name/level_data）。
+create policy "community_levels_update_own" on public.community_levels
+    for update using (auth.uid() = user_id);

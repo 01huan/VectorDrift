@@ -81,6 +81,28 @@ def upload_community_level(
             "level_name": level_name,
             "level_data": level_data,
         }
+        target_id = str(level_data.get("id")) if level_data.get("id") is not None else ""
+        resp = (
+            client.table(TABLE)
+            .select("id, level_data")
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+        existing_row_id = None
+        for existing in getattr(resp, "data", None) or []:
+            existing_ld = existing.get("level_data") or {}
+            if str(existing_ld.get("id")) == target_id:
+                existing_row_id = existing.get("id")
+                break
+        if existing_row_id is not None:
+            # 同一個本機關卡 id 曾經上傳過：更新既有列，避免重複。
+            return (
+                client.table(TABLE)
+                .update(row)
+                .eq("id", existing_row_id)
+                .eq("user_id", account.current_user.id)
+                .execute()
+            )
         return client.table(TABLE).insert(row).execute()
 
     _run_async(_fn, on_success=on_success, on_error=on_error)
@@ -173,3 +195,139 @@ def serialize_level(level: Any) -> dict:
             for item in getattr(level, "holes", ()) or ()
         ],
     }
+
+
+def delete_user_community_levels(
+    account: Any,
+    on_success: Optional[Callable[[int], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Delete every community level owned by the current user.
+
+    Called when the account data is cleared / the player returns to guest, so
+    the uploader's rows do not stay orphaned once the account is no longer active.
+    """
+
+    def _fn() -> int:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        resp = (
+            client.table(TABLE)
+            .delete()
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+        return len(getattr(resp, "data", None) or [])
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def update_community_levels_uploader_name(
+    account: Any,
+    new_name: str,
+    on_success: Optional[Callable[[int], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Refresh ``uploader_name`` on every community level owned by the user.
+
+    Called after the account name is renamed so public cards keep showing the
+    current display name instead of a stale one.  Requires the
+    ``community_levels_update_own`` row-level-security policy.
+    """
+
+    def _fn() -> int:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        resp = (
+            client.table(TABLE)
+            .update({"uploader_name": new_name or ""})
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+        return len(getattr(resp, "data", None) or [])
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def _community_row_id_for_local_level(
+    client: Any, account: Any, local_level_id: int
+) -> Optional[str]:
+    """Return the community row id whose serialized ``level_data.id`` matches
+    ``local_level_id`` for the given account, or ``None`` when not found.
+
+    We cannot rely on PostgREST JSON-column filters (``level_data->>id``), so we
+    fetch the user's rows and compare in Python instead.
+    """
+    target = str(int(local_level_id))
+    resp = (
+        client.table(TABLE)
+        .select("id, level_data")
+        .eq("user_id", account.current_user.id)
+        .execute()
+    )
+    for row in getattr(resp, "data", None) or []:
+        level_data = row.get("level_data") or {}
+        if str(level_data.get("id")) == target:
+            return row.get("id")
+    return None
+
+
+def delete_community_level_by_local_id(
+    account: Any,
+    local_level_id: int,
+    on_success: Optional[Callable[[], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Delete the community upload whose serialized ``level_data.id`` matches a
+    local level that the player just deleted.  Only the owner's row is touched.
+    """
+
+    def _fn() -> None:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        row_id = _community_row_id_for_local_level(client, account, local_level_id)
+        if row_id is None:
+            return
+        (
+            client.table(TABLE)
+            .delete()
+            .eq("id", row_id)
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def update_community_level_by_local_id(
+    account: Any,
+    local_level_id: int,
+    level_name: str,
+    level_data: dict,
+    on_success: Optional[Callable[[], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Update the community upload whose serialized ``level_data.id`` matches a
+    local level that the player just modified, so the public card shows the new
+    name/content.  Only the owner's row is touched.
+    """
+
+    def _fn() -> None:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        row_id = _community_row_id_for_local_level(client, account, local_level_id)
+        if row_id is None:
+            return
+        (
+            client.table(TABLE)
+            .update({"level_name": level_name, "level_data": level_data})
+            .eq("id", row_id)
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
