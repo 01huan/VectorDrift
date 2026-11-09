@@ -107,7 +107,8 @@ class MenuScene(Scene):
         self.login_menu_button.draw(surface)
         self.replay_button.draw(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:
-            draw_text(surface, account.current_user.email or "", (config.WINDOW_W - px(10), px(68)), 13,
-                      config.TEXT_DIM, anchor="midright")
+            s = self.session
+            draw_text(surface, s.display_name or "—",
+                      (config.WINDOW_W - px(10), px(68)), 13, config.TEXT_DIM, anchor="midright")
         draw_text(surface, "Enter: launch   L: login/account   Ctrl+M: mute",
                   (config.WINDOW_W // 2, config.WINDOW_H - px(26)), 14, config.TEXT_FAINT, anchor="center")

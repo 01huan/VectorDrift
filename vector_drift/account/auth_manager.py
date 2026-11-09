@@ -15,6 +15,21 @@ from .session_manager import SessionManager
 from .supabase_client import get_client, is_configured
 
 
+def _display_name_from_user(user: Any) -> Optional[str]:
+    """從 Supabase 使用者物件的中讀取自訂顯示名稱（user_metadata）。
+
+    註冊時若有透過 options 傳入 display_name，會存在此處；不同 supabase-py
+    版本屬性名稱可能是 user_metadata 或 user_meta，兩者都嘗試。
+    """
+    for attr in ("user_metadata", "user_meta"):
+        meta = getattr(user, attr, None)
+        if isinstance(meta, dict):
+            name = meta.get("display_name")
+            if name:
+                return str(name)
+    return None
+
+
 @dataclass
 class _Task:
     kind: str
@@ -98,12 +113,19 @@ class AccountManager:
         self,
         email: str,
         password: str,
+        name: Optional[str] = None,
         on_success: Optional[Callable[[AccountUser], None]] = None,
         on_error: Optional[Callable[[Exception], None]] = None,
     ) -> None:
         def fn() -> tuple[AccountUser, Optional[PlayerProfile]]:
             client = get_client()
-            resp = client.auth.sign_up({"email": email, "password": password})
+            display_name = (name or "").strip() or None
+            credentials: dict = {"email": email, "password": password}
+            if display_name:
+                # 將帳號名稱寫入 Supabase user_metadata，讓資料庫觸發程式
+                # handle_new_user 能正確建立 profiles.display_name。
+                credentials["options"] = {"data": {"display_name": display_name}}
+            resp = client.auth.sign_up(credentials)
             user = getattr(resp, "user", None)
             if user is None:
                 raise AuthenticationError("Sign up failed: no user returned")
@@ -111,6 +133,7 @@ class AccountManager:
             account_user = AccountUser(
                 id=user.id,
                 email=user.email,
+                name=display_name,
                 email_confirmed=bool(getattr(user, "email_confirmed_at", None)),
                 access_token=getattr(session, "access_token", None) if session else None,
                 refresh_token=getattr(session, "refresh_token", None) if session else None,
@@ -127,7 +150,14 @@ class AccountManager:
             profile: Optional[PlayerProfile] = None
             if account_user.access_token:
                 try:
-                    profile = self.profile_manager.ensure_exists(account_user.id, account_user.email)
+                    # 註冊時把輸入的帳號名稱寫入 profiles.display_name。
+                    # 沒輸入名稱時不寫信箱，讓各處顯示「—」而非信箱。
+                    profile = self.profile_manager.ensure_exists(
+                        account_user.id, display_name
+                    )
+                    if display_name and profile.display_name != display_name:
+                        profile.display_name = display_name
+                        self.profile_manager.upsert(profile)
                 except Exception as exc:  # noqa: BLE001
                     self.last_error = f"Profile unavailable: {exc}"
             return account_user, profile
@@ -167,6 +197,7 @@ class AccountManager:
             account_user = AccountUser(
                 id=user.id,
                 email=user.email,
+                name=_display_name_from_user(user),
                 email_confirmed=bool(getattr(user, "email_confirmed_at", None)),
                 access_token=session.access_token,
                 refresh_token=session.refresh_token,
@@ -183,7 +214,7 @@ class AccountManager:
             try:
                 profile = self.profile_manager.fetch(account_user.id)
                 if profile is None:
-                    profile = self.profile_manager.ensure_exists(account_user.id, account_user.email)
+                    profile = self.profile_manager.ensure_exists(account_user.id, account_user.name)
             except Exception as exc:  # noqa: BLE001
                 # Do not fail login if the profiles table is missing/misconfigured.
                 self.last_error = f"Profile unavailable: {exc}"
@@ -283,6 +314,7 @@ class AccountManager:
             account_user = AccountUser(
                 id=user.id,
                 email=user.email,
+                name=_display_name_from_user(user),
                 email_confirmed=bool(getattr(user, "email_confirmed_at", None)),
                 access_token=access_token,
                 refresh_token=refresh_token,
@@ -300,7 +332,7 @@ class AccountManager:
                 try:
                     profile = self.profile_manager.fetch(account_user.id)
                     if profile is None:
-                        profile = self.profile_manager.ensure_exists(account_user.id, account_user.email)
+                        profile = self.profile_manager.ensure_exists(account_user.id, account_user.name)
                 except Exception as exc:  # noqa: BLE001
                     self.last_error = f"Profile unavailable: {exc}"
             return account_user, profile
@@ -335,7 +367,7 @@ class AccountManager:
             try:
                 profile = self.profile_manager.fetch(self.current_user.id)
                 if profile is None:
-                    profile = self.profile_manager.ensure_exists(self.current_user.id, self.current_user.email)
+                    profile = self.profile_manager.ensure_exists(self.current_user.id, self.current_user.name)
                 return profile
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"Profile unavailable (run docs/supabase_schema.sql): {exc}") from exc
@@ -402,3 +434,52 @@ class AccountManager:
 
     def delete_local_records(self, session=None):
         self.delete_local_data(session)
+
+    # --------------------------------------------------------------- display name
+    def update_display_name_async(
+        self,
+        name: str,
+        on_success: Optional[Callable[[str], None]] = None,
+        on_error: Optional[Callable[[Exception], None]] = None,
+    ) -> None:
+        """將目前登入帳號的顯示名稱（帳號名稱）更新為 ``name``。
+
+        會同時寫入：
+        1. Supabase Auth 的 ``user_metadata.display_name``；
+        2. ``public.profiles`` 表的 ``display_name`` 欄位；
+        3. 本地 ``current_user`` 與 ``profile`` 狀態。
+        """
+
+        def fn() -> str:
+            if self.current_user is None:
+                raise AuthenticationError("Not authenticated")
+            client = get_client()
+            new_name = (name or "").strip() or None
+            if new_name:
+                # 更新 Supabase Auth 使用者 metadata，讓資料庫觸發程式與後續登入都能讀到。
+                client.auth.update_user({"data": {"display_name": new_name}})
+            # 更新 profiles 表
+            profile = self.profile_manager.fetch(self.current_user.id)
+            if profile is None:
+                profile = PlayerProfile(user_id=self.current_user.id, display_name=new_name)
+            else:
+                profile.display_name = new_name
+            self.profile_manager.upsert(profile)
+            # 同步本地記憶體狀態
+            if self.current_user:
+                self.current_user.name = new_name
+            if self.profile:
+                self.profile.display_name = new_name
+            return new_name or ""
+
+        def success(result: Any) -> None:
+            self.last_error = None
+            if on_success:
+                on_success(result)
+
+        def error(exc: Exception) -> None:
+            self.last_error = str(exc)
+            if on_error:
+                on_error(exc)
+
+        self._run_async("update_display_name", fn, success, error)

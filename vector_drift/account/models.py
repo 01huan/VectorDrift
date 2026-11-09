@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Set
 class AccountUser:
     id: str
     email: Optional[str] = None
+    name: Optional[str] = None          # 註冊時輸入的帳號名稱（顯示用，非登入信箱）
     email_confirmed: bool = False
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None

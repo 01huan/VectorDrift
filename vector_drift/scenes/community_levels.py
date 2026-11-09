@@ -262,8 +262,8 @@ class CommunityLevelsScene(Scene):
             self._draw_preview(surface, lvl, rect)
             name = str(lvl.get("level_name") or "Community")
             draw_text(surface, name, (rect.x + px(10), rect.y + px(10)), 16, config.TEXT, kind="bold")
-            email = str(lvl.get("uploader_email") or "")
-            draw_text(surface, email, (rect.x + px(10), rect.y + px(146)), 12, config.TEXT_DIM)
+            uploader = str(lvl.get("uploader_name") or "")
+            draw_text(surface, uploader or "—", (rect.x + px(10), rect.y + px(146)), 12, config.TEXT_DIM)
             created = str(lvl.get("created_at") or "")[:10]
             draw_text(surface, created, (rect.right - px(10), rect.y + px(10)), 12, config.TEXT_DIM,
                       anchor="topright")

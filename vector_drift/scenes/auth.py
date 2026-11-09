@@ -397,17 +397,19 @@ class RegisterScene(Scene):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=10, star_count=220)
         cx = config.WINDOW_W // 2
-        self.email_input = _TextInput((cx - px(180), px(220), px(360), px(40)), "Email")
-        self.password_input = _TextInput((cx - px(180), px(280), px(360), px(40)), "Password (min 6 chars)", password=True)
-        self.confirm_input = _TextInput((cx - px(180), px(340), px(360), px(40)), "Confirm password", password=True)
+        self.email_input = _TextInput((cx - px(180), px(200), px(360), px(40)), "Email")
         self.email_input.active = True
-        self.register_button = Button((cx - px(180), px(400), px(170), px(44)), "Create account", style="primary", font_size=15)
-        self.back_button = Button((cx + px(10), px(400), px(170), px(44)), "Back", style="plain", font_size=17)
+        self.name_input = _TextInput((cx - px(180), px(260), px(360), px(40)), "帳號名稱 / ID (選填)")
+        self.password_input = _TextInput((cx - px(180), px(320), px(360), px(40)), "Password (min 6 chars)", password=True)
+        self.confirm_input = _TextInput((cx - px(180), px(380), px(360), px(40)), "Confirm password", password=True)
+        self.register_button = Button((cx - px(180), px(440), px(170), px(44)), "Create account", style="primary", font_size=15)
+        self.back_button = Button((cx + px(10), px(440), px(170), px(44)), "Back", style="plain", font_size=17)
         self.status = ""
         self._busy = False
 
     def handle_event(self, event):
         self.email_input.handle_event(event)
+        self.name_input.handle_event(event)
         self.password_input.handle_event(event)
         self.confirm_input.handle_event(event)
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -425,6 +427,7 @@ class RegisterScene(Scene):
         if self._busy:
             return
         email = self.email_input.text.strip()
+        name = self.name_input.text.strip()
         password = self.password_input.text
         confirm = self.confirm_input.text
         if not email or not password:
@@ -478,7 +481,7 @@ class RegisterScene(Scene):
             self.register_button.enabled = True
             self._set_status(f"Register failed: {exc}")
 
-        account.sign_up_async(email, password, on_success=ok, on_error=err)
+        account.sign_up_async(email, password, name=name, on_success=ok, on_error=err)
 
     def _set_status(self, msg):
         self.status = msg
@@ -490,13 +493,15 @@ class RegisterScene(Scene):
         surface.blit(self.background, (0, 0))
         cx = config.WINDOW_W // 2
         draw_text(surface, "REGISTER", (cx, px(120)), 40, config.TEXT, kind="bold", anchor="center")
-        draw_text(surface, "Email", (cx - px(180), px(196)), 14, config.TEXT_DIM, anchor="midleft")
-        draw_text(surface, "Password", (cx - px(180), px(256)), 14, config.TEXT_DIM, anchor="midleft")
-        draw_text(surface, "Confirm", (cx - px(180), px(316)), 14, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, "Email", (cx - px(180), px(176)), 14, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, "Name / ID", (cx - px(180), px(236)), 14, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, "Password", (cx - px(180), px(296)), 14, config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, "Confirm", (cx - px(180), px(356)), 14, config.TEXT_DIM, anchor="midleft")
         self.email_input.draw(surface)
+        self.name_input.draw(surface)
         self.password_input.draw(surface)
         self.confirm_input.draw(surface)
         self.register_button.draw(surface)
         self.back_button.draw(surface)
         if self.status:
-            draw_text(surface, self.status, (cx, px(470)), 15, config.WARNING, anchor="center")
+            draw_text(surface, self.status, (cx, px(500)), 15, config.WARNING, anchor="center")

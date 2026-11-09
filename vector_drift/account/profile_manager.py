@@ -98,6 +98,11 @@ class ProfileManager:
     def ensure_exists(self, user_id: str, display_name: Optional[str] = None) -> PlayerProfile:
         existing = self.fetch(user_id)
         if existing is not None:
+            # 註冊/登入時若輸入了帳號名稱，且現有 profile 的 display_name 不同，則更新它。
+            if display_name and existing.display_name != display_name:
+                existing.display_name = display_name
+                self.upsert(existing)
+                return existing
             return existing
         profile = PlayerProfile(user_id=user_id, display_name=display_name)
         self.upsert(profile)

@@ -23,7 +23,9 @@ create policy "profiles_insert_own" on public.profiles
 create policy "profiles_update_own" on public.profiles
     for update using (auth.uid() = id);
 
--- Auto-create profile on signup
+-- Auto-create profile on signup.
+-- 顯示名稱優先使用 Supabase Auth user_metadata 裡的 display_name（註冊時輸入的帳號 ID），
+-- 沒有才退回使用信箱，讓遊戲內各處顯示帳號名稱而非信箱。
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -31,7 +33,7 @@ security definer
 as $$
 begin
     insert into public.profiles (id, display_name)
-    values (new.id, new.email)
+    values (new.id, coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), new.email))
     on conflict (id) do nothing;
     return new;
 end;
@@ -47,6 +49,7 @@ create table if not exists public.community_levels (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
     uploader_email text not null default '',
+    uploader_name text not null default '',   -- 上傳者的帳號名稱，社區卡片優先顯示此欄位，不顯示信箱
     level_name text not null,
     level_data jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now()

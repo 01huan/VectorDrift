@@ -63,9 +63,21 @@ def upload_community_level(
     def _fn() -> Any:
         _require_auth()
         client = get_client()
+        # 社區卡片顯示上傳者的帳號名稱，而非信箱；current_user.name 來自註冊時輸入的帳號 ID。
+        # 永遠不以信箱作為顯示名稱：profile.display_name 在尚未設定顯示名稱時可能被寫入信箱，
+        # 因此必須排除含 "@" 的值，避免社區卡片顯示完整信箱帳號。
+        uploader_name = account.current_user.name or ""
+        if (
+            not uploader_name
+            and account.profile
+            and account.profile.display_name
+            and "@" not in account.profile.display_name
+        ):
+            uploader_name = account.profile.display_name
         row = {
             "user_id": account.current_user.id,
             "uploader_email": account.current_user.email or "",
+            "uploader_name": uploader_name,
             "level_name": level_name,
             "level_data": level_data,
         }
@@ -113,7 +125,7 @@ def fetch_community_levels(
         resp = (
             client.table(TABLE)
             .select(
-                "id, user_id, uploader_email, level_name, level_data, created_at"
+                "id, user_id, uploader_email, uploader_name, level_name, level_data, created_at"
             )
             .order("created_at", desc=True)
             .execute()
