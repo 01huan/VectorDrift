@@ -7,14 +7,10 @@ import vector_drift.expr_parser as ep
 from vector_drift.expr_parser import (
     Expression,
     EvaluationError,
-    LinearExpr,
     ParseError,
-    diagnose,
     diagnose_expression,
     parse_expression,
-    parse_linear,
     register_function,
-    try_parse,
     try_parse_expression,
 )
 
@@ -251,119 +247,6 @@ def test_expression_evaluation_does_not_fail_during_parsing():
 
 
 # ============================================================
-# Legacy linear parser
-# ============================================================
-
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        ("", (0, 0, 0)),
-        ("   ", (0, 0, 0)),
-        ("2x", (2, 0, 0)),
-        ("2*x", (2, 0, 0)),
-        ("x", (1, 0, 0)),
-        ("-x", (-1, 0, 0)),
-        ("+y", (0, 1, 0)),
-        ("3 - y", (0, -1, 3)),
-        ("y + x + 1", (1, 1, 1)),
-        ("2(x + 1)", (2, 0, 2)),
-        ("(x + y) * 2", (2, 2, 0)),
-        ("x/2", (0.5, 0, 0)),
-        ("1/2x", (0.5, 0, 0)),
-        ("2x/4", (0.5, 0, 0)),
-        ("-3/4 y", (0, -0.75, 0)),
-        (".5", (0, 0, 0.5)),
-        ("1.5x - 2.25", (1.5, 0, -2.25)),
-        ("3/4", (0, 0, 0.75)),
-        ("X + Y", (1, 1, 0)),
-        ("-0.5x + 2y - 1/3", (-0.5, 2, -1 / 3)),
-        ("2−x", (-1, 0, 2)),
-        ("x + x", (2, 0, 0)),
-        ("y - 2y", (0, -1, 0)),
-        ("2 + 3", (0, 0, 5)),
-        ("x*2", (2, 0, 0)),
-        ("x^1", (1, 0, 0)),
-        ("x^0", (0, 0, 1)),
-        ("2^3", (0, 0, 8)),
-        ("2^-1", (0, 0, 0.5)),
-    ],
-)
-def test_parse_linear_valid(text, expected):
-    expr = parse_linear(text)
-
-    assert isinstance(expr, LinearExpr)
-    assert (expr.x, expr.y, expr.c) == pytest.approx(expected)
-
-
-@pytest.mark.parametrize(
-    "text, message",
-    [
-        ("xy", "Unknown symbol 'xy'"),
-        ("x*y", "Expression is not linear"),
-        ("x y", "Expression is not linear"),
-        ("x^2", "Expression is not linear"),
-        ("x**2", "Expression is not linear"),
-        ("x^y", "Variable exponent is not linear"),
-        ("1/x", "Cannot divide by a variable expression"),
-        ("1/0", "Division by zero"),
-        ("sin(x)", "Functions are not supported by parse_linear()"),
-    ],
-)
-def test_parse_linear_invalid(text, message):
-    with pytest.raises(ParseError) as exc_info:
-        parse_linear(text)
-
-    assert exc_info.value.message == message
-
-
-def test_try_parse_success():
-    expr, error = try_parse("2x - y + 1")
-
-    assert error is None
-    assert expr == LinearExpr(2, -1, 1)
-
-
-@pytest.mark.parametrize(
-    "text, message",
-    [
-        ("x^2", "Expression is not linear"),
-        ("x*y", "Expression is not linear"),
-        ("1/x", "Cannot divide by a variable expression"),
-    ],
-)
-def test_try_parse_failure(text, message):
-    expr, error = try_parse(text)
-
-    assert expr is None
-    assert error == message
-
-
-def test_diagnose_linear_success():
-    assert diagnose("x - 1") == (
-        LinearExpr(1, 0, -1),
-        None,
-        None,
-    )
-
-
-@pytest.mark.parametrize(
-    "text, message, pos",
-    [
-        ("x^2", "Expression is not linear", 0),
-        ("x*y", "Expression is not linear", 0),
-        ("1/0", "Division by zero", 0),
-        ("sin(x)", "Functions are not supported by parse_linear()", 0),
-    ],
-)
-def test_diagnose_linear_failure(text, message, pos):
-    expr, error, where = diagnose(text)
-
-    assert expr is None
-    assert error == message
-    assert where == pos
-
-
-# ============================================================
 # Custom functions
 # ============================================================
 
@@ -403,10 +286,6 @@ def test_register_function_requires_callable():
 # ============================================================
 # Numeric overflow and finite results
 # ============================================================
-
-def test_parse_linear_rejects_non_finite_coefficients():
-    with pytest.raises(ParseError):
-        parse_linear("10^10000")
 
 
 def test_expression_result_is_float():
@@ -482,18 +361,16 @@ def test_significant_digit_boundary():
 
     assert expr.evaluate(1.0) == pytest.approx(float("9" * 12))
 
-'''
 def test_text_length_boundary():
     from vector_drift import config
 
-    ok = "x+" * 249 + "x"  # 499 chars
-    bad = "x+" * 250 + "x"  # 501 chars
+    ok = "x+" * 2499 + "x"  # 4999 chars
+    bad = "x+" * 2500 + "x"  # 5001 chars
 
     assert len(ok) == config.MAX_EXPR_TEXT_LEN - 1
     parse_expression(ok)
     with pytest.raises(ParseError):
         parse_expression(bad)
-'''
 
 def test_negative_base_fractional_exponent_diverges():
     with pytest.raises(EvaluationError):
@@ -513,7 +390,5 @@ def test_exp_overflow_diverges_without_materialising():
 
 
 def test_linear_backstop_rejects_huge_coefficient():
-    from vector_drift.expr_parser import parse_linear
-
     with pytest.raises(ParseError):
-        parse_linear("1000000000000000*x")
+        parse_expression("1000000000000000*x")

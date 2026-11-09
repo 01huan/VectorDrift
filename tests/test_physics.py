@@ -49,13 +49,6 @@ class BrokenField:
         raise self.exception
 
 
-class LinearFieldExpression:
-    """Mimics a LinearExpr with x, y, and c coefficients."""
-
-    def __init__(self, x, y, c):
-        self.x = x
-        self.y = y
-        self.c = c
 
 
 # ---------------------------------------------------------------------------
@@ -147,18 +140,6 @@ def test_force_field_supports_mixed_expression_types():
 
     assert field.at(5, 2) == (7.0, 3.0)
 
-
-def test_force_field_from_linear_expressions_preserves_coefficients():
-    fx = LinearFieldExpression(x=1, y=2, c=3)
-    fy = LinearFieldExpression(x=4, y=5, c=6)
-
-    field = ForceField.from_exprs(fx, fy)
-
-    assert field.fx_expr is None
-    assert field.fy_expr is None
-    assert (field.a, field.b, field.c) == (1, 2, 3)
-    assert (field.d, field.e, field.f) == (4, 5, 6)
-    assert field.at(2, 3) == (11.0, 29.0)
 
 
 def test_force_field_general_expression_uses_current_position():

@@ -84,23 +84,7 @@ class ForceField:
 
     @classmethod
     def from_exprs(cls, fx, fy):
-        """Build a force field from parsed expressions.
-
-        LinearExpr instances retain the legacy coefficient representation.
-        General Expression instances use their evaluate(x, y) method.
-        """
-        linear_x = all(hasattr(fx, name) for name in ("x", "y", "c"))
-        linear_y = all(hasattr(fy, name) for name in ("x", "y", "c"))
-
-        if linear_x and linear_y:
-            return cls(
-                a=fx.x,
-                b=fx.y,
-                c=fx.c,
-                d=fy.x,
-                e=fy.y,
-                f=fy.c,
-            )
+        """Build a force field from parsed or callable expressions."""
 
         return cls(fx_expr=fx, fy_expr=fy)
 
