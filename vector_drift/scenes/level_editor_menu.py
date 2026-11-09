@@ -33,7 +33,7 @@ class LevelEditorMenuScene(Scene):
         self.next_button = None
         
         all_levels = self.session.custom_levels
-        page_size = 8
+        page_size = 12
         self.page_count = max(1, (len(all_levels) + page_size - 1) // page_size)
         self.page = max(0, min(self.page, self.page_count - 1))
         
@@ -49,7 +49,7 @@ class LevelEditorMenuScene(Scene):
             )
 
         if self.page_count > 1:
-            self.prev_button = Button((px(60), config.WINDOW_H - px(86), px(100), px(46)), "Prev", style="plain", font_size=17)
+            self.prev_button = Button((px(260), config.WINDOW_H - px(86), px(100), px(46)), "Prev", style="plain", font_size=17)
             self.next_button = Button((config.WINDOW_W - px(160), config.WINDOW_H - px(86), px(100), px(46)), "Next", style="plain", font_size=17)
 
     def handle_event(self, event):
