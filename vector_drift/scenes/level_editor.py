@@ -431,9 +431,6 @@ class LevelEditorScene(Scene):
             on_success=on_ok, on_error=on_err,
         )
 
-    def update(self, dt):
-        pass
-
     def draw(self, surface):
         surface.fill(config.BG)
         for i, kind in enumerate(self.palette):
