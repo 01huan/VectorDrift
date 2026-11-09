@@ -1,4 +1,4 @@
-﻿import os
+import os
 import gc
 
 import pytest
@@ -6,6 +6,32 @@ import pytest
 # Run headless at 1x scale (config reads these when first imported).
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
+
+# Capture the pristine built-in level registry at import time so every test
+# starts from the same clean state regardless of prior registration/reset.
+from vector_drift import data as _data_module
+
+_BASE_LEVELS = tuple(_data_module.LEVELS)
+_BASE_CUSTOM_LEVELS = {}
+
+
+@pytest.fixture(autouse=True)
+def reset_custom_level_registries():
+    """Keep the global custom-level registry from leaking across tests."""
+    from vector_drift import data as data_module
+
+    previous_levels = list(data_module.LEVELS)
+    previous_custom = dict(data_module.CUSTOM_LEVELS)
+    data_module.LEVELS[:] = list(_BASE_LEVELS)
+    data_module.CUSTOM_LEVELS.clear()
+    data_module.CUSTOM_LEVELS.update(_BASE_CUSTOM_LEVELS)
+
+    yield
+
+    data_module.LEVELS[:] = previous_levels
+    data_module.CUSTOM_LEVELS.clear()
+    data_module.CUSTOM_LEVELS.update(previous_custom)
 
 
 @pytest.fixture(autouse=True)

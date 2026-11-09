@@ -4,7 +4,7 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..data import LEVELS, all_levels
+from ..data import all_levels, is_custom_level
 from ..level_presets import get_preset, is_dynamic_level
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_coins, draw_text, icon_surface, wrap_text
@@ -44,7 +44,15 @@ class LevelSelectScene(Scene):
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,
                                                        star_count=260)
         self.levels = {lv.id: lv for lv in all_levels()}
-        self.pages = paginate(max(max(self.levels, default=0), config.PLANNED_LEVELS))
+        # Level-select pages are driven by planned/base levels only.  Custom
+        # (player-created / community) IDs live in their own registry and must
+        # never extend this 1..N range or leak state between runs/tests.
+        custom_ids = set(getattr(self.manager.session, "custom_level_ids", ())) 
+        base_level_ids = [
+            lv.id for lv in all_levels()
+            if not is_custom_level(lv.id) and lv.id not in custom_ids
+        ]
+        self.pages = paginate(max(max(base_level_ids, default=0), config.PLANNED_LEVELS))
         self.page = 0
         self.hover = None
         self.cards = []

@@ -410,8 +410,6 @@ def register_custom_level(spec):
         if level.id == spec.id:
             LEVELS[index] = spec
             break
-    else:
-        LEVELS.append(spec)
     return spec
 
 
