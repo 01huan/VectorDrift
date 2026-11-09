@@ -164,6 +164,13 @@ class LevelEditorMenuScene(Scene):
                 "money": "pickup.money",
                 "unbound": "pickup.unbound",
             }.get(kind, "pickup.shockwave")
+            img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if img is not None:
+                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                pygame.draw.circle(surface, (240, 190, 60), (int(cx), int(cy)), r)
+                pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
+
         for h in data_.get("holes", ()):
             bc = to_screen(*h.get("black_center", (0,0)))
             wc = to_screen(*h.get("white_center", (0,0)))
@@ -171,12 +178,6 @@ class LevelEditorMenuScene(Scene):
             if r < 2: continue
             pygame.draw.circle(surface, (20,20,40), (int(bc[0]), int(bc[1])), r)
             pygame.draw.circle(surface, (220,220,255), (int(wc[0]), int(wc[1])), r)
-            img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
-            if img is not None:
-                surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
-            else:
-                pygame.draw.circle(surface, (240, 190, 60), (int(cx), int(cy)), r)
-                pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
 
         sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
         r_start = max(3, min(max_r, int(0.25 * scale)))
