@@ -23,13 +23,24 @@ class LevelEditorMenuScene(Scene):
         self.delete_rects = []        # parallel to self.cards: delete button per local custom level
         self.message = ""
         self.message_timer = 0.0
+        self.page = 0
+        self._rebuild()
 
     def _rebuild(self):
         self.cards = []
         self.delete_rects = []
-        levels = self.session.custom_levels
+        self.prev_button = None
+        self.next_button = None
+        
+        all_levels = self.session.custom_levels
+        page_size = 8
+        self.page_count = max(1, (len(all_levels) + page_size - 1) // page_size)
+        self.page = max(0, min(self.page, self.page_count - 1))
+        
+        current_page_levels = all_levels[self.page * page_size : (self.page + 1) * page_size]
+        
         x, y = px(60), px(100)
-        for i, lv in enumerate(levels):
+        for i, lv in enumerate(current_page_levels):
             rect = pygame.Rect(x + (i % 4) * px(260), y + (i // 4) * px(180), px(240), px(160))
             preview = pygame.Rect(rect.x + px(10), rect.y + px(30), px(220), px(120))
             self.cards.append((lv, rect, preview))
@@ -37,11 +48,25 @@ class LevelEditorMenuScene(Scene):
                 pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
             )
 
+        if self.page_count > 1:
+            self.prev_button = Button((px(60), config.WINDOW_H - px(86), px(100), px(46)), "Prev", style="plain", font_size=17)
+            self.next_button = Button((config.WINDOW_W - px(160), config.WINDOW_H - px(86), px(100), px(46)), "Next", style="plain", font_size=17)
+
     def handle_event(self, event):
         if self.back_button.handle_event(event) == "click":
             self.audio.play("click")
             from .levels import LevelSelectScene
             self.manager.switch(LevelSelectScene(self.manager))
+            return
+        if self.prev_button and self.prev_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.page -= 1
+            self._rebuild()
+            return
+        if self.next_button and self.next_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.page += 1
+            self._rebuild()
             return
         if self.new_button.handle_event(event) == "click":
             self.audio.play("click")
@@ -200,7 +225,13 @@ class LevelEditorMenuScene(Scene):
         self.back_button.draw(surface)
         self.new_button.draw(surface)
         self.community_button.draw(surface)
+        if self.prev_button:
+            self.prev_button.draw(surface)
+        if self.next_button:
+            self.next_button.draw(surface)
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(40)), 30, config.TEXT, kind="bold", anchor="center")
+        if self.page_count > 1:
+            draw_text(surface, f"Page {self.page + 1} / {self.page_count}", (config.WINDOW_W // 2, config.WINDOW_H - px(60)), 15, config.TEXT, anchor="center")
         for (lv, rect, preview), del_rect in zip(self.cards, self.delete_rects):
             pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, width=max(1, px(1)), border_radius=px(6))
