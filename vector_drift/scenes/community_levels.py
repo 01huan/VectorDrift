@@ -11,7 +11,7 @@ import pygame
 
 from .. import config, data
 from ..config import px
-from ..data import LevelSpec, ObstacleSpec, PickupSpec, HoleSpec
+from ..data import LevelSpec
 from ..image_assets import load_image
 from ..ui import Button, draw_text
 from ..account import community
@@ -106,62 +106,34 @@ class CommunityLevelsScene(Scene):
         self.delete_rects = []
         x, y = px(60), px(100)
         for i, lvl in enumerate(self.levels):
+            if not isinstance(lvl, dict):
+                continue
             rect = pygame.Rect(x + (i % 4) * px(260), y + (i // 4) * px(180), px(240), px(160))
             self.cards.append((lvl, rect))
             self.delete_rects.append(
                 pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
             )
 
-    def _deserialize(self, d: dict) -> LevelSpec:
-        obstacles = tuple(
-            ObstacleSpec(
-                center=tuple(item["center"]),
-                radius=float(item["radius"]),
-                restitution=float(item.get("restitution", 1.0)),
-                kind=item.get("kind", "bumper"),
-            )
-            for item in d.get("obstacles", ())
-        )
-        pickups = tuple(
-            PickupSpec(
-                center=tuple(item["center"]),
-                radius=float(item.get("radius", 0.45)),
-                kind=item.get("kind", "shockwave"),
-            )
-            for item in d.get("pickups", ())
-        )
-        holes = tuple(
-            HoleSpec(
-                black_center=tuple(item.get("black_center", item.get("black", (0.0, 0.0)))),
-                white_center=tuple(item.get("white_center", item.get("white", (0.0, 0.0)))),
-                radius=float(item.get("radius", 0.5)),
-            )
-            for item in d.get("holes", ())
-        )
-        return LevelSpec(
-            id=int(d["id"]),
-            name=str(d.get("name", "Community")),
-            start=tuple(d["start"]),
-            target_center=tuple(d["target_center"]),
-            target_radius=float(d["target_radius"]),
-            ship_id=str(d.get("ship_id", "ship01")),
-            time_limit=float(d.get("time_limit", 10.0)),
-            lives=int(d.get("lives", 5)),
-            obstacles=obstacles,
-            pickups=pickups,
-            holes=holes,
-        )
+    def _deserialize(self, d: dict, level_id: int) -> LevelSpec:
+        """Validate public ``level_data`` into a spec with a local id.
+
+        The uploader-supplied ``id`` is ignored: ``level_id`` is generated
+        locally from the remote row UUID (see ``data.community_level_id``), so
+        a crafted integer can never become a global level id.
+        """
+        return data.level_spec_from_public(d, level_id)
 
     def _open(self, lvl: dict):
+        level_id = data.community_level_id(lvl.get("id"))
         try:
-            spec = self._deserialize(lvl.get("level_data") or {})
-        except Exception as exc:  # noqa: BLE001 - show a friendly message
+            spec = self._deserialize(lvl.get("level_data") or {}, level_id)
+        except (ValueError, TypeError, OverflowError) as exc:
             self.status = f"Invalid level data: {exc}"
             return
         data.register_custom_level(spec)
-        if spec.id not in self.session.custom_level_ids:
-            self.session.custom_levels.append(spec)
-            self.session.custom_level_ids.add(spec.id)
+        self.session.custom_levels = [lv for lv in self.session.custom_levels if lv.id != spec.id]
+        self.session.custom_levels.append(spec)
+        self.session.custom_level_ids.add(spec.id)
         self.session.level_id = spec.id
         self.session.fx_text = self.session.fy_text = ""
         self.session.random_seed = None
@@ -172,17 +144,26 @@ class CommunityLevelsScene(Scene):
     # ------------------------------------------------------------------ preview
 
     def _draw_preview(self, surface, lvl: dict, rect: pygame.Rect):
-        """Draw a tiny preview of the level layout inside ``rect``."""
+        """Draw a tiny preview of the level layout inside ``rect``.
+
+        The public ``level_data`` is validated first; an invalid row just
+        leaves the empty preview instead of raising while the player browses.
+        """
         preview = pygame.Rect(rect.x + px(10), rect.y + px(56), px(220), px(80))
         pygame.draw.rect(surface, (26, 34, 60), preview, border_radius=px(3))
         pygame.draw.rect(surface, config.PANEL_EDGE, preview, width=1, border_radius=px(3))
+        if not isinstance(lvl, dict):
+            return
+        try:
+            spec = data.level_spec_from_public(lvl.get("level_data") or {}, 0)
+        except (ValueError, TypeError, OverflowError):
+            return
 
-        data_ = lvl.get("level_data") or {}
-        pts = [tuple(data_.get("start", (-7.0, 0.0))), tuple(data_.get("target_center", (7.0, 0.0)))]
-        for o in data_.get("obstacles", ()):
-            pts.append(tuple(o["center"]))
-        for p in data_.get("pickups", ()):
-            pts.append(tuple(p["center"]))
+        pts = [spec.start, spec.target_center]
+        for o in spec.obstacles:
+            pts.append(o.center)
+        for p in spec.pickups:
+            pts.append(p.center)
         if not pts:
             return
 
@@ -202,9 +183,9 @@ class CommunityLevelsScene(Scene):
         max_r = max(8, min(preview.w, preview.h) // 4)
 
         # Obstacles: use real rock pictures (fall back to light-grey circle if missing)
-        for idx, o in enumerate(data_.get("obstacles", ())):
-            cx, cy = to_screen(*o["center"])
-            r = max(2, min(max_r, int(float(o.get("radius", 0.4)) * scale)))
+        for idx, o in enumerate(spec.obstacles):
+            cx, cy = to_screen(*o.center)
+            r = max(2, min(max_r, int(o.radius * scale)))
             if r < 2:
                 continue
             rock_key = f"obstacle.rock{(idx % 2) + 1:02d}"
@@ -217,10 +198,9 @@ class CommunityLevelsScene(Scene):
                 pygame.draw.circle(surface, (180, 180, 200), (int(cx), int(cy)), r, 1)
 
         # Pickups: use real pickup pictures (fall back to colour disc)
-        for p in data_.get("pickups", ()):
-            cx, cy = to_screen(*p["center"])
-            kind = p.get("kind", "shockwave")
-            r = max(2, min(max_r, int(float(p.get("radius", 0.3)) * scale)))
+        for p in spec.pickups:
+            cx, cy = to_screen(*p.center)
+            r = max(2, min(max_r, int(p.radius * scale)))
             if r < 2:
                 continue
             pickup_key = {
@@ -230,7 +210,7 @@ class CommunityLevelsScene(Scene):
                 "life": "pickup.life",
                 "money": "pickup.money",
                 "unbound": "pickup.unbound",
-            }.get(kind, "pickup.shockwave")
+            }.get(p.kind, "pickup.shockwave")
             img = load_image(pickup_key, size_px=(max(1, 2 * r), max(1, 2 * r)))
             if img is not None:
                 surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
@@ -240,7 +220,7 @@ class CommunityLevelsScene(Scene):
                 pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
 
         # Start: use the launch-pad marker picture
-        sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
+        sx, sy = to_screen(*spec.start)
         r_start = max(3, min(max_r, int(0.25 * scale)))
         img = load_image("ui.start_marker", size_px=(max(1, 2 * r_start), max(1, 2 * r_start)))
         if img is not None:
@@ -249,7 +229,7 @@ class CommunityLevelsScene(Scene):
             pygame.draw.circle(surface, (80, 200, 90), (int(sx), int(sy)), r_start)
 
         # Target: use the destination planet picture
-        tx, ty = to_screen(*data_.get("target_center", (7.0, 0.0)))
+        tx, ty = to_screen(*spec.target_center)
         r_target = max(4, min(max_r, int(0.35 * scale)))
         img = load_image("target.planet", size_px=(max(1, 2 * r_target), max(1, 2 * r_target)))
         if img is not None:

@@ -40,7 +40,13 @@ def _restore_custom_levels(session: Any, rows: Any) -> None:
         level = LevelSpec.from_row(row)
         if level is None:
             continue
-        data.register_custom_level(level)
+        try:
+            data.register_custom_level(level)
+        except ValueError:
+            # A legacy profile can carry a custom id that collides with a
+            # built-in level.  Built-ins are immutable and win, so skip the
+            # custom copy instead of corrupting the level registry.
+            continue
         levels.append(level)
     session.custom_levels = levels
     session.custom_level_ids = {level.id for level in levels}
@@ -185,9 +191,9 @@ def reset_session_to_guest(session: Any) -> None:
 
     session.custom_levels = []
     session.custom_level_ids = set()
-    custom_ids = set(data.CUSTOM_LEVELS)
+    # register_custom_level() never writes to LEVELS (built-ins are
+    # immutable), so clearing the custom registry is enough.
     data.CUSTOM_LEVELS.clear()
-    data.LEVELS[:] = [lv for lv in data.LEVELS if lv.id not in custom_ids]
     session.user_id = None
     session.email = None
     session.display_name = None

@@ -109,11 +109,9 @@ class LevelEditorMenuScene(Scene):
         """Remove a player-created level and its community upload (if any)."""
         self.session.custom_levels = [x for x in self.session.custom_levels if x.id != lv.id]
         self.session.custom_level_ids.discard(lv.id)
+        # Custom levels live only in CUSTOM_LEVELS; built-in LEVELS are
+        # immutable and must never be popped here.
         data.CUSTOM_LEVELS.pop(lv.id, None)
-        for index, level in enumerate(data.LEVELS):
-            if level.id == lv.id:
-                data.LEVELS.pop(index)
-                break
         # Persist locally and sync to the cloud if signed in.
         from ..account.integration import save_progress
         save_progress(self.manager.account, self.session)

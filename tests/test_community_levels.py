@@ -164,8 +164,8 @@ def test_handle_event_open_card(monkeypatch):
     ev = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=rect.center)
     scene.handle_event(ev)
     assert isinstance(mgr.scene, FakeGame)
-    assert mgr.session.level_id == 7001
-    assert 7001 in mgr.session.custom_level_ids
+    assert mgr.session.level_id == data.community_level_id("a1")
+    assert data.community_level_id("a1") in mgr.session.custom_level_ids
 
 
 def test_handle_event_delete_own_click(monkeypatch):
@@ -251,12 +251,12 @@ def test_open_valid(monkeypatch):
     monkeypatch.setattr(community_module, "fetch_community_levels", fetch)
     mgr = _manager()
     scene = CommunityLevelsScene(mgr)
-    lvl = {"level_data": {"id": 8001, "name": "C", "start": [-7.0, 0.0],
+    lvl = {"id": "open-valid", "level_data": {"id": 8001, "name": "C", "start": [-7.0, 0.0],
                           "target_center": [7.0, 0.0], "target_radius": 1.0,
                           "obstacles": [{"center": [-1.0, 0.0], "radius": 0.5}],
                           "pickups": [{"center": [1.0, 0.0], "radius": 0.4, "kind": "unbound"}]}}
     scene._open(lvl)
-    assert mgr.session.level_id == 8001
+    assert mgr.session.level_id == data.community_level_id("open-valid")
     assert isinstance(mgr.scene, FakeGame)
 
 
@@ -273,16 +273,17 @@ def test_open_already_registered(monkeypatch):
     monkeypatch.setattr(community_module, "fetch_community_levels", fetch)
     mgr = _manager()
     scene = CommunityLevelsScene(mgr)
-    spec = scene._deserialize({"id": 8002, "name": "C", "start": [-7.0, 0.0],
-                                "target_center": [7.0, 0.0], "target_radius": 1.0})
+    level_id = data.community_level_id("already-registered-row")
+    spec = scene._deserialize({"name": "C", "start": [-7.0, 0.0],
+                                "target_center": [7.0, 0.0], "target_radius": 1.0}, level_id)
     data.register_custom_level(spec)
-    mgr.session.custom_level_ids.add(8002)
+    mgr.session.custom_level_ids.add(level_id)
     mgr.session.custom_levels.append(spec)
-    lvl = {"level_data": {"id": 8002, "name": "C", "start": [-7.0, 0.0],
+    lvl = {"id": "already-registered-row", "level_data": {"name": "C", "start": [-7.0, 0.0],
                           "target_center": [7.0, 0.0], "target_radius": 1.0}}
     scene._open(lvl)
-    assert 8002 in mgr.session.custom_level_ids
-    assert sum(1 for s in mgr.session.custom_levels if s.id == 8002) == 1
+    assert level_id in mgr.session.custom_level_ids
+    assert sum(1 for s in mgr.session.custom_levels if s.id == level_id) == 1
 
 
 def test_deserialize_and_draw_preview(monkeypatch):
@@ -296,7 +297,7 @@ def test_deserialize_and_draw_preview(monkeypatch):
              "target_center": [7.0, 0.0], "target_radius": 1.0,
              "obstacles": [{"center": [-1.0, 0.0], "radius": 0.5, "restitution": 0.7, "kind": "bumper"}],
              "pickups": [{"center": [1.0, 0.0], "radius": 0.4, "kind": "unbound"}]}
-    spec = scene._deserialize(data_)
+    spec = scene._deserialize(data_, 9001)
     assert spec.id == 9001
     lvl = {"level_data": data_}
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
@@ -315,6 +316,7 @@ def test_draw_preview_empty_and_small(monkeypatch):
     rect = pygame.Rect(0, 0, px(240), px(160))
     scene._draw_preview(surface, {"level_data": {}}, rect)
     data_ = {"id": 1, "start": [0.0, 0.0], "target_center": [100.0, 100.0],
+             "target_radius": 1.0,
              "obstacles": [{"center": [50.0, 50.0], "radius": 0.01}],
              "pickups": [{"center": [50.0, 50.0], "radius": 0.01, "kind": "life"}]}
     scene._draw_preview(surface, {"level_data": data_}, rect)
@@ -410,6 +412,7 @@ def test_draw_preview_images(monkeypatch):
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     rect = pygame.Rect(0, 0, px(240), px(160))
     data_ = {"id": 1, "start": [0.0, 0.0], "target_center": [4.0, 0.0],
+             "target_radius": 1.0,
              "obstacles": [{"center": [1.0, 1.0], "radius": 0.4}],
              "pickups": [{"center": [2.0, -1.0], "radius": 0.3, "kind": "life"}]}
     scene._draw_preview(surface, {"level_data": data_}, rect)
@@ -426,6 +429,7 @@ def test_draw_preview_fallbacks(monkeypatch):
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     rect = pygame.Rect(0, 0, px(240), px(160))
     data_ = {"id": 1, "start": [0.0, 0.0], "target_center": [4.0, 0.0],
+             "target_radius": 1.0,
              "obstacles": [{"center": [1.0, 1.0], "radius": 0.4}],
              "pickups": [{"center": [2.0, -1.0], "radius": 0.3, "kind": "life"}]}
     scene._draw_preview(surface, {"level_data": data_}, rect)
