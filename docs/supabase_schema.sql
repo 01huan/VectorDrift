@@ -33,7 +33,7 @@ security definer
 as $$
 begin
     insert into public.profiles (id, display_name)
-    values (new.id, coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), new.email))
+    values (new.id, nullif(new.raw_user_meta_data->>'display_name', ''))
     on conflict (id) do nothing;
     return new;
 end;
@@ -48,8 +48,7 @@ create trigger on_auth_user_created
 create table if not exists public.community_levels (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
-    uploader_email text not null default '',
-    uploader_name text not null default '',   -- 上傳者的帳號名稱，社區卡片優先顯示此欄位，不顯示信箱
+    uploader_name text not null default '',   -- 上傳者的帳號名稱，社區卡片顯示此欄位，不顯示信箱
     level_name text not null,
     level_data jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now()

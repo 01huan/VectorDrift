@@ -207,7 +207,7 @@ Custom levels can be played locally and are included in local/cloud player progr
 
 The **Public Levels** page is part of the Level Editor menu.
 
-- Public levels are fetched from the Supabase `community_levels` table and shown newest first with a small layout preview, uploader email, and upload date.
+- Public levels are fetched from the Supabase `community_levels` table and shown newest first with a small layout preview, uploader name, and upload date.
 - Browsing and downloading public levels require a configured Supabase backend but do not require the player to sign in, provided the table's public-read policy is enabled.
 - Uploading requires a configured backend and an authenticated account.
 - A player can delete their own uploaded levels. Supabase Row Level Security also restricts deletion to the owning user.

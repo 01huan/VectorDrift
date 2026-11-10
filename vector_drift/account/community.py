@@ -76,7 +76,6 @@ def upload_community_level(
             uploader_name = account.profile.display_name
         row = {
             "user_id": account.current_user.id,
-            "uploader_email": account.current_user.email or "",
             "uploader_name": uploader_name,
             "level_name": level_name,
             "level_data": level_data,
@@ -147,7 +146,7 @@ def fetch_community_levels(
         resp = (
             client.table(TABLE)
             .select(
-                "id, user_id, uploader_email, uploader_name, level_name, level_data, created_at"
+                "id, user_id, uploader_name, level_name, level_data, created_at"
             )
             .order("created_at", desc=True)
             .execute()
