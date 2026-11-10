@@ -1,4 +1,4 @@
-﻿"""Authentication and account orchestration (async, non-blocking)."""
+"""Authentication and account orchestration (async, non-blocking)."""
 
 from __future__ import annotations
 

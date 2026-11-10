@@ -43,7 +43,7 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+from .game_layout import ARRIVED, CAMERA_EASE_S, CAMERA_MARGIN_M, FLIGHT, PANNING
 
 
 class GameUpdateMixin:

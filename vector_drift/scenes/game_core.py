@@ -43,7 +43,10 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+from .game_layout import (
+    CONTENT_W, CX, EDITOR_Y, FLIGHT, LEVEL_ROW_Y, PAD, R, RUN_GREEN,
+    SETUP, TELEMETRY_ROW_H,
+)
 
 
 class GameCoreMixin:

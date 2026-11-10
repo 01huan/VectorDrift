@@ -1,4 +1,4 @@
-﻿"""Shop system: extensible catalog of purchasable items."""
+"""Shop system: extensible catalog of purchasable items."""
 
 from __future__ import annotations
 

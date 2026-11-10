@@ -1,4 +1,4 @@
-﻿from vector_drift.scenes import game_layout as gl
+from vector_drift.scenes import game_layout as gl
 
 
 def test_stage_constants():

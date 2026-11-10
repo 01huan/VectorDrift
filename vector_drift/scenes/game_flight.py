@@ -43,7 +43,10 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+from .game_layout import (
+    ARRIVED, FLIGHT, HISTORY_ALPHA, OUTCOME_TEXT, PANNING,
+    RESPAWN_EVERY_LIFE, RESUME_OUTCOMES, SETUP,
+)
 
 
 class GameFlightMixin:

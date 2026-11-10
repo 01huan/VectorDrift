@@ -43,7 +43,7 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+from .game_layout import CX, SETUP, STATUS_Y, UNBOUND_EDGE, ease_in_out
 
 
 class GamePickupMixin:

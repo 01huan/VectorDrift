@@ -39,7 +39,18 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+# Re-exported for callers/tests that historically imported these names from
+# this module. The scene implementation imports them from game_layout.
+from .game_layout import (
+    ARRIVED, CAMERA_EASE_S, CAMERA_MARGIN_M, CHECKPOINT_LIFE_POP_S,
+    CONTENT_W, CX, EDITOR_Y, FLIGHT, HISTORY_ALPHA, LEGEND_LABEL_Y,
+    LEGEND_Y, LEVEL_ROW_Y, LOGO_W, LOGO_Y, OUTCOME_TEXT, PAD, PANNING,
+    RESPAWN_EVERY_LIFE, RESUME_OUTCOMES, R, RUN_GREEN, SETUP, SHIP_BOX,
+    SHIP_LABEL_Y, SHIP_MASS_Y, SHIP_MIN_SCALE, SHIP_NAME_Y,
+    START_MARKER_RADIUS_M, STATUS_Y, TELEMETRY_ROW_H, UNBOUND_EDGE,
+    ZOOM_LEVELS_AT_LAUNCH, ZOOM_LEVELS_KEPT, ZOOM_LEVELS_PER_HALVING,
+    ease_in_out, fmt_clock, fmt_pair, level_zoom, pan_offsets, zoom_level,
+)
 from .game_core import GameCoreMixin
 from .game_flight import GameFlightMixin
 from .game_pickups import GamePickupMixin

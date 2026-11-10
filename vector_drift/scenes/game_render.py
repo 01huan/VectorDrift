@@ -43,7 +43,14 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import *
+from .game_layout import (
+    ARRIVED, CHECKPOINT_LIFE_POP_S, CX, FLIGHT, HISTORY_ALPHA,
+    LEGEND_LABEL_Y, LEGEND_Y, LEVEL_ROW_Y, LOGO_W, LOGO_Y, PANNING, SETUP,
+    SHIP_BOX, SHIP_LABEL_Y, SHIP_MASS_Y, SHIP_MIN_SCALE, SHIP_NAME_Y,
+    START_MARKER_RADIUS_M, STATUS_Y, TELEMETRY_ROW_H, UNBOUND_EDGE,
+    ZOOM_LEVELS_AT_LAUNCH, ZOOM_LEVELS_KEPT, fmt_clock, fmt_pair, level_zoom,
+    pan_offsets, zoom_level,
+)
 
 
 class GameRenderMixin:

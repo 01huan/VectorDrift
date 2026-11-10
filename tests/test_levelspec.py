@@ -1,4 +1,4 @@
-﻿from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
+from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
 
 
 def test_level_spec_roundtrip():

@@ -1,4 +1,4 @@
-﻿"""Shop scene: spend money on purchasable items (ships, ...)."""
+"""Shop scene: spend money on purchasable items (ships, ...)."""
 
 import pygame
 

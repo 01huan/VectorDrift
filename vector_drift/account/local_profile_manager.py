@@ -1,4 +1,4 @@
-﻿"""Local persistence for guest (non-authenticated) profiles."""
+"""Local persistence for guest (non-authenticated) profiles."""
 
 from __future__ import annotations
 
