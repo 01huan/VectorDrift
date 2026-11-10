@@ -192,14 +192,14 @@ def ship_icon_surface(ship, size, alive=True):
     img = load_image(f"ship.{ship.id}", size_px=(size, size))
     if img is not None:
         return _cached(("icon-image", img, alive), lambda: pygame.transform.rotozoom(
-            img if alive else _used_life_image(img), -90, 1.0))
+            img if alive else _used_life_image(img), 90, 1.0))
 
     def build():
         if alive:
             img = _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color)
         else:
             img = _render_ship(size, *USED_LIFE_COLORS)
-        return pygame.transform.rotozoom(img, -90, 1.0)
+        return pygame.transform.rotozoom(img, 90, 1.0)
     return _cached(("icon", ship.id, size, alive), build)
 
 
