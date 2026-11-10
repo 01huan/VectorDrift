@@ -768,6 +768,34 @@ def draw_pickup(surface, center, radius, t, kind="shockwave"):
         return
 
 
+def draw_pickup_burst(surface, center, radius, t, kind, progress, grow=2.0):
+    """A pickup just taken: its picture grows to ``grow`` times its size and fades.
+
+    The picture is what draw_pickup draws (the image, else the code-drawn
+    prop). ``progress`` 0 -> 1 runs the effect; at 1 nothing is drawn.
+    `center`/`radius` are in px. Never raises.
+    """
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius, progress, grow = float(radius), max(0.0, float(progress)), float(grow)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if (progress >= 1.0 or radius <= 1
+            or not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)
+                    and math.isfinite(grow))):
+        return
+    r = round(radius)
+    half = r + max(6, r // 2)       # room for parts outside the disc (the shockwave's fuse)
+    try:
+        art = pygame.Surface((2 * half, 2 * half), pygame.SRCALPHA)
+        draw_pickup(art, (half, half), r, t, kind=kind)
+        img = pygame.transform.rotozoom(art, 0, 1.0 + (grow - 1.0) * progress)
+        img.set_alpha(round(255 * (1.0 - progress)))
+        surface.blit(img, img.get_rect(center=(cx, cy)))
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
 # --- launch pad -----------------------------------------------------------------------
 def _render_pad(radius):
     size = 2 * radius + round(8 * config.UI_SCALE)
