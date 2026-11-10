@@ -100,6 +100,11 @@ COIN_BALANCE = "ui.coin_1"
 COIN_TRADE = "ui.coin_2"
 register(AssetSpec(COIN_BALANCE, Path("ui/coin_1.png"), display_w=20, display_h=20))
 register(AssetSpec(COIN_TRADE, Path("pickups/money.png"), display_w=20, display_h=20))
+# Intro story panels (intro_story.toml). Fitted to the window keeping their
+# shape (scenes/story.py); without them the panel's scene text is shown.
+STORY_PANEL_COUNT = 6
+for _n in range(1, STORY_PANEL_COUNT + 1):
+    register(AssetSpec(f"story.panel{_n}", Path(f"story/panel{_n}.png")))
 
 
 # Background (tiled full-screen backdrop)

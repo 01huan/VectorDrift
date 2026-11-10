@@ -1,0 +1,45 @@
+# The intro story: six comic panels, played by scenes/story.py.
+#
+# Each [[panel]] has:
+#   image   - the picture's resource key (story.panel1 .. story.panel6,
+#             assets/images/story/panel1.png .. panel6.png)
+#   scene   - what the picture shows; drawn as placeholder text while the
+#             picture does not exist yet
+#   speaker - "SHIP", or "" for the narrator
+#   line    - the subtitle
+
+[[panel]]
+image = "story.panel1"
+scene = "[Deep space, stars all around. A small coral-red rocket's engine flame sputters and goes out; the rocket slows down and comes to a stop. Red warning lights blink on the hull.]"
+speaker = "SHIP"
+line = "Main engine offline. Fuel: zero."
+
+[[panel]]
+image = "story.panel2"
+scene = "[Wide shot. The rocket is a tiny dot, motionless. Far away, a planet glows. A dotted line from rocket to planet fades out.]"
+speaker = "SHIP"
+line = "No thrust. Home is out of reach."
+
+[[panel]]
+image = "story.panel3"
+scene = "[The rocket sends a distress signal: rings of light spreading out across the starfield.]"
+speaker = "SHIP"
+line = "Broadcasting on all frequencies… Can anyone hear me?"
+
+[[panel]]
+image = "story.panel4"
+scene = "[The signal reaches the edge of space, where a vast glowing grid appears, the fabric of space itself. A presence made of light reaches out and touches the grid.]"
+speaker = ""
+line = "Someone answers. Not a ship. Not a station. The one who shapes space itself."
+
+[[panel]]
+image = "story.panel5"
+scene = "[Back at the rocket. The grid lines around it bend, and glowing arrows appear across space, the same force-field arrows as in the game.]"
+speaker = "SHIP"
+line = "You can bend space… You are the Cosmic Architect."
+
+[[panel]]
+image = "story.panel6"
+scene = "[The rocket faces the distant planet. The arrows now point toward it.]"
+speaker = "SHIP"
+line = "I can't move on my own. Write the field, Architect. Guide me home."
