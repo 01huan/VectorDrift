@@ -35,6 +35,7 @@ class Session:
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
+    seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None

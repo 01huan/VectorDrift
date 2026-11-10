@@ -29,6 +29,18 @@ SUBTITLE_FILL = (8, 12, 26, 205)
 CONTROLS_TEXT = "Click / Space / → next    ← back    Esc skip"
 
 
+def start_first_intro(manager):
+    """First Start: mark the intro seen and save it now, then play it.
+
+    Saved before the first panel, so quitting mid-story does not bring the
+    player back to it next time.
+    """
+    from ..account.integration import save_progress
+    manager.session.seen_intro = True
+    save_progress(manager.account, manager.session)
+    manager.switch(StoryScene(manager))
+
+
 def scene_after_story(manager):
     """Where the intro story ends (played through or skipped): the one place to change it.
 

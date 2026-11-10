@@ -238,11 +238,11 @@ Replay controls:
 
 ## Story, Music, and Art
 
-The game currently has no story: levels open, finish, and lose lives without dialogue, and **Start** goes straight to the level selector. A new story (the Cosmic Architect comic on the main menu, leading into a tutorial mode) is planned separately. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
+The first time you press **Start**, the game plays a short opening story: six panels in which a stranded rocket calls for help and meets the Cosmic Architect. After that, **Start** goes straight to the level selector, and you can watch the story again with the **Tutorial** button on the level selector. The story counts as seen as soon as it starts, so quitting halfway does not replay it next time; deleting local data resets it. Its panels and lines are in `vector_drift/intro_story.toml`. The panel pictures are not made yet, so each panel shows its scene description as placeholder text. There is no tutorial mode yet: the story always ends at the level selector. Levels themselves still have no dialogue. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
 
 Every level's target uses the same planet artwork, `assets/images/targets/planet.png`; if that image cannot be read, the game draws its built-in planet instead.
 
-Music tracks are assigned to the menu and gameplay scenes. The opening track in `assets/music/` is kept for the planned story comic but is not played at the moment. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
+Music tracks are assigned to the menu and gameplay scenes. The opening track in `assets/music/` plays once during the opening story; without it, the menu music keeps playing. The pause menu has independent Music and Sound switches; `Ctrl+M` toggles the global mute state. Music and sound files are loaded from `assets/music/` and `assets/sounds/`. Missing audio files or an unavailable audio device leave the relevant slot silent rather than preventing the game from running.
 
 Image assets are loaded from `assets/images/`. If an image is missing or unreadable, the game falls back to its Pygame-drawn artwork. The asset slots, file names, sizing, and recommended sources are documented in `assets/README.md` and `assets/images/README.md`.
 
@@ -312,11 +312,14 @@ The formula editor detaches from the operating-system input method while the gam
 
 | Input | Action |
 |---|---|
-| `Enter` or Start | Open the level selector. |
+| `Enter` or Start | Open the level selector (the first time, play the opening story first). |
+| Click, `Space` or `→` / `←` in the story | Next panel / previous panel. |
+| `Esc` or Skip in the story | End the story and open the level selector. |
 | `L` | Open Login or Account. |
 | `Ctrl+M` | Toggle global mute. |
 | `Esc` in the level selector | Return to the main menu. |
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
+| Tutorial button | Watch the opening story again. |
 | Replays button | Open saved launch replays. |
 
 ### In a level
@@ -415,7 +418,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, whether the opening story has been seen, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
 
@@ -445,6 +448,7 @@ VectorDrift/
     ├── physics.py                  # Force fields and flight simulation
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
+    ├── intro_story.py / .toml      # Opening story panels (played by scenes/story.py)
     ├── replay.py                   # Replay records and playback data
     ├── render.py                   # World, grid, and force-field rendering
     ├── sprites.py                  # Ships, planets, obstacles, pickups, effects

@@ -13,6 +13,7 @@ from .base import Scene
 CARDS_PER_PAGE = 9           # 3x3 grid; page buttons take a slot when shown
 COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
+TUTORIAL_LABEL = "Tutorial"  # replays the intro story (scenes/story.py)
 
 
 def paginate(highest, excluded_ids=()):
@@ -64,6 +65,8 @@ class LevelSelectScene(Scene):
                                  style="primary", font_size=17)
         self.editor_button = Button((config.WINDOW_W - px(360), px(20), px(160), px(40)), "Level Editor",
                                    style="plain", font_size=17)
+        self.tutorial_button = Button((config.WINDOW_W - px(540), px(20), px(160), px(40)), TUTORIAL_LABEL,
+                                     style="plain", font_size=17)
         self._rebuild_cards()
 
     def _start(self, level_id):
@@ -91,6 +94,11 @@ class LevelSelectScene(Scene):
         from .shop import ShopScene
         self.manager.switch(ShopScene(self.manager))
 
+    def _open_tutorial(self):
+        self.audio.play("click")
+        from .story import StoryScene
+        self.manager.switch(StoryScene(self.manager))
+
     def handle_event(self, event):
         if event.type == pygame.MOUSEMOTION:
             self.hover = next((lid for lid, r in self.cards if r.collidepoint(event.pos)), None)
@@ -100,6 +108,7 @@ class LevelSelectScene(Scene):
                 self.prev_button.handle_event(event)
             self.shop_button.handle_event(event)
             self.editor_button.handle_event(event)
+            self.tutorial_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lid, rect in self.cards:
                 if rect.collidepoint(event.pos):
@@ -116,6 +125,9 @@ class LevelSelectScene(Scene):
                 return
             if self.shop_button.handle_event(event) == "click":
                 self._open_shop()
+                return
+            if self.tutorial_button.handle_event(event) == "click":
+                self._open_tutorial()
                 return
             if self.editor_button.handle_event(event) == "click":
                 self.audio.play("click")
@@ -155,6 +167,7 @@ class LevelSelectScene(Scene):
             self.next_button.draw(surface)
         if self.prev_button is not None:
             self.prev_button.draw(surface)
+        self.tutorial_button.draw(surface)
         self.editor_button.draw(surface)
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)

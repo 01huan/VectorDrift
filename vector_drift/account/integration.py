@@ -20,6 +20,9 @@ LEGACY_STORY_SEEN_KEY = "story_seen"
 # (session.stats is overwritten by every win / fail).
 CLEAR_REWARDED_KEY = "clear_rewarded_levels"
 CUSTOM_LEVELS_KEY = "custom_levels"
+# Whether the intro story has started (Session.seen_intro), saved the same way.
+# Missing means not seen. Applying a save keeps it if either side saw it.
+SEEN_INTRO_KEY = "seen_intro"
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -59,6 +62,8 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         except (TypeError, ValueError):
             continue
     session.clear_rewarded_levels = rewarded
+    saved_intro = stats.pop(SEEN_INTRO_KEY, False) is True
+    session.seen_intro = bool(getattr(session, "seen_intro", False)) or saved_intro
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     if stats:
         session.stats = stats
@@ -100,6 +105,12 @@ def profiles_equal(a: Any, b: Any) -> bool:
             return tuple(sorted(_norm(x) for x in v))
         return v
 
+    def _stats(profile):
+        # seen_intro is merged (either side True), so it never needs a choice.
+        stats = dict(getattr(profile, "stats", {}) or {})
+        stats.pop(SEEN_INTRO_KEY, None)
+        return stats
+
     return (
         getattr(a, "money", None) == getattr(b, "money", None)
         and _norm(getattr(a, "owned_ships", set())) == _norm(getattr(b, "owned_ships", set()))
@@ -107,7 +118,7 @@ def profiles_equal(a: Any, b: Any) -> bool:
         and _norm(getattr(a, "records", {})) == _norm(getattr(b, "records", {}))
     and _norm(getattr(a, "replays", [])) == _norm(getattr(b, "replays", []))
         and _norm(getattr(a, "collected_money_pickups", set())) == _norm(getattr(b, "collected_money_pickups", set()))
-        and _norm(getattr(a, "stats", {})) == _norm(getattr(b, "stats", {}))
+        and _norm(_stats(a)) == _norm(_stats(b))
         and getattr(a, "display_name", None) == getattr(b, "display_name", None)
     )
 
@@ -149,6 +160,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         collected_money_pickups=set(session.collected_money_pickups or set()),
         stats={**(session.stats or {}),
                CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
+               SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
                CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ()))},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
@@ -165,6 +177,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.collected_money_pickups = set()
     session.stats = {}
     session.clear_rewarded_levels = set()
+    session.seen_intro = False          # the next Start plays the intro again
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the
     # data registry (the guest profile file is already cleared by the caller).

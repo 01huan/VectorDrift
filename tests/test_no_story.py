@@ -1,4 +1,7 @@
-"""No story in the way: Start opens level select, a level launches at once."""
+"""No story in the way: once the intro was seen Start opens level select, a level launches at once.
+
+(The first Start plays the intro story: see test_intro_trigger.py.)
+"""
 
 from types import SimpleNamespace
 
@@ -17,11 +20,12 @@ def _manager():
     return SceneManager(audio)
 
 
-def test_start_goes_straight_to_level_select():
+def test_start_after_the_intro_goes_straight_to_level_select():
     from vector_drift.scenes.levels import LevelSelectScene
     from vector_drift.scenes.menu import MenuScene
 
-    manager = _manager()                            # a brand-new player
+    manager = _manager()
+    manager.session.seen_intro = True               # a player who has seen the intro story
     manager.switch(MenuScene(manager))
     manager.scene.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN,
                                                   mod=0, unicode="\r", scancode=0))

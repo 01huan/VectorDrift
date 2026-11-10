@@ -45,6 +45,10 @@ class MenuScene(Scene):
         if self.start_button.handle_event(event) == "click" or (
                 event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN):
             self.audio.play("click")
+            if not self.session.seen_intro:     # first Start: the intro story first
+                from .story import start_first_intro
+                start_first_intro(self.manager)
+                return
             from .levels import LevelSelectScene
             self.manager.switch(LevelSelectScene(self.manager))
         elif self.quit_button.handle_event(event) == "click":
