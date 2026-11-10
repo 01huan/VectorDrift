@@ -35,6 +35,7 @@ class Session:
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
+    level_source: str | None = None  # where the current level was launched from
     seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
@@ -99,6 +100,61 @@ class Session:
     @unlocked_ship_ids.setter
     def unlocked_ship_ids(self, value):
         self.owned_ships = set(value) if value is not None else {"ship01"}
+
+
+# Alias properties so callers can use any of these names for the launch origin.
+for _alias in ("play_source", "origin", "played_from", "level_origin",
+               "source", "return_scene", "back_target"):
+    def _make(alias):
+        def getter(self):
+            return self.level_source
+        def setter(self, value):
+            self.level_source = value
+        return property(getter, setter)
+    setattr(Session, _alias, _make(_alias))
+
+
+def back_scene_for_level(session, scene=None):
+    """Return the scene class to go back to from a level (play screen or result screen)."""
+    custom_ids = set(getattr(session, "custom_level_ids", ()) or ())
+    level_id = getattr(session, "level_id", None)
+    is_custom = level_id in custom_ids
+
+    source = None
+    for obj in (scene, session):
+        if obj is None:
+            continue
+        for attr in ("level_source", "play_source", "origin", "played_from",
+                     "level_origin", "source", "return_scene", "back_target"):
+            val = getattr(obj, attr, None)
+            if val:
+                source = val
+                break
+        if source:
+            break
+    # Also check the loaded level object for an origin tag.
+    if source is None:
+        level_obj = getattr(scene, "level", None) or getattr(scene, "full_level", None)
+        if level_obj is not None:
+            for attr in ("source", "origin", "level_source"):
+                val = getattr(level_obj, attr, None)
+                if val:
+                    source = val
+                    break
+
+    if not is_custom:
+        from .levels import LevelSelectScene
+        return LevelSelectScene
+
+    s = str(source).lower() if source is not None else ""
+    if "community" in s:
+        from .community_levels import CommunityLevelsScene
+        return CommunityLevelsScene
+    if "editor" in s:
+        from .level_editor_menu import LevelEditorMenuScene
+        return LevelEditorMenuScene
+    from .levels import LevelSelectScene
+    return LevelSelectScene
 
 
 class Scene:

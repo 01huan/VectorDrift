@@ -28,8 +28,9 @@ class WinScene(Scene):
             self.manager.switch(GameScene(self.manager))
         elif self.levels_button.handle_event(event) == "click":
             self.audio.play("click")
-            from .levels import LevelSelectScene
-            self.manager.switch(LevelSelectScene(self.manager))
+            from .base import back_scene_for_level
+            Target = back_scene_for_level(self.session, self)
+            self.manager.switch(Target(self.manager))
         elif self.menu_button.handle_event(event) == "click":
             self.audio.play("click")
             from .menu import MenuScene

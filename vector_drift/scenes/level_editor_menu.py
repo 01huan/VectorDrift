@@ -92,6 +92,7 @@ class LevelEditorMenuScene(Scene):
                     self.session.level_id = lv.id
                     self.session.fx_text = self.session.fy_text = ""
                     self.session.random_seed = None
+                    self.session.level_source = "level_editor"
                     from .game import GameScene
                     self.manager.switch(GameScene(self.manager))
                     return

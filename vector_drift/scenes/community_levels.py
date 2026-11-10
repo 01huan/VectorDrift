@@ -165,6 +165,7 @@ class CommunityLevelsScene(Scene):
         self.session.level_id = spec.id
         self.session.fx_text = self.session.fy_text = ""
         self.session.random_seed = None
+        self.session.level_source = "community"
         from .game import GameScene
         self.manager.switch(GameScene(self.manager))
 

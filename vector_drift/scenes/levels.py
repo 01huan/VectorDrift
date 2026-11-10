@@ -78,6 +78,7 @@ class LevelSelectScene(Scene):
         # Fresh solvable layout for dynamic levels on every entry; static
         # levels always come from get_level().
         self.session.random_seed = None
+        self.session.level_source = "levels"
         if is_dynamic_level(level_id):
             import random as _random
             self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
