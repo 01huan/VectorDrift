@@ -627,7 +627,7 @@ def _render_extratime(radius):
 def _paint_extratime(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "extratime", _render_extratime)
 
-def _render_shield(radius):
+def _render_shield_pickup(radius):
     d = 2 * radius + 10
     D = d * SS
     c, r = D / 2, radius * SS
@@ -651,7 +651,8 @@ def _render_shield(radius):
     pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
     return pygame.transform.smoothscale(surf, (d, d))
 def _paint_shield(surface, center, radius, t):
-    _paint_cached_prop(surface, center, radius, t, "shield", _render_shield)
+    # Its own cache key: draw_shield caches the bubble under ("shield", radius).
+    _paint_cached_prop(surface, center, radius, t, "shield-pickup", _render_shield_pickup)
 
 def _render_life(radius):
     d = 2 * radius + 10
