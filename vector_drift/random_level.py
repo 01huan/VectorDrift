@@ -12,11 +12,27 @@ Strategy (guaranteed solvable by construction):
    obstacles), rejecting any that stacks on an obstacle, peer pickup
    or endpoint. Tunables: RandomPreset.pickup_groups /
    pickup_corridor_max.
+5. Validate every level (see level_validator.py): fast path analysis
+   (grid A*, route clearance, required pickups, seals) plus a short AI
+   Solver probe. Invalid layouts are retried with a fresh seed.
+
+Modules (see level_modules.py) selected by ``RandomPreset.generator``:
+
+* ``corridor`` -- the original hidden-waypoint route.
+* ``wormhole_network`` -- sealed bumper walls; each gate is a black/white
+  hole pair, chained along the route.
+* ``maze`` -- a braided perfect maze whose walls are bumper rocks.
+* ``bomb`` -- the target is sealed by a bumper ring; a shockwave pickup
+  (a required pickup) blasts it open.
+* ``extreme_time`` -- a winding slalom against a very short time limit.
 
 How to extend (no core edits needed):
 
 * New random level (e.g. Level 10): add ``RandomPreset(level_id=10, ...)``
   in level_presets.py -- done. Different params, same generator.
+* New generation module: add a ``generate_*_layout`` function in
+  level_modules.py, register it in GENERATORS, and point a preset's
+  ``generator`` at it.
 * New obstacle flavour (e.g. kind="super"): add a renderer in
   ``sprites.OBSTACLE_RENDERERS`` and, only if placement must change,
   append a rule function to ``extra_rules`` of that preset.
@@ -30,9 +46,12 @@ Backward compat: all public functions accept ``preset=None`` (defaults to
 Level 8) and ``generate_random_level(seed=...)`` keyword style still works.
 """
 
+import logging
 import math
 import random
 from dataclasses import dataclass, replace
+
+log = logging.getLogger(__name__)
 
 from . import config
 from .data import LevelSpec, ObstacleSpec
@@ -200,12 +219,21 @@ def _obstacle_count(preset, rng, count=None):
     return rng.randint(int(lo), int(hi))
 
 
-def place_obstacles(rng, segments, start, target, count=None, preset=None):
-    """Sample ``count`` non-blocking obstacles around the corridor."""
+def place_obstacles(rng, segments, start, target, count=None, preset=None,
+                    placed=None, strict=True):
+    """Sample ``count`` non-blocking obstacles around the corridor.
+
+    ``placed`` seeds the peer list (e.g. the walls of a wormhole module) so
+    scattered obstacles never stack on them.  With ``strict=False`` a disc
+    that cannot be placed is skipped instead of raising, so tight routes
+    (the slalom module) still get as many rocks as fit.
+    """
     preset = _preset_or_default(preset)
     count = _obstacle_count(preset, rng, count)
-    placed = []  # [(center, radius)]
+    placed = list(placed) if placed else []  # [(center, radius)]
+    seed_count = len(placed)  # pre-seeded peers are not returned as new rocks
     for _ in range(count):
+        placed_any = False
         for _ in range(preset.max_place_attempts):
             radius = rng.uniform(preset.obstacle_radius_min, preset.obstacle_radius_max)
             margin = radius + preset.edge_margin
@@ -214,13 +242,15 @@ def place_obstacles(rng, segments, start, target, count=None, preset=None):
             center = _rand_point(rng, margin)
             if _obstacle_ok(center, radius, segments, start, target, placed, preset):
                 placed.append((center, radius))
+                placed_any = True
                 break
-        else:
-            raise RuntimeError("could not place a non-blocking obstacle")
+        if not placed_any:
+            if strict:
+                raise RuntimeError("could not place a non-blocking obstacle")
     return tuple(
         ObstacleSpec(center=center, radius=radius, restitution=preset.restitution,
                      kind=preset.obstacle_kind)
-        for center, radius in placed
+        for center, radius in placed[seed_count:]
     )
 
 
@@ -388,53 +418,116 @@ def _make_spec(start, target, obstacles, preset=None, pickups=(), holes=()):
 
 
 def generate_with_corridor(seed=None, level_id=8, preset=None):
-    """Build a level; also return hidden corridor (for tests/debug).
+    """Build a corridor-module level; also return its route (tests/debug).
 
-    Retries whole layouts a bounded number of times; as a last resort
-    falls back to an obstacle-free (always solvable) layout.
+    Backward compatible: forces the ``corridor`` module (the original
+    hidden-waypoint builder) regardless of the preset's own ``generator``.
     """
-    rng = random.Random(seed)
-    preset = _choose_template(_preset_or_default(preset, level_id), rng)
-    for _ in range(preset.max_level_attempts):
-        try:
-            start, target = sample_endpoints(rng, preset)
-            ordered, segments = build_corridor(
-                start, sample_hidden_points(rng, preset=preset), target, rng
-            )
-            obstacles = place_obstacles(rng, segments, start, target, preset=preset)
-            peers = [(o.center, o.radius) for o in obstacles]
-            pickups = place_pickups(rng, segments, start, target, placed=peers,
-                                    preset=preset)
-            all_peers = [
-                (o.center, o.radius) for o in obstacles
-            ]
-            all_peers.extend(
-                (p.center, p.radius) for p in pickups
-            )
+    from .level_modules import generate_layout
 
-            holes = place_holes(
-                rng, segments, start, target,
-                placed=all_peers,
-                preset=preset
-            )
-            return _make_spec(start, target, obstacles, preset, pickups, holes), ordered, segments
-        except RuntimeError:
-            continue
-    start, target = sample_endpoints(random.Random(rng.random()), preset)
-    return _make_spec(start, target, (), preset), [start, target], [(start, target)]
+    preset = _preset_or_default(preset, level_id)
+    if getattr(preset, "templates", ()):
+        templates = tuple(replace(t, generator="corridor")
+                          for t in preset.templates)
+        preset = replace(preset, generator="corridor", templates=templates)
+    else:
+        preset = replace(preset, generator="corridor")
+    layout = generate_layout(seed, preset)
+    return layout.level, list(layout.route), list(layout.segments)
 
 
-def generate_random_level(level_id=8, seed=None, preset=None):
+def generate_random_level(level_id=8, seed=None, preset=None, *,
+                          validate=None, run_solver=None, require_solver=None,
+                          return_report=False):
     """Generate a random-but-solvable level (default: Level 8).
 
+    The generator builds a candidate with the preset's module, validates it
+    (see ``level_validator.validate_level``) and, when validation finds a
+    hard error, retries with a fresh (but deterministic) seed up to
+    ``preset.validation.max_attempts`` times.  When ``require_solver`` is
+    true (or the preset says so), the retry also waits for the AI Solver
+    probe to confirm a solution; otherwise the probe is informational.
+
     ``generate_random_level(seed=123)`` (old keyword style) still means
-    Level 8 with that seed.
+    Level 8 with that seed.  Pass ``return_report=True`` to also receive the
+    :class:`~vector_drift.level_validator.ValidationReport`.
     """
     if isinstance(level_id, random.Random):
         raise TypeError("pass seed=..., not a Random instance")
     if preset is None and not isinstance(level_id, int):
         # Backward compat: generate_random_level(seed_value) -> Level 8.
         seed, level_id = level_id, 8
-    preset = _preset_or_default(preset, level_id)
-    level, _, _ = generate_with_corridor(seed=seed, preset=preset)
-    return level
+
+    from .level_modules import generate_layout
+    from .level_validator import validate_level
+
+    base_preset = _preset_or_default(preset, level_id)
+    rng = random.Random(seed)
+    best = None
+
+    for attempt in range(max(1, getattr(getattr(base_preset, "validation", None),
+                                        "max_attempts", 1))):
+        candidate_seed = seed if attempt == 0 and seed is not None else int(rng.getrandbits(63))
+        try:
+            layout = generate_layout(candidate_seed, base_preset)
+        except RuntimeError:
+            continue
+        # The template this layout was built from also carries the validation
+        # knobs; _choose_template is deterministic for a given seed.
+        template = _choose_template(base_preset, random.Random(candidate_seed))
+        profile = getattr(template, "validation", None)
+        do_solver = profile.run_solver if (run_solver is None) and profile else (
+            bool(run_solver) if run_solver is not None else True)
+        require = (profile.require_solver_confirmed if require_solver is None and profile
+                   else bool(require_solver))
+        do_validate = True if validate is None else bool(validate)
+        if not do_validate:
+            if return_report:
+                report = validate_level(
+                    layout.level, preset=template, route=layout.route,
+                    segments=layout.segments, teleports=layout.teleports,
+                    walls=layout.walls, generator=layout.module,
+                    seed=candidate_seed, run_solver=False)
+                return layout.level, report
+            return layout.level
+        try:
+            report = validate_level(
+                layout.level, preset=template, route=layout.route,
+                segments=layout.segments, teleports=layout.teleports,
+                walls=layout.walls, generator=layout.module,
+                seed=candidate_seed, run_solver=do_solver,
+                require_solver=require)
+        except Exception:
+            # A validator bug must never break map entry: the construction
+            # guarantees a path, so accept the layout and log loudly.
+            log.exception("procedural level validator crashed; accepting level")
+            if return_report:
+                return layout.level, None
+            return layout.level
+        log.debug("procedural level validated: %s", report.summary())
+
+        def _rank(item):
+            r = item[2]
+            return (r.ok, r.solver_confirmed is True, -len(r.errors),
+                    -len(r.warnings))
+
+        if best is None or _rank((layout, template, report)) > _rank(best):
+            best = (layout, template, report)
+        if report.ok and (not require or report.solver_confirmed):
+            break
+
+    if best is None:
+        # A module raised every attempt; fall back to an obstacle-free layout.
+        from .level_modules import GeneratedLayout
+        start, target = sample_endpoints(random.Random(0), base_preset)
+        level = _make_spec(start, target, (), base_preset)
+        if return_report:
+            report = validate_level(level, preset=base_preset,
+                                    generator="corridor", run_solver=False)
+            return level, report
+        return level
+
+    layout, template, report = best
+    if return_report:
+        return layout.level, report
+    return layout.level

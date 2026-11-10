@@ -46,6 +46,11 @@ class PSOConfig:
     simulation_budget: int | None = None
     early_stop_on_success: bool = False
     seed: int | None = None
+    # Evaluation cap: limits steps per flight (None = the level's full limit)
+    # and whether trajectories are recorded. The validator uses a short cap
+    # so a "plausible solution" probe never dominates generation time.
+    max_steps: int | None = None
+    record_trajectory: bool = True
     # Stall recovery: if the global best does not improve for this many
     # iterations, re-scatter part of the swarm to escape local optima.
     stall_limit: int = 25
@@ -69,6 +74,8 @@ class Particle:
 _WORKER_LEVEL = None
 _WORKER_TEMPLATE_KEY = None
 _WORKER_TEMPLATE = None
+_WORKER_MAX_STEPS = None
+_WORKER_RECORD_TRAJECTORY = True
 
 
 class _Cancelled(Exception):
@@ -82,10 +89,13 @@ def _watch_parent(is_alive, exit_fn=os._exit, interval_s: float = 1.0):
     exit_fn(0)
 
 
-def _init_worker(level, template_key):
+def _init_worker(level, template_key, max_steps=None, record_trajectory=True):
     global _WORKER_LEVEL, _WORKER_TEMPLATE_KEY, _WORKER_TEMPLATE
+    global _WORKER_MAX_STEPS, _WORKER_RECORD_TRAJECTORY
     _WORKER_LEVEL = level
     _WORKER_TEMPLATE_KEY = template_key
+    _WORKER_MAX_STEPS = max_steps
+    _WORKER_RECORD_TRAJECTORY = record_trajectory
     from .templates import get_template
     _WORKER_TEMPLATE = get_template(template_key)
     # If the game is killed outright it cannot shut the pool down, so each
@@ -108,7 +118,8 @@ def _eval_worker(payload):
         params=params,
         iteration=iteration,
         source="pso",
-        config=EvalConfig(record_trajectory=True),
+        config=EvalConfig(record_trajectory=_WORKER_RECORD_TRAJECTORY,
+                          max_steps=_WORKER_MAX_STEPS),
     )
     return result.record
 
@@ -179,6 +190,10 @@ class PSOSolver(Solver):
 
         global_best_pos: list[float] | None = None
         global_best_score = -math.inf
+        # Tracks whether ANY candidate was ever verified REACHED, across the
+        # restarts the search does after a success (which clear ``simulations``).
+        any_success = False
+        global_best_outcome: str | None = None
 
         def _evaluate(particle: Particle, iteration: int):
             nonlocal total_simulations
@@ -190,7 +205,8 @@ class PSOSolver(Solver):
                 params=params,
                 iteration=iteration,
                 source="pso",
-                config=EvalConfig(record_trajectory=True),
+                config=EvalConfig(record_trajectory=cfg.record_trajectory,
+                                  max_steps=cfg.max_steps),
             )
             simulations.append(result.record)
             total_simulations += 1
@@ -246,7 +262,8 @@ class PSOSolver(Solver):
                 pool = concurrent.futures.ProcessPoolExecutor(
                     max_workers=workers,
                     initializer=_init_worker,
-                    initargs=(level, cfg.template_key),
+                    initargs=(level, cfg.template_key, cfg.max_steps,
+                              cfg.record_trajectory),
                 )
 
             def _evaluate_batch(
@@ -301,9 +318,12 @@ class PSOSolver(Solver):
                 p.best_score = score
                 p.best_pos = list(p.pos)
 
+                if rec.outcome == SimulationOutcome.REACHED:
+                    any_success = True
                 if score > global_best_score:
                     global_best_score = score
                     global_best_pos = list(p.pos)
+                    global_best_outcome = rec.outcome
                     _publish_progress()
                     _publish_progress()
 
@@ -373,9 +393,13 @@ class PSOSolver(Solver):
                         p.best_score = score
                         p.best_pos = list(p.pos)
 
+                    if rec.outcome == SimulationOutcome.REACHED:
+                        any_success = True
+
                     if score > global_best_score:
                         global_best_score = score
                         global_best_pos = list(p.pos)
+                        global_best_outcome = rec.outcome
 
                     if rec.outcome == SimulationOutcome.REACHED:
                         success_found = True
@@ -463,13 +487,8 @@ class PSOSolver(Solver):
             best_score = global_best_score
 
         solve_time = time.perf_counter() - start
-        success = any(r.success for r in simulations)
-
-        best_outcome = None
-        for r in simulations:
-            if r.success:
-                best_outcome = r.outcome
-                break
+        success = any_success
+        best_outcome = SimulationOutcome.REACHED if success else global_best_outcome
 
         message = (
             f"{total_simulations} simulations over {iterations} "
@@ -508,7 +527,8 @@ def _eval_chunk(payload):
             params=params,
             iteration=iteration,
             source="pso",
-            config=EvalConfig(record_trajectory=True),
+            config=EvalConfig(record_trajectory=_WORKER_RECORD_TRAJECTORY,
+                              max_steps=_WORKER_MAX_STEPS),
         )
         out.append(result.record)
     return out

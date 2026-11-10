@@ -72,20 +72,21 @@ def test_corridor_keeps_configured_clearance():
 
 
 def test_counts_radii_and_world_bounds():
+    corridor_templates = [t for t in PRESET_8.templates if t.generator == "corridor"]
     for seed in range(20):
-        level = generate_random_level(seed=seed)
-        assert any(
-            template.num_obstacles_min <= len(level.obstacles) <= template.num_obstacles_max
-            and all(
-                template.obstacle_radius_min <= ob.radius <= template.obstacle_radius_max
-                for ob in level.obstacles
+        level, report = generate_random_level(seed=seed, return_report=True)
+        if report.generator == "corridor":
+            assert any(
+                template.num_obstacles_min <= len(level.obstacles) <= template.num_obstacles_max
+                for template in corridor_templates
+                if template.num_obstacles_min is not None
             )
-            for template in PRESET_8.templates
-        )
         for ob in level.obstacles:
             x, y = ob.center
-            assert abs(x) + ob.radius <= config.WORLD_HALF_W + 1e-9
-            assert abs(y) + ob.radius <= config.WORLD_HALF_H + 1e-9
+            # Obstacles may stick out past the world edge (like the fixed
+            # levels' side-poking rocks) but must overlap the world.
+            assert abs(x) < config.WORLD_HALF_W + ob.radius
+            assert abs(y) < config.WORLD_HALF_H + ob.radius
 
 
 def test_same_seed_same_layout_via_get_level():
@@ -174,21 +175,29 @@ def test_dynamic_registry_contains_merged_level_8_only():
     assert not is_dynamic_level(1)
 
 
-def test_level8_contains_both_original_templates():
-    p7, p8 = get_preset(8).templates
+def test_level8_contains_the_original_corridor_templates():
+    generators = [t.generator for t in get_preset(8).templates]
+    assert generators.count("corridor") == 2
+    assert set(generators) == {"corridor", "wormhole_network", "maze",
+                               "bomb", "extreme_time"}
+    p7, p8 = [t for t in get_preset(8).templates if t.generator == "corridor"]
     assert (p8.num_obstacles, p8.target_radius) != (p7.num_obstacles, p7.target_radius)
     lv8 = generate_random_level(8, seed=7)
     assert lv8.id == 8
-    assert any(
-        template.num_obstacles_min <= len(lv8.obstacles) <= template.num_obstacles_max
-        and template.target_radius == lv8.target_radius
-        for template in (p7, p8)
-    )
+    assert lv8.name == PRESET_8.name
+
+
+def test_level8_ships_all_modules():
+    generators = {t.generator for t in get_preset(8).templates}
+    assert generators == {"corridor", "wormhole_network", "maze",
+                          "bomb", "extreme_time"}
 
 
 def test_level8_layout_respects_own_preset():
     preset = get_preset(8)
-    for template in preset.templates:
+    corridor = [t for t in preset.templates if t.generator == "corridor"]
+    assert corridor
+    for template in corridor:
         single_template_preset = replace(preset, templates=(template,))
         for seed in range(5):
             level, _, segments = generate_with_corridor(
