@@ -325,12 +325,23 @@ def test_grid_drawn_straight_onto_the_screen_matches_the_layer(zoom):
 
 
 def test_arrows_scale_fast_while_zooming_and_smooth_once_still(scene, monkeypatch):
+    import threading
+
     calls = []
     real_fast, real_smooth = pygame.transform.scale, pygame.transform.smoothscale
-    monkeypatch.setattr(pygame.transform, "scale",
-                        lambda *a, **k: calls.append("fast") or real_fast(*a, **k))
-    monkeypatch.setattr(pygame.transform, "smoothscale",
-                        lambda *a, **k: calls.append("smooth") or real_smooth(*a, **k))
+
+    def record(kind, real):
+        # Only count the visible frame's stretch. The prefetch worker may be
+        # building another layer at the same moment (and smoothscales it), which
+        # is unrelated to the main thread's fast/smooth choice this test checks.
+        def stretch(*a, **k):
+            if threading.current_thread() is threading.main_thread():
+                calls.append(kind)
+            return real(*a, **k)
+        return stretch
+
+    monkeypatch.setattr(pygame.transform, "scale", record("fast", real_fast))
+    monkeypatch.setattr(pygame.transform, "smoothscale", record("smooth", real_smooth))
     _launch(scene, "0", "10")
     _run_until(scene, lambda: scene.flight.unbound)
     scene._arrow_layer(1)                          # ready, so only the stretch is seen here
