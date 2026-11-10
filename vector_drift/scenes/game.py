@@ -18,6 +18,7 @@ from ..expr_parser import diagnose_expression
 from ..hints import get_hint
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
+from ..pickups import EXTRATIME_DURATION, extratime_bonus_steps
 from ..image_assets import COIN_BALANCE
 from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
                   draw_panel_box, draw_text, icon_surface)
@@ -26,8 +27,8 @@ from ..solver.interface import SolveResult
 from .base import Scene
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
+from . import pickup_effects as pfx
 from .game_section_pan import SectionPan
-
 log = logging.getLogger(__name__)
 
 # Physics-expected failures (bad user expression, overflow, huge-finite clamp).
@@ -125,6 +126,9 @@ class GameScene(Scene):
         self.t = 0.0
         self.heading = self._heading_to_target()
         self._mouse_pos = (-1, -1)
+        # What taking a pickup looks like (presentation only, see pickup_effects).
+        self.pickup_fx = pfx.PickupEffects()
+        self._coins_rect = None         # where the coin count was last drawn (fly target)
 
         # Widgets
         self.level_button = IconButton(R(CX + 16, LEVEL_ROW_Y - 18, 36, 36), "grid", style="circle")
@@ -419,6 +423,7 @@ class GameScene(Scene):
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
         self._prefetch_arrows()         # drawn ahead in the background, not here
+        self.pickup_fx.clear()          # the last flight's texts must not hold back this one's timer
         self.trail.clear()
         self._trail_count = 0
         self._bounces_heard = 0
@@ -564,6 +569,7 @@ class GameScene(Scene):
         self.launch_pos = self.level.start
         self.banner = None
         self.flight = None
+        self.pickup_fx.clear()
         self.state = PANNING
         self.camera.zoom = 1.0          # the pan is drawn at the map's own scale
         self._refresh_buttons()
@@ -652,26 +658,32 @@ class GameScene(Scene):
                     self.level = replace(
                         self.level, obstacles=self.flight.obstacle_specs
                     )
+                self._add_pickup_fx(self._burst_fx, event)
                 try:
                     self.audio.play("shockwave")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("shockwave sfx skipped", exc_info=True)
             elif event.get("kind") == "extratime":
                 # Flight._apply_pickup_events already extended the flight.
+                self._add_pickup_fx(self._extratime_fx, event)
                 try:
                     self.audio.play("extratime")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("extratime sfx skipped", exc_info=True)
             elif event.get("kind") == "shield":
                 # Flight._apply_pickup_events already started the effect.
+                self._add_pickup_fx(self._burst_fx, event)
                 try:
                     self.audio.play("shield")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("shield sfx skipped", exc_info=True)
             elif event.get("kind") == "life":
                 # Restore one life if not already full.
+                lit = None
                 if self.lives < self.level.lives:
                     self.lives += 1
+                    lit = self.lives - 1        # the lives icon that just lit up
+                self._add_pickup_fx(self._life_fx, event, lit)
                 try:
                     self.audio.play("life")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -687,6 +699,7 @@ class GameScene(Scene):
                     amount = event.get("amount", 1)
                     if self.level.id not in getattr(self.session, "custom_level_ids", set()):
                         self.session.money.add(amount)
+                        self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
                     self._save_progress()
@@ -696,6 +709,7 @@ class GameScene(Scene):
                     log.debug("money sfx skipped", exc_info=True)
             elif event.get("kind") == "unbound":
                 # Flight._apply_pickup_events already opened the map edge.
+                self._add_pickup_fx(self._edge_fx, event)
                 try:
                     self.audio.play("unbound")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -710,6 +724,116 @@ class GameScene(Scene):
         # self.pickups holds the SAME PickupState objects the Flight just
         # consumed (passed by reference), so no re-sync is needed: used
         # pickups stay gone for the rest of this run's lives.
+
+    # ------------------------------------------------------------------ pickup effects
+    def _add_pickup_fx(self, make, event, *args):
+        """Start one pickup's effect. Presentation only: a bad event never stops the rules."""
+        try:
+            make(event, *args)
+        except (AttributeError, KeyError, IndexError, *_RENDER_ERRORS) as exc:
+            log.debug("pickup effect skipped: %r", exc)
+
+    def _pickup_radius(self, center):
+        """Radius (m) of the pickup at ``center`` (the event only names its centre)."""
+        for pickup in self.pickups or ():
+            if tuple(pickup.center) == tuple(center):
+                return pickup.radius
+        return pfx.DEFAULT_RADIUS_M
+
+    def _burst_fx(self, event):
+        center = tuple(event["center"])
+        self.pickup_fx.burst(event["kind"], center, self._pickup_radius(center))
+
+    def _extratime_fx(self, event):
+        # The seconds the Flight really added (whole steps of its dt).
+        dt = getattr(self.flight, "dt", config.DT)
+        steps = extratime_bonus_steps(dt, float(event.get("extratime_duration", EXTRATIME_DURATION)))
+        seconds = steps * dt
+        self.pickup_fx.fly("extratime", pfx.TIMER, f"+{round(seconds, 2):g}", pfx.EXTRATIME_COLOR,
+                           seconds, self.camera.to_screen(*event["center"]))
+
+    def _money_fx(self, event, amount):
+        self.pickup_fx.fly("money", pfx.COINS, f"+{amount}", pfx.MONEY_COLOR, amount,
+                           self.camera.to_screen(*event["center"]))
+
+    def _life_fx(self, event, lit_index):
+        center = tuple(event["center"])
+        self.pickup_fx.life(center, self._pickup_radius(center), lit_index)
+
+    def _edge_fx(self, event):
+        self.pickup_fx.edge(getattr(self.flight, "bounds",
+                                    (config.WORLD_HALF_W, config.WORLD_HALF_H)))
+
+    def _shown_time_left(self):
+        """The clock: an extratime's seconds show once its "+N" reaches it."""
+        if self.flight is None:
+            return self.level.time_limit
+        return max(0.0, self.flight.time_left - self.pickup_fx.pending(pfx.TIMER))
+
+    def _shown_money(self):
+        """The coin count: a coin shows once its "+N" reaches it."""
+        return max(0, int(self.session.money) - int(self.pickup_fx.pending(pfx.COINS)))
+
+    def _fly_target(self, target):
+        """Screen point a "+N" text flies to: the clock or the coin count."""
+        if target == pfx.TIMER:
+            return (px(CX + 62), px(STATUS_Y))
+        if self._coins_rect is not None:
+            return self._coins_rect.center
+        return (config.WINDOW_W - px(40), px(20))
+
+    def _draw_pickup_fx(self, surface):
+        """The effects drawn in the map (world positions through the camera)."""
+        vp = self.camera
+        for effect in self.pickup_fx.effects:
+            try:
+                if effect.style == "burst":
+                    sprites.draw_pickup_burst(surface, vp.to_screen(*effect.center),
+                                              vp.length(effect.radius), self.t, effect.kind,
+                                              effect.progress, grow=pfx.BURST_SCALE)
+                elif effect.style == "life":
+                    sprites.draw_checkpoint_life(
+                        surface, vp.to_screen(*effect.center),
+                        vp.length(effect.radius * pfx.LIFE_RADIUS_SCALE), self.t,
+                        self.flyable_ship, fade=effect.progress)
+                elif effect.style == "edge":
+                    self._draw_edge_flash(surface, effect)
+            except _RENDER_ERRORS as exc:
+                log.warning("pickup effect draw contained: %r", exc)
+
+    def _draw_edge_flash(self, surface, effect):
+        """Unbound: a bright frame moves out onto the map edge and fades.
+
+        At zoom 1 the map edge is the plot's edge, so the frame starts
+        EDGE_FLASH_IN inside it (anything further out would be clipped).
+        """
+        hx, hy = effect.bounds
+        left, top = self.camera.to_screen(-hx, hy)
+        right, bottom = self.camera.to_screen(hx, -hy)
+        p = effect.progress
+        width = max(2, px(pfx.EDGE_FLASH_WIDTH))
+        inset = width / 2 + px(pfx.EDGE_FLASH_IN) * (1.0 - p)
+        plot = pygame.Rect(self.camera.rect)
+        frame = pygame.Rect(round(left + inset - plot.x), round(top + inset - plot.y),
+                            round(right - left - 2 * inset), round(bottom - top - 2 * inset))
+        if frame.w <= 0 or frame.h <= 0:
+            return
+        layer = pygame.Surface(plot.size, pygame.SRCALPHA)
+        pygame.draw.rect(layer, (*UNBOUND_EDGE, round(255 * (1.0 - p))), frame, width)
+        surface.blit(layer, plot.topleft)
+
+    def _draw_fly_texts(self, surface):
+        """The "+N" texts on their way from the pickup to the clock / coin count."""
+        for effect in self.pickup_fx.effects:
+            if effect.style != "fly":
+                continue
+            try:
+                (x0, y0), (x1, y1) = effect.center, self._fly_target(effect.target)
+                p = ease_in_out(effect.progress)
+                draw_text(surface, effect.text, (x0 + (x1 - x0) * p, y0 + (y1 - y0) * p),
+                          pfx.FLY_TEXT_SIZE, effect.color, kind="bold", anchor="center")
+            except _RENDER_ERRORS as exc:
+                log.warning("pickup text draw contained: %r", exc)
 
     def _safe_end_flight(self, outcome, banner=None):
         """End-of-flight bookkeeping that never raises out of update()."""
@@ -753,6 +877,7 @@ class GameScene(Scene):
         except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
             log.exception("unexpected editor failure")
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
+            self.pickup_fx.update(dt)
             self._update_flight(dt)
             self._update_camera(dt)
             try:
@@ -892,6 +1017,7 @@ class GameScene(Scene):
         surface.fill(config.BG)
         self._draw_plot(surface)
         self._draw_panel(surface)
+        self._draw_fly_texts(surface)
         if self.ai_popup:
             self._draw_ai_popup(surface)
         if self.hint_popup is not None:
@@ -903,9 +1029,14 @@ class GameScene(Scene):
             self.pause_menu.draw(surface)
 
     def _draw_coins(self, surface):
-        """Available balance, top-right of the plot, above every other layer."""
-        draw_coins(surface, int(self.session.money), (config.WINDOW_W - px(14), px(12)), 16,
-                   config.WARNING, icon=COIN_BALANCE, anchor="topright")
+        """Available balance, top-right of the plot, above every other layer.
+
+        A coin just taken shows once its "+N" arrives; then the count jumps.
+        """
+        size = round(16 * self.pickup_fx.pop_scale(pfx.COINS))
+        self._coins_rect = draw_coins(surface, self._shown_money(),
+                                      (config.WINDOW_W - px(14), px(12)), size,
+                                      config.WARNING, icon=COIN_BALANCE, anchor="topright")
 
     # ------------------------------------------------------------------ Pause menu
     def _open_pause(self):
@@ -1050,6 +1181,7 @@ class GameScene(Scene):
         self.trail.clear()
         self._trail_count = 0
         self._clear_history()
+        self.pickup_fx.clear()
         self.banner = None
         self.heading = self._heading_to_target()
         self._validate()
@@ -1206,6 +1338,7 @@ class GameScene(Scene):
     def on_exit(self):
         """Leaving the level: stop the thruster sound and the background solve."""
         self.audio.stop_loop("thruster_loop")
+        self.pickup_fx.clear()
         if self._layer_builder is not None:
             self._layer_builder.stop()
         job, self.ai_job = self.ai_job, None
@@ -1593,6 +1726,8 @@ class GameScene(Scene):
                 flash = max(0.0, self.arrive_timer / config.WIN_DELAY)
             self._draw_section(surface, self.level, self.pickups, self.holes, offset,
                                index=self.section_index, launch=self.launch_pos, flash=flash)
+            if pan is None:
+                self._draw_pickup_fx(surface)
 
             if pan is not None and pan.t < CHECKPOINT_LIFE_POP_S:
                 # The checkpoint's life was just taken: it pops off the checkpoint.
@@ -1808,11 +1943,16 @@ class GameScene(Scene):
         icon_step = px(18)
         first = px(CX - 52) - icon_step * (self.level.lives - 1) // 2
         for i in range(self.level.lives):
-            sprites.draw_ship_icon(surface, (first + i * icon_step, px(STATUS_Y)), px(18),
+            # A life pickup's newly lit icon jumps.
+            size = round(px(18) * self.pickup_fx.pop_scale(pfx.LIFE, i))
+            sprites.draw_ship_icon(surface, (first + i * icon_step, px(STATUS_Y)), size,
                                    self.flyable_ship, alive=i < self.lives)
-        time_left = self.flight.time_left if self.flight is not None else self.level.time_limit
+        time_left = self._shown_time_left()
         time_color = config.WARNING if self.state == FLIGHT and time_left < 1.0 else config.TEXT
-        draw_text(surface, fmt_clock(time_left), (px(CX + 62), px(STATUS_Y)), 24, time_color,
+        if self.pickup_fx.popping(pfx.TIMER):
+            time_color = pfx.EXTRATIME_COLOR        # extratime arrived: green flash
+        draw_text(surface, fmt_clock(time_left), (px(CX + 62), px(STATUS_Y)),
+                  round(24 * self.pickup_fx.pop_scale(pfx.TIMER)), time_color,
                   kind="mono", anchor="center")
 
         # Vector_field / PROBLEMS / TELEMETRY panel

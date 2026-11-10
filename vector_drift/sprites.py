@@ -192,14 +192,14 @@ def ship_icon_surface(ship, size, alive=True):
     img = load_image(f"ship.{ship.id}", size_px=(size, size))
     if img is not None:
         return _cached(("icon-image", img, alive), lambda: pygame.transform.rotozoom(
-            img if alive else _used_life_image(img), -90, 1.0))
+            img if alive else _used_life_image(img), 90, 1.0))
 
     def build():
         if alive:
             img = _render_ship(size, ship.hull_color, ship.wing_color, ship.trim_color)
         else:
             img = _render_ship(size, *USED_LIFE_COLORS)
-        return pygame.transform.rotozoom(img, -90, 1.0)
+        return pygame.transform.rotozoom(img, 90, 1.0)
     return _cached(("icon", ship.id, size, alive), build)
 
 
@@ -627,7 +627,7 @@ def _render_extratime(radius):
 def _paint_extratime(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "extratime", _render_extratime)
 
-def _render_shield(radius):
+def _render_shield_pickup(radius):
     d = 2 * radius + 10
     D = d * SS
     c, r = D / 2, radius * SS
@@ -651,7 +651,8 @@ def _render_shield(radius):
     pygame.draw.circle(surf, OUTLINE, (c, c), r, max(2, round(0.06 * r)))
     return pygame.transform.smoothscale(surf, (d, d))
 def _paint_shield(surface, center, radius, t):
-    _paint_cached_prop(surface, center, radius, t, "shield", _render_shield)
+    # Its own cache key: draw_shield caches the bubble under ("shield", radius).
+    _paint_cached_prop(surface, center, radius, t, "shield-pickup", _render_shield_pickup)
 
 def _render_life(radius):
     d = 2 * radius + 10
@@ -763,6 +764,34 @@ def draw_pickup(surface, center, radius, t, kind="shockwave"):
         return
     try:
         painter(surface, center, radius, t)
+    except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+        return
+
+
+def draw_pickup_burst(surface, center, radius, t, kind, progress, grow=2.0):
+    """A pickup just taken: its picture grows to ``grow`` times its size and fades.
+
+    The picture is what draw_pickup draws (the image, else the code-drawn
+    prop). ``progress`` 0 -> 1 runs the effect; at 1 nothing is drawn.
+    `center`/`radius` are in px. Never raises.
+    """
+    try:
+        cx, cy = float(center[0]), float(center[1])
+        radius, progress, grow = float(radius), max(0.0, float(progress)), float(grow)
+    except (TypeError, ValueError, OverflowError):
+        return
+    if (progress >= 1.0 or radius <= 1
+            or not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)
+                    and math.isfinite(grow))):
+        return
+    r = round(radius)
+    half = r + max(6, r // 2)       # room for parts outside the disc (the shockwave's fuse)
+    try:
+        art = pygame.Surface((2 * half, 2 * half), pygame.SRCALPHA)
+        draw_pickup(art, (half, half), r, t, kind=kind)
+        img = pygame.transform.rotozoom(art, 0, 1.0 + (grow - 1.0) * progress)
+        img.set_alpha(round(255 * (1.0 - progress)))
+        surface.blit(img, img.get_rect(center=(cx, cy)))
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
         return
 
