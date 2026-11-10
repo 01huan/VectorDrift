@@ -559,6 +559,7 @@ def _level_spec_to_row(level):
         "lives": int(level.lives),
         "obstacles": _obstacles_to_rows(level.obstacles),
         "pickups": _pickups_to_rows(level.pickups),
+        "holes": _holes_to_rows(getattr(level, "holes", ()) or ()),
     }
 
 
@@ -577,8 +578,9 @@ def _level_spec_from_row(row):
             lives=int(row.get("lives", 5)),
             obstacles=_obstacles_from_rows(row.get("obstacles", ()) or ()),
             pickups=_pickups_from_rows(row.get("pickups", ()) or ()),
+            holes=_holes_from_rows(row.get("holes", ()) or ()),
         )
-    except (KeyError, TypeError, ValueError, OverflowError):
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
 
         return None
 

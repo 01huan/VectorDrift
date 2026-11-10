@@ -11,7 +11,7 @@ import pygame
 
 from .. import config, data
 from ..config import px
-from ..data import LevelSpec, ObstacleSpec, PickupSpec
+from ..data import LevelSpec, ObstacleSpec, PickupSpec, HoleSpec
 from ..image_assets import load_image
 from ..ui import Button, draw_text
 from ..account import community
@@ -130,6 +130,14 @@ class CommunityLevelsScene(Scene):
             )
             for item in d.get("pickups", ())
         )
+        holes = tuple(
+            HoleSpec(
+                black_center=tuple(item.get("black_center", item.get("black", (0.0, 0.0)))),
+                white_center=tuple(item.get("white_center", item.get("white", (0.0, 0.0)))),
+                radius=float(item.get("radius", 0.5)),
+            )
+            for item in d.get("holes", ())
+        )
         return LevelSpec(
             id=int(d["id"]),
             name=str(d.get("name", "Community")),
@@ -141,6 +149,7 @@ class CommunityLevelsScene(Scene):
             lives=int(d.get("lives", 5)),
             obstacles=obstacles,
             pickups=pickups,
+            holes=holes,
         )
 
     def _open(self, lvl: dict):
