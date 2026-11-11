@@ -164,6 +164,9 @@ class CommunityLevelsScene(Scene):
             pts.append(o.center)
         for p in spec.pickups:
             pts.append(p.center)
+        for h in getattr(spec, "holes", ()) or ():
+            pts.append(h.black_center)
+            pts.append(h.white_center)
         if not pts:
             return
 
@@ -218,6 +221,28 @@ class CommunityLevelsScene(Scene):
                 # Fallback: gold disc with dark edge
                 pygame.draw.circle(surface, (240, 190, 60), (int(cx), int(cy)), r)
                 pygame.draw.circle(surface, (40, 40, 50), (int(cx), int(cy)), r, 1)
+
+        # Holes: use real black/white hole pictures (fall back to discs)
+        for h in getattr(spec, "holes", ()) or ():
+            bcx, bcy = to_screen(*h.black_center)
+            wcx, wcy = to_screen(*h.white_center)
+            r = max(2, min(max_r, int(float(getattr(h, "radius", 0.5)) * scale)))
+            if r < 2:
+                continue
+            black_img = load_image("black_hole.black_hole01",
+                                 size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if black_img is not None:
+                surface.blit(black_img, black_img.get_rect(center=(int(bcx), int(bcy))))
+            else:
+                pygame.draw.circle(surface, (20, 20, 40), (int(bcx), int(bcy)), r)
+                pygame.draw.circle(surface, (120, 80, 220), (int(bcx), int(bcy)), r, 1)
+            white_img = load_image("white_hole.white_hole01",
+                                 size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if white_img is not None:
+                surface.blit(white_img, white_img.get_rect(center=(int(wcx), int(wcy))))
+            else:
+                pygame.draw.circle(surface, (240, 240, 255), (int(wcx), int(wcy)), r)
+                pygame.draw.circle(surface, (180, 180, 220), (int(wcx), int(wcy)), r, 1)
 
         # Start: use the launch-pad marker picture
         sx, sy = to_screen(*spec.start)
