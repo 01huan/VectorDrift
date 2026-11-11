@@ -208,8 +208,20 @@ class LevelEditorMenuScene(Scene):
             wc = to_screen(*h.get("white_center", (0,0)))
             r = max(2, min(max_r, int(float(h.get("radius", 0.5)) * scale)))
             if r < 2: continue
-            pygame.draw.circle(surface, (20,20,40), (int(bc[0]), int(bc[1])), r)
-            pygame.draw.circle(surface, (220,220,255), (int(wc[0]), int(wc[1])), r)
+            black_img = load_image("black_hole.black_hole01",
+                                 size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if black_img is not None:
+                surface.blit(black_img, black_img.get_rect(center=(int(bc[0]), int(bc[1]))))
+            else:
+                pygame.draw.circle(surface, (20, 20, 40), (int(bc[0]), int(bc[1])), r)
+                pygame.draw.circle(surface, (120, 80, 220), (int(bc[0]), int(bc[1])), r, 1)
+            white_img = load_image("white_hole.white_hole01",
+                                 size_px=(max(1, 2 * r), max(1, 2 * r)))
+            if white_img is not None:
+                surface.blit(white_img, white_img.get_rect(center=(int(wc[0]), int(wc[1]))))
+            else:
+                pygame.draw.circle(surface, (240, 240, 255), (int(wc[0]), int(wc[1])), r)
+                pygame.draw.circle(surface, (180, 180, 220), (int(wc[0]), int(wc[1])), r, 1)
 
         sx, sy = to_screen(*data_.get("start", (-7.0, 0.0)))
         r_start = max(3, min(max_r, int(0.25 * scale)))
