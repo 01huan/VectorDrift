@@ -145,6 +145,12 @@ class GameCoreMixin:
         self.run_button = IconButton((header.right - px(30), header.y + px(3), px(24), px(22)), "play",
                                      color=RUN_GREEN)
 
+        # Inventory icon in the upper-right corner of the plot.
+        self.inventory_button = IconButton((config.WINDOW_W - px(44), px(65), px(32), px(32)),
+                                            "inventory", style="circle", color=config.TEXT)
+        self.inventory_open = False
+        self.inventory_popup = self.inventory_open
+
         self.field = ForceField()
         self.field_layer = None
         self.max_force = 0.0

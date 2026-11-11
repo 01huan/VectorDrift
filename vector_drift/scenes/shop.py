@@ -6,7 +6,7 @@ from .. import config, render
 from ..config import px
 from ..image_assets import COIN_BALANCE, COIN_TRADE
 from ..ui import Button, draw_coins, draw_icon_row, draw_text
-from .base import Scene
+from .base import Scene, InventoryMixin
 from .. import shop as shop_module
 
 # Layout constants (design coordinates on the 1280x720 layout).
@@ -15,7 +15,7 @@ COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
 
 
-class ShopScene(Scene):
+class ShopScene(InventoryMixin, Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -33,6 +33,8 @@ class ShopScene(Scene):
         self.next_button = None
         self.cards = []
         self.buy_buttons = []
+        if not hasattr(self, "inventory_button"):
+            self._init_inventory()
         items = shop_module.all_items()
         self.pages = [items[i:i + CARDS_PER_PAGE]
                       for i in range(0, max(1, len(items)), CARDS_PER_PAGE)]
@@ -41,6 +43,8 @@ class ShopScene(Scene):
     def _rebuild_cards(self):
         self.cards = []
         self.buy_buttons = []
+        if not hasattr(self, "inventory_button"):
+            self._init_inventory()
         self.page = max(0, min(self.page, self.page_count - 1))
         page_items = self.pages[self.page] if self.page < len(self.pages) else []
         grid_w = COLS * CARD_W + (COLS - 1) * GAP
@@ -110,6 +114,8 @@ class ShopScene(Scene):
         self.manager.switch(LevelSelectScene(self.manager))
 
     def handle_event(self, event):
+        if self._handle_inventory_event(event):
+            return
         if event.type == pygame.MOUSEMOTION:
             self.back_button.handle_event(event)
             for _item, btn in self.buy_buttons:
@@ -177,5 +183,7 @@ class ShopScene(Scene):
         if self.next_button is not None:
             self.next_button.draw(surface)
         self.back_button.draw(surface)
+        self._draw_inventory_button(surface)
+        self._draw_inventory_popup(surface)
 
 

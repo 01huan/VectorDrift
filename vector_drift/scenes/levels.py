@@ -8,7 +8,7 @@ from ..data import all_levels, is_custom_level
 from ..level_presets import get_preset, is_dynamic_level
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_coins, draw_text, icon_surface, wrap_text
-from .base import Scene
+from .base import Scene, InventoryMixin
 
 CARDS_PER_PAGE = 9           # 3x3 grid; page buttons take a slot when shown
 COLS = 3
@@ -37,7 +37,7 @@ def paginate(highest, excluded_ids=()):
     return pages
 
 
-class LevelSelectScene(Scene):
+class LevelSelectScene(InventoryMixin, Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -56,6 +56,7 @@ class LevelSelectScene(Scene):
         self.pages = paginate(max(max(base_level_ids, default=0), config.PLANNED_LEVELS))
         self.page = 0
         self.hover = None
+        self._init_inventory()
         self.cards = []
         self.prev_button = None
         self.next_button = None
@@ -101,6 +102,8 @@ class LevelSelectScene(Scene):
         self.manager.switch(StoryScene(self.manager))
 
     def handle_event(self, event):
+        if self._handle_inventory_event(event):
+            return
         if event.type == pygame.MOUSEMOTION:
             self.hover = next((lid for lid, r in self.cards if r.collidepoint(event.pos)), None)
             if self.next_button is not None:
@@ -172,6 +175,8 @@ class LevelSelectScene(Scene):
         self.editor_button.draw(surface)
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)
+        self._draw_inventory_button(surface)
+        self._draw_inventory_popup(surface)
 
     @property
     def page_count(self):

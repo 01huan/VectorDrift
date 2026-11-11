@@ -8,7 +8,7 @@ from .. import config
 from ..money import Money
 from ..config import px
 from ..desktop import set_cursor
-from ..ui import Button, draw_text
+from ..ui import Button, IconButton, draw_text
 
 
 @dataclass
@@ -156,6 +156,106 @@ def back_scene_for_level(session, scene=None):
         return LevelEditorMenuScene
     from .levels import LevelSelectScene
     return LevelSelectScene
+
+
+class InventoryMixin:
+    """Shared inventory icon + modal popup for every screen."""
+
+    def _init_inventory(self):
+        self.inventory_button = IconButton((config.WINDOW_W - px(44), px(65), px(32), px(32)),
+                                            "inventory", style="circle", color=config.TEXT)
+        self.inventory_open = False
+        self.inventory_popup = False
+
+    def _handle_inventory_event(self, event):
+        result = self.inventory_button.handle_event(event)
+        if result == "click":
+            try:
+                self.audio.play("click")
+            except Exception:
+                pass
+            self.inventory_open = not self.inventory_open
+            self.inventory_popup = self.inventory_open
+            return True
+        if self.inventory_open:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.inventory_open = False
+                self.inventory_popup = False
+                return True
+            # Clicking anywhere outside the panel closes it.
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                card = pygame.Rect(0, 0, px(420), px(360))
+                card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+                if not card.collidepoint(event.pos):
+                    self.inventory_open = False
+                    self.inventory_popup = False
+                    return True
+            # Swallow other input while open.
+            if event.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN, pygame.MOUSEMOTION):
+                return True
+        return False
+
+    def _draw_inventory_button(self, surface):
+        try:
+            self.inventory_button.draw(surface)
+        except Exception:
+            pass
+
+    def _draw_inventory_popup(self, surface):
+        if not getattr(self, "inventory_open", False):
+            return
+        shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        shade.fill((5, 8, 18, 200))
+        surface.blit(shade, (0, 0))
+        card = pygame.Rect(0, 0, px(420), px(360))
+        card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+        pygame.draw.rect(surface, config.PANEL_BG, card, border_radius=px(6))
+        pygame.draw.rect(surface, config.ACCENT, card, width=max(1, px(1)), border_radius=px(6))
+        draw_text(surface, "Inventory", (card.centerx, card.y + px(22)), 26,
+                  config.TEXT, kind="bold", anchor="center")
+        session = self.session
+        y = card.y + px(64)
+        draw_text(surface, "Coins", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
+        y += px(24)
+        draw_text(surface, f"{int(session.money)} coins", (card.x + px(40), y), 15, config.TEXT)
+        y += px(30)
+        draw_text(surface, "Skins", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
+        y += px(24)
+        owned_ships = sorted(getattr(session, "owned_ships", set()) or set())
+        if not owned_ships:
+            owned_ships = ["ship01"]
+        for sid in owned_ships:
+            draw_text(surface, str(sid), (card.x + px(40), y), 15, config.TEXT)
+            y += px(20)
+        y += px(10)
+        draw_text(surface, "Active Skills", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
+        y += px(24)
+        charges = getattr(session, "ability_charges", {}) or {}
+        skill_names = {
+            "ability_boost": "Boost",
+            "ability_shield_pulse": "Shield Pulse",
+            "ability_magnet": "Magnet",
+        }
+        skill_keys = {
+            "ability_boost": "B",
+            "ability_shield_pulse": "V",
+            "ability_magnet": "M",
+        }
+        any_skill = False
+        for aid, name in skill_names.items():
+            count = int(charges.get(aid, 0)) if isinstance(charges, dict) else 0
+            owned = aid in getattr(session, "purchased_items", set()) or count > 0
+            if not owned:
+                continue
+            any_skill = True
+            label = f"{name} ({skill_keys[aid]})"
+            if count > 0:
+                label = f"{label} x{count}"
+            draw_text(surface, label, (card.x + px(40), y), 15, config.TEXT)
+            y += px(20)
+        if not any_skill:
+            draw_text(surface, "None", (card.x + px(40), y), 15, config.TEXT_DIM)
+            y += px(20)
 
 
 class Scene:

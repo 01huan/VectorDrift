@@ -24,7 +24,7 @@ from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, 
                   draw_panel_box, draw_text, icon_surface)
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
-from .base import Scene
+from .base import Scene, InventoryMixin
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
 from . import pickup_effects as pfx
@@ -59,6 +59,6 @@ from .game_ui import GameUIMixin
 from .game_render import GameRenderMixin
 
 
-class GameScene(GameCoreMixin, GameFlightMixin, GamePickupMixin,
+class GameScene(InventoryMixin, GameCoreMixin, GameFlightMixin, GamePickupMixin,
                GameUpdateMixin, GameUIMixin, GameRenderMixin, Scene):
     music = "level"

@@ -44,6 +44,13 @@ def icon_surface(name, size, color):
         pygame.draw.rect(big, color, pygame.Rect(P(0.24, 0.44), P(0.52, 0.42)), border_radius=round(0.07 * S))
     elif name == "check":
         thick_polyline([(0.22, 0.52), (0.42, 0.72), (0.80, 0.30)], 0.12)
+    elif name in ("inventory", "bag", "backpack"):
+        # A small box/bag glyph: rounded body with a handle on top.
+        pygame.draw.rect(big, color, pygame.Rect(P(0.22, 0.34), P(0.56, 0.50)), border_radius=round(0.08 * S))
+        pygame.draw.rect(big, color, pygame.Rect(P(0.34, 0.20), P(0.32, 0.18)), width=round(0.09 * S), border_radius=round(0.06 * S))
+        # Three horizontal "item" lines inside the body.
+        for gy in (0.46, 0.58, 0.70):
+            pygame.draw.line(big, color, P(0.30, gy), P(0.70, gy), max(1, round(0.07 * S)))
     else:
         raise ValueError(name)
     icon = pygame.transform.smoothscale(big, (size, size))

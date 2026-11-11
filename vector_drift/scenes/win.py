@@ -7,18 +7,21 @@ from ..config import px
 from ..image_assets import COIN_BALANCE
 from ..level_presets import is_dynamic_level
 from ..ui import draw_coins, draw_text
-from .base import Scene, draw_overlay_card, result_buttons
+from .base import Scene, InventoryMixin, draw_overlay_card, result_buttons
 
 
-class WinScene(Scene):
+class WinScene(InventoryMixin, Scene):
     def __init__(self, manager, background=None):
         super().__init__(manager)
         self.background = background
         self.replay_button, self.levels_button, self.menu_button = result_buttons("Replay")
         for b in (self.replay_button, self.levels_button, self.menu_button):
             b.rect.y = config.WINDOW_H // 2 + px(150)
+        self._init_inventory()
 
     def handle_event(self, event):
+        if self._handle_inventory_event(event):
+            return
         if self.replay_button.handle_event(event) == "click" or (
                 event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN):
             self.audio.play("click")
@@ -67,3 +70,5 @@ class WinScene(Scene):
             y += px(26)
         for b in (self.replay_button, self.levels_button, self.menu_button):
             b.draw(surface)
+        self._draw_inventory_button(surface)
+        self._draw_inventory_popup(surface)

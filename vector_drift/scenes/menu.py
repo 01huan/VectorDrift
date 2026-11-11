@@ -10,14 +10,14 @@ from ..coords import Viewport
 from ..data import SHIPS
 from ..physics import ForceField
 from ..ui import Button, draw_text
-from .base import Scene
+from .base import Scene, InventoryMixin
 
 TAGLINE = "Shape the field, guide the ship"
 LOGO_Y, LOGO_W = 165, 620           # logo center height and width (logical px)
 TAGLINE_Y = 285
 
 
-class MenuScene(Scene):
+class MenuScene(InventoryMixin, Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -30,6 +30,7 @@ class MenuScene(Scene):
         self.quit_button = Button((cx - px(110), px(470), px(220), px(54)), "Quit", style="plain", font_size=22)
         self.login_menu_button = Button((cx - px(110), px(540), px(220), px(46)), "Login", style="primary", font_size=18)
         self.replay_button = Button((cx - px(110), px(600), px(220), px(46)), "Replays", style="plain", font_size=18)
+        self._init_inventory()
         self.t = 0.0
 
     def _make_swirl(self):
@@ -40,6 +41,8 @@ class MenuScene(Scene):
         self.swirl = layer
 
     def handle_event(self, event):
+        if self._handle_inventory_event(event):
+            return
         if event.type == pygame.MOUSEMOTION:
             self.login_menu_button.handle_event(event)
         if self.start_button.handle_event(event) == "click" or (
@@ -110,6 +113,8 @@ class MenuScene(Scene):
             self.login_menu_button.enabled = not account.is_busy
         self.login_menu_button.draw(surface)
         self.replay_button.draw(surface)
+        self._draw_inventory_button(surface)
+        self._draw_inventory_popup(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:
             s = self.session
             draw_text(surface, s.display_name or "—",

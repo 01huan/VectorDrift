@@ -83,6 +83,20 @@ class GameFlightMixin:
             self.audio.play("error")
             return
 
+        result = self.inventory_button.handle_event(event)
+        if result == "click":
+            self.audio.play("click")
+            self.inventory_open = not getattr(self, "inventory_open", False)
+            self.inventory_popup = self.inventory_open
+            return
+        if getattr(self, "inventory_open", False):
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.inventory_open = False
+                self.inventory_popup = False
+                return
+            # Modal: swallow other input while open.
+            if event.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
+                return
         if self.state == FLIGHT and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_b:
                 charges = getattr(self.session, "ability_charges", {}) or {}
