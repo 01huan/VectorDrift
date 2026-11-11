@@ -28,6 +28,7 @@ class Session:
     revealed_solver_maps: set = field(default_factory=set)  # (level_id, seed) with AI Solver paid this launch
     money: Money = field(default_factory=Money)     # player's currency balance
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
+    ability_charges: dict = field(default_factory=dict)  # consumable ability id -> remaining uses
     owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
     collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
     collected_random_coins: set = field(default_factory=set)   # (level_id, seed, (cx, cy)); this launch only, not saved

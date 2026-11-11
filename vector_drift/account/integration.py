@@ -19,6 +19,7 @@ LEGACY_STORY_SEEN_KEY = "story_seen"
 # so the cloud schema needs no new column; Session keeps them apart
 # (session.stats is overwritten by every win / fail).
 CLEAR_REWARDED_KEY = "clear_rewarded_levels"
+ABILITY_CHARGES_KEY = "ability_charges"
 CUSTOM_LEVELS_KEY = "custom_levels"
 # Whether the intro story has started (Session.seen_intro), saved the same way.
 # Missing means not seen. Applying a save keeps it if either side saw it.
@@ -71,6 +72,12 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     saved_intro = stats.pop(SEEN_INTRO_KEY, False) is True
     session.seen_intro = bool(getattr(session, "seen_intro", False)) or saved_intro
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
+    charges = stats.pop(ABILITY_CHARGES_KEY, None) or {}
+    if isinstance(charges, dict):
+        session.ability_charges = {str(k): int(v) for k, v in charges.items()
+                                   if isinstance(v, (int, float, str))}
+    else:
+        session.ability_charges = {}
     if stats:
         session.stats = stats
 
@@ -167,7 +174,8 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         stats={**(session.stats or {}),
                CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
                SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
-               CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ()))},
+               CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
+               ABILITY_CHARGES_KEY: dict(getattr(session, "ability_charges", {}) or {})},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -183,6 +191,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.collected_money_pickups = set()
     session.stats = {}
     session.clear_rewarded_levels = set()
+    session.ability_charges = {}
     session.seen_intro = False          # the next Start plays the intro again
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the

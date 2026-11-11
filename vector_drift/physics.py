@@ -126,6 +126,13 @@ class Flight:
         self.bounds = bounds
         # Unbound pickup: from then on this flight cannot go out of bounds.
         self.unbound = False
+        # Magnet pickup: pulls the ship toward the target while active.
+        self.magnet_remaining = 0.0
+        self.magnet_force = 0.0
+        # Active abilities (purchased in shop): charges available this flight.
+        self.boost_charges = 0
+        self.boost_impulse = 5.0
+        self.shield_pulse_charges = 0
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
 
@@ -170,6 +177,14 @@ class Flight:
         self._step_force = None
         try:
             fx, fy = self.field.at(self.x, self.y)
+            # Magnet pickup: pull toward the target while active.
+            if self.magnet_remaining > 0.0:
+                tx, ty = self.target
+                dx, dy = tx - self.x, ty - self.y
+                dist = math.hypot(dx, dy)
+                if dist > 1e-9:
+                    fx = fx + self.magnet_force * dx / dist
+                    fy = fy + self.magnet_force * dy / dist
             self._step_force = (fx, fy)
 
             # Semi-implicit Euler: update velocity before position.
@@ -183,12 +198,14 @@ class Flight:
                 RecursionError, MemoryError):
             self.steps += 1
             self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
+            self.magnet_remaining = max(0.0, self.magnet_remaining - self.dt)
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
         self.steps += 1
         self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
-
+        self.magnet_remaining = max(0.0, self.magnet_remaining - self.dt)
+ 
         if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
             self.outcome = Outcome.DIVERGED
             return self.outcome
@@ -349,7 +366,8 @@ class Flight:
         of bounds, however far it goes; the shield has no part in the edge,
         so it stays for the bumpers.
         """
-        from .pickups import EXTRATIME_DURATION, SHIELD_DURATION, extratime_bonus_steps
+        from .pickups import (EXTRATIME_DURATION, SHIELD_DURATION,
+                              extratime_bonus_steps)
         for event in events:
             kind = event.get("kind")
             if kind == "extratime":
@@ -470,6 +488,48 @@ class Flight:
             self.trail.append((hx, hy))
         self.x, self.y = end
         self.trail.append((self.x, self.y))
+
+    def boost(self, impulse=None):
+        """Consume one boost charge and add an impulse along the current velocity.
+
+        Returns True if a charge was used. Safe to call when none remain.
+        """
+        if self.boost_charges <= 0 or not self.running:
+            return False
+        imp = self.boost_impulse if impulse is None else float(impulse)
+        speed = math.hypot(self.vx, self.vy)
+        if speed < 1e-9:
+            # No heading yet: boost toward the target.
+            tx, ty = self.target
+            dx, dy = tx - self.x, ty - self.y
+            dist = math.hypot(dx, dy)
+            if dist > 1e-9:
+                self.vx += imp * dx / dist
+                self.vy += imp * dy / dist
+        else:
+            self.vx += imp * self.vx / speed
+            self.vy += imp * self.vy / speed
+        self.boost_charges -= 1
+        return True
+
+    def shield_pulse(self):
+        """Consume one shield-pulse charge and grant 3 s of shield.
+
+        Returns True if a charge was used. Safe to call when none remain.
+        """
+        if not self.running or self.shield_pulse_charges <= 0:
+            return False
+        self.shield_remaining = max(self.shield_remaining, 3.0)
+        self.shield_pulse_charges -= 1
+        return True
+
+    def magnet_pulse(self, duration=None, force=None):
+        """Activate the magnet ability: pull toward the target for a short time."""
+        if not self.running:
+            return False
+        self.magnet_remaining = float(duration) if duration is not None else 3.0
+        self.magnet_force = float(force) if force is not None else 6.0
+        return True
 
     def advance(self, frame_dt, on_step=None):
         """Run fixed simulation steps fitting into elapsed frame time."""

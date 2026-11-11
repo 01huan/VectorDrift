@@ -205,7 +205,9 @@ The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_
 
 There are six visual ship skins: `ship01` through `ship06`. `ship01` is owned by default; the other five are purchased in the Shop with coins. Their prices are 20, 30, 40, 50, and 60 coins respectively. All six use the same 1 kg mass and 0.2 m hull radius, so purchases are cosmetic and do not change the physics.
 
-The current shop catalog contains ship skins. Owned ships can be selected with the previous/next ship arrows on the game screen. A locked ship cannot be used until it has been purchased.
+The current shop catalog contains ship skins and active abilities. Owned ships can be selected with the previous/next ship arrows on the game screen. A locked ship cannot be used until it has been purchased.
+
+Active abilities are purchased in the Shop and used during a flight with a key: **Boost** (`B`) grants an instant speed burst along the ship's heading (three charges per flight), **Shield Pulse** (`V`) grants an instant 3-second shield, and **Magnet** (`M`) pulls the ship toward the target for 3 seconds. Boost and Shield Pulse are permanent unlocks; Magnet is consumable — each purchase grants one use. Purchased abilities and remaining uses are saved with the player's profile.
 
 ## Custom Level Editor
 

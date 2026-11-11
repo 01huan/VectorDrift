@@ -179,5 +179,41 @@ def _register_ships() -> None:
 _register_ships()
 
 
+def _register_abilities() -> None:
+    # Consumable abilities: every purchase grants exactly one use; there is no
+    # permanent unlock and no upper bound on how many times you can buy them.
+    for aid, name, desc, price in (
+        ("ability_boost", "Boost", "Instant speed burst along your heading (B). One use per purchase.", 3),
+        ("ability_shield_pulse", "Shield Pulse", "Instant 3 s shield (V). One use per purchase.", 5),
+        ("ability_magnet", "Magnet", "Pull toward the target for 3 s during a flight (M). One use per purchase.", 8),
+    ):
+        if aid in ITEMS:
+            continue
+
+        def _owned(s, aid=aid):
+            return False  # consumable: never "owned", can be bought repeatedly
+
+        def _purchase(s, aid=aid):
+            charges = getattr(s, "ability_charges", None)
+            if not isinstance(charges, dict):
+                charges = {}
+                setattr(s, "ability_charges", charges)
+            charges[aid] = int(charges.get(aid, 0)) + 1
+
+        register_item(ShopItem(
+            id=aid,
+            name=name,
+            description=desc,
+            price=price,
+            category="ability",
+            icon="ship",
+            owned=_owned,
+            purchase=_purchase,
+        ))
+
+
+_register_abilities()
+
+
 def owned_ship_ids(session) -> set:
     return _owned_ship_ids(session)
