@@ -143,7 +143,7 @@ class Flight:
         self.outcome = Outcome.RUNNING
         self.trail = [(self.x, self.y)]
         self._accumulator = 0.0
-        self.shield_remaining = 0.0  # seconds of shield effect remaining (ship ignores bumpers)
+        self.shield_remaining = 0.0  # seconds of shield left (next bumper passed / edge bounced)
         self.hole_teleported = False  # True if this step's hole teleport moved the ship
         self.teleports = 0            # black-hole passes so far (the scene plays "warp" per pass)
         # Indices into trail where a new stroke starts (the ship came out of a
@@ -359,12 +359,15 @@ class Flight:
         (one extratime pickup granting 6 s). extratime extends max_steps by
         extratime_bonus_steps() (elapsed steps are never rewound, so flight
         time and scores stay true). The shield protects the ship for its
-        duration (a new one overwrites what is left): the first bumper it
-        touches is passed and uses the protection up (_bounce_along_path).
-        shockwave needs nothing here: its effect already removed the obstacles
-        from this flight. unbound means the rest of this flight is never out
-        of bounds, however far it goes; the shield has no part in the edge,
-        so it stays for the bumpers.
+        duration (a new one overwrites what is left) against the next
+        collision, whichever comes first: a bumper is passed, the map edge
+        bounces the ship back elastically (also when flung by a point of
+        infinite force); either uses the protection up (_bounce_along_path,
+        _fling). shockwave needs nothing here: its effect already removed the
+        obstacles from this flight. unbound means the rest of this flight is
+        never out of bounds, however far it goes; Unbound takes precedence at
+        the edge, so crossing it does not use the shield, which stays for the
+        bumpers.
         """
         from .pickups import (EXTRATIME_DURATION, SHIELD_DURATION,
                               extratime_bonus_steps)
@@ -404,15 +407,56 @@ class Flight:
         return bool(hits) and hits[0] < t
 
     def _use_shield(self, center):
-        """Protection is used up on touching a bumper; the scene plays shield_break."""
+        """Protection is used up on touching a bumper or the map edge; the scene plays shield_break."""
         self.shield_remaining = 0.0
         self.pickup_events.append({"kind": "shield_used", "center": center})
+
+    def _edge_can_bounce(self):
+        """True while the shield would bounce the ship off the map edge.
+
+        Unbound comes first: an unbound ship has no edge, so the shield is
+        not used there and stays for a bumper.
+        """
+        return self.shield_remaining > 0.0 and not self.unbound
+
+    def _edge_crossing(self, start, end):
+        """Parameter t in [0, 1] where start->end first leaves the bounds, else None."""
+        hits = []
+        for s, e, bound in zip(start, end, self.bounds):
+            if abs(e) > bound and e != s:
+                edge = math.copysign(bound, e)
+                hits.append(max(0.0, (edge - s) / (e - s)))
+        return min(hits) if hits else None
+
+    def _bounce_off_edge(self, start, end, t):
+        """Elastic bounce off the map edge at start + t*(end-start); uses the shield.
+
+        The rest of the step is mirrored back inside: every component the
+        end point is out on (both in a corner) flips, the speed is kept.
+        Returns the (start, end) of the remaining leg.
+        """
+        contact = [s + (e - s) * t for s, e in zip(start, end)]
+        new_end = list(end)
+        velocity = [self.vx, self.vy]
+        for i, bound in enumerate(self.bounds):
+            contact[i] = max(-bound, min(bound, contact[i]))
+            if abs(end[i]) > bound:
+                new_end[i] = 2.0 * math.copysign(bound, end[i]) - end[i]
+                velocity[i] = -velocity[i]
+        self.vx, self.vy = velocity
+        contact = tuple(contact)
+        self._use_shield(contact)
+        self.trail.append(contact)
+        return contact, tuple(new_end)
 
     def _fling(self, p0, p1, t, direction):
         """Reach the pole at p0 + t*(p1-p0), then shoot straight off the field.
 
         Pickups and the target on the way to the pole still count; past it
-        the ship leaves along `direction` and the flight is OUT_OF_BOUNDS.
+        the ship leaves along `direction` and the flight is OUT_OF_BOUNDS,
+        unless a shield is up: then it bounces off the edge it reaches, the
+        shield is used and the flight goes on (the step back may reach the
+        target like any other step).
         An unbound ship cannot go out of bounds: it stops at the pole and the
         flight is DIVERGED instead (infinite force, no way to fly on).
         """
@@ -434,6 +478,21 @@ class Flight:
         dx, dy = direction
         self.x, self.y = pole[0] + dx * reach, pole[1] + dy * reach
         self.vx, self.vy = dx * reach / self.dt, dy * reach / self.dt   # all in one step
+        if self._edge_can_bounce():
+            # The shield bounces the ship off the edge it was flung to (both
+            # components in a corner) and the flight goes on as usual.
+            edge = []
+            velocity = [self.vx, self.vy]
+            for i, (c, bound) in enumerate(zip((self.x, self.y), self.bounds)):
+                at_edge = abs(c) >= bound * (1.0 - 1e-9)
+                edge.append(max(-bound, min(bound, c)))
+                if at_edge:
+                    velocity[i] = -velocity[i]
+            self.x, self.y = edge
+            self.vx, self.vy = velocity
+            self._use_shield((self.x, self.y))
+            self.trail.append((self.x, self.y))
+            return
         self.trail.append((self.x, self.y))
         self.outcome = Outcome.OUT_OF_BOUNDS
 
@@ -443,20 +502,29 @@ class Flight:
         Under shield protection the first bumper touched is passed instead
         of reflected, and touching it uses the protection up. The ship then
         starts the next steps inside that bumper, which _solid_obstacles
-        leaves out until the ship is through.
+        leaves out until the ship is through. The map edge shares that one
+        protection: if the edge comes first the ship bounces off it
+        (_bounce_off_edge) and later bumpers reflect as usual; once the
+        protection is gone, leaving the map is OUT_OF_BOUNDS in step().
         """
-        if not obstacles:
+        if not obstacles and not self._edge_can_bounce():
             self.trail.append((self.x, self.y))
             return
         obstacles = list(obstacles)
         start = p0
         end = (self.x, self.y)
-        for _ in range(max(1, len(obstacles) * 2)):
+        for _ in range(max(1, len(obstacles) * 2) + 1):
             earliest = None  # (t, obstacle)
             for obstacle in obstacles:
                 t = segment_circle_first_hit(start, end, obstacle[0], obstacle[1])
                 if t is not None and (earliest is None or t < earliest[0]):
                     earliest = (t, obstacle)
+            # The map edge competes with the bumpers for the one shield:
+            # whichever the ship touches first takes it.
+            edge_t = self._edge_crossing(start, end) if self._edge_can_bounce() else None
+            if edge_t is not None and (earliest is None or edge_t <= earliest[0]):
+                start, end = self._bounce_off_edge(start, end, edge_t)
+                continue
             if earliest is None:
                 break
             t, obstacle = earliest

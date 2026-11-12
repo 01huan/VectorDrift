@@ -149,7 +149,7 @@ class GamePickupMixin:
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("unbound sfx skipped", exc_info=True)
             elif event.get("kind") == "shield_used":
-                # The protection broke on a bumper (the ship still passes it).
+                # The protection broke on a bumper (the ship still passes it) or on the map edge (the ship bounced back).
                 try:
                     self.audio.play("shield_break")
                 except Exception:  # noqa: BLE001 - sfx slot is optional

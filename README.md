@@ -113,7 +113,7 @@ A level supplies its own time limit and number of lives. Many levels use 10 seco
 * ​**Time up**​: the next launch starts at rest where the ship stopped, provided it stopped inside the normal map.
 * ​**Abort / Out of bounds / Diverged**​: the next launch starts at the beginning of the current section. The stop button and the pause-menu Abort action both abort an active flight.
 * ​**Invalid mathematical result**​: a valid expression can still be undefined at a position. For example, `log(-1)` has no real result. If a force expression cannot produce a valid finite value during flight, the launch fails and costs a life.
-* ​**Infinite force**​: a force can have a pole even when the expression parses successfully. Examples include `tan(x)` at `x = ±π/2`, `1/x^2` at `x = 0`, and `log(abs(x))` at `x = 0`. Passing through a detected pole normally sends the ship out of bounds. A finite removable singularity such as `sin(x)/x` at `x = 0` is treated as finite and can be crossed.
+* ​**Infinite force**​: a force can have a pole even when the expression parses successfully. Examples include `tan(x)` at `x = ±π/2`, `1/x^2` at `x = 0`, and `log(abs(x))` at `x = 0`. Passing through a detected pole normally sends the ship out of bounds (an active shield bounces it back off the edge once). A finite removable singularity such as `sin(x)/x` at `x = 0` is treated as finite and can be crossed.
 
 When the last life is lost, the fail screen ends the attempt. Restarting the level begins again from its first section with the level's full life count. A level's best time is based on the total flight time across its sections.
 
@@ -125,7 +125,7 @@ The **Unbound** pickup opens the map edge for the rest of the current life:
 - If the ship crosses a point of infinite force while Unbound is active, the result is **Diverged** rather than being flung out of bounds.
 - Unbound comes back at the start of **every life**. Other pickups that have already been collected stay taken until the section or level is reset.
 - If time runs out while the ship is **outside the map**, the next launch starts at the **level start** (or current section start), not at the off-map stopping point.
-- A shield does not protect the ship from the map edge. With Unbound active, crossing the edge does not consume the shield; the shield remains available for a bumper collision.
+- Unbound takes precedence over a shield at the map edge: with Unbound active, crossing the edge does not consume the shield; the shield remains available for a bumper collision.
 
 ## Pickups
 
@@ -133,7 +133,7 @@ The **Unbound** pickup opens the map edge for the rest of the current life:
 |---|---|
 | **Shockwave** | Emits a blast with a 3 m radius. It destroys each obstacle whose edge touches or overlaps the blast area. |
 | **Extratime** | Adds 3 seconds to the current flight's time limit. |
-| **Shield** | Lasts 3 seconds. The next bumper collision during that period is survived; the shield is consumed and the ship passes through that bumper. It does not protect against leaving the map. |
+| **Shield** | Lasts 3 seconds and stops the next collision during that period, whichever comes first: on a bumper the ship passes through it; on the map edge the ship bounces back (elastic, the speed is kept). Bumpers and the edge share the one shield, which is consumed by that collision. |
 | **Life** | Restores one life, up to the level's maximum. |
 | **Money** | Collects one coin, subject to the payout rules in [Coins](#coins). |
 | **Unbound** | Prevents the ship from going out of bounds for the remainder of the current life. It respawns at the start of each new life. |
