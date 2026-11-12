@@ -20,6 +20,15 @@ LEGACY_STORY_SEEN_KEY = "story_seen"
 # (session.stats is overwritten by every win / fail).
 CLEAR_REWARDED_KEY = "clear_rewarded_levels"
 ABILITY_CHARGES_KEY = "ability_charges"
+
+
+def _consumable_ability_ids() -> set:
+    try:
+        from ..abilities import ABILITIES
+        return {aid for aid, ability in ABILITIES.items()
+                if getattr(ability, "consumable", True)}
+    except Exception:
+        return set()
 CUSTOM_LEVELS_KEY = "custom_levels"
 # Whether the intro story has started (Session.seen_intro), saved the same way.
 # Missing means not seen. Applying a save keeps it if either side saw it.
@@ -73,11 +82,37 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     session.seen_intro = bool(getattr(session, "seen_intro", False)) or saved_intro
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     charges = stats.pop(ABILITY_CHARGES_KEY, None) or {}
+    existing = getattr(session, "ability_charges", None)
+    merged = dict(existing) if isinstance(existing, dict) else {}
     if isinstance(charges, dict):
-        session.ability_charges = {str(k): int(v) for k, v in charges.items()
-                                   if isinstance(v, (int, float, str))}
-    else:
-        session.ability_charges = {}
+        for key, value in charges.items():
+            if isinstance(value, (int, float, str)):
+                try:
+                    merged[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
+    # Keep any counts already present when the incoming profile omits them,
+    # so an upload/download round trip never wipes the remaining uses.
+    session.ability_charges = merged
+
+    # Legacy migration: abilities used to be permanent unlocks tracked only via
+    # purchased_items.  Convert any such id into a single charge so the skill
+    # survives the move to the charge-based model, then drop it from
+    # purchased_items so it is not mistaken for a permanent unlock.
+    try:
+        from ..abilities import ABILITIES
+        purchased = getattr(session, "purchased_items", None)
+        if isinstance(purchased, set):
+            for aid, ability in ABILITIES.items():
+                if getattr(ability, "consumable", True) and aid in purchased \
+                        and aid not in session.ability_charges:
+                    session.ability_charges[aid] = 1
+            purchased.difference_update(
+                aid for aid, ability in ABILITIES.items()
+                if getattr(ability, "consumable", True))
+            session.purchased_items = purchased
+    except Exception:
+        pass
     if stats:
         session.stats = stats
 
@@ -171,7 +206,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         display_name=session.display_name,
         money=int(session.money),
         owned_ships=set(session.owned_ships or {"ship01"}),
-        purchased_items=set(session.purchased_items or set()),
+        purchased_items=set(session.purchased_items or set()) - _consumable_ability_ids(),
         records=dict(session.records or {}),
         replays=list(getattr(session, "replays", None) or getattr(session, "launch_records", None) or [])[-10:],
         collected_money_pickups=set(session.collected_money_pickups or set()),
@@ -179,7 +214,10 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
                CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
                SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
                CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
-               ABILITY_CHARGES_KEY: dict(getattr(session, "ability_charges", {}) or {})},
+               ABILITY_CHARGES_KEY: {
+                   **(session.stats.get(ABILITY_CHARGES_KEY, {}) if isinstance(getattr(session, "stats", None), dict) else {}),
+                   **(getattr(session, "ability_charges", {}) or {}),
+               }},
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
