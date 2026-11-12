@@ -80,6 +80,18 @@ answers = [
   { label = "Over the wall", fx = "-0.25x", fy = "6 - y" },
 ]
 
+[level.7]
+steps = [
+  "The wall seals x = 0 except two thin slits at the very edges. Grab a Shield first: for 3 seconds it absorbs your next hit, so you can pass through one rock or bounce off the edge once.",
+  "Reuse the swirl from Level 2, turned around: F = (-y, x - h) turns the ship around the point (h, 0). Put the center just left of the ship, at (6, 0). It starts by pushing up, so the spiral climbs through the top Shield and curls to the left.",
+  "The ship reaches the wall while the Shield is still on, passes through one rock, and the same spiral keeps curling down into the planet.",
+]
+answer_note = "The Level 2 swirl turned around, centered at (6, 0). Mirror it to use the bottom Shield:"
+answers = [
+  { label = "Top Shield", fx = "-y", fy = "x - 6" },
+  { label = "Bottom Shield", fx = "y", fy = "6 - x" },
+]
+
 [level.9.section.1]
 steps = [
   "The checkpoint is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
