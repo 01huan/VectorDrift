@@ -8,7 +8,7 @@ from .ship import (
     _body_half_width, _render_ship, draw_ship, USED_LIFE_COLORS,
     USED_LIFE_BRIGHTNESS, _used_life_image, draw_ship_icon, ship_icon_surface,
 )
-from .shield import (SHIELD, _render_shield, draw_shield)
+from .shield import (SHIELD, PHASE, _render_shield, _render_phase, draw_shield, draw_phase)
 from .target import (_render_planet, _render_glow, draw_target)
 from .logo import (draw_logo,)
 from .checkpoint import (

@@ -98,51 +98,7 @@ class GameFlightMixin:
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
                 return
         if self.state == FLIGHT and event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_b:
-                charges = getattr(self.session, "ability_charges", {}) or {}
-                if self.flight is not None and charges.get("ability_boost", 0) > 0:
-                    if self.flight.boost():
-                        charges["ability_boost"] = int(charges.get("ability_boost", 0)) - 1
-                        try:
-                            self.session.ability_charges = charges
-                        except Exception:
-                            pass
-                        try:
-                            self.audio.play("boost")
-                        except Exception:
-                            pass
-                return
-            if event.key == pygame.K_v:
-                charges = getattr(self.session, "ability_charges", {}) or {}
-                if self.flight is not None and charges.get("ability_shield_pulse", 0) > 0:
-                    if self.flight.shield_pulse():
-                        charges["ability_shield_pulse"] = int(charges.get("ability_shield_pulse", 0)) - 1
-                        try:
-                            self.session.ability_charges = charges
-                        except Exception:
-                            pass
-                        try:
-                            self.audio.play("shield")
-                        except Exception:
-                            pass
-                return
-            if event.key == pygame.K_m:
-                charges = getattr(self.session, "ability_charges", {}) or {}
-                if self.flight is not None and charges.get("ability_magnet", 0) > 0:
-                    if self.flight.magnet_pulse():
-                        charges["ability_magnet"] = int(charges.get("ability_magnet", 0)) - 1
-                        try:
-                            self.session.ability_charges = charges
-                        except Exception:
-                            pass
-                        try:
-                            self._save_progress()
-                        except Exception:
-                            pass
-                        try:
-                            self.audio.play("unbound")
-                        except Exception:
-                            pass
+            if self._use_ability_key(event.key):
                 return
         if self.state == SETUP:
             if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -186,6 +142,25 @@ class GameFlightMixin:
                 self._on_ai_click()
             return
 
+    # ------------------------------------------------------------------ abilities
+    def _use_ability_key(self, key):
+        from ..abilities import ability_for_key_code, use_ability
+
+        ability = ability_for_key_code(key)
+        if ability is None or self.flight is None:
+            return False
+        if not use_ability(self.session, ability.id, self.flight):
+            return False
+        try:
+            self._save_progress()
+        except Exception:
+            pass
+        try:
+            self.audio.play(ability.sound)
+        except Exception:
+            pass
+        return True
+
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
         self._replay_frames = []
@@ -213,8 +188,7 @@ class GameFlightMixin:
         self.flight = Flight(self.field, self.ship, self.level, start=self.launch_pos,
                              pickups=self.pickups, holes=self.holes)
         charges = getattr(self.session, "ability_charges", {}) or {}
-        self.flight.boost_charges = int(charges.get("ability_boost", 0))
-        self.flight.shield_pulse_charges = int(charges.get("ability_shield_pulse", 0))
+        self.flight.set_ability_charges(charges)
         self._prefetch_arrows()         # drawn ahead in the background, not here
         self.pickup_fx.clear()          # the last flight's texts must not hold back this one's timer
         self.trail.clear()

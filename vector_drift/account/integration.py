@@ -99,6 +99,10 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
     session.profile_loaded = True
     session.sync_status = "idle"
     session.last_sync_error = None
+    try:
+        session.cloud_save_pending = False
+    except Exception:
+        pass
 
 def profiles_equal(a: Any, b: Any) -> bool:
     """Return True when two profiles carry the same game data.
@@ -210,6 +214,11 @@ def reset_session_to_guest(session: Any) -> None:
     session.profile_loaded = False
     session.sync_status = "idle"
     session.last_sync_error = None
+    try:
+        session.cloud_save_pending = False
+    except Exception:
+        pass
+    session.cloud_save_pending = False
     session.fx_text = ""
     session.fy_text = ""
     session.random_seed = None
@@ -235,6 +244,10 @@ def apply_guest_profile_to_session(session, profile):
     session.profile_loaded = False
     session.sync_status = "idle"
     session.last_sync_error = None
+    try:
+        session.cloud_save_pending = False
+    except Exception:
+        pass
 
 
 def session_to_guest_profile(session):
@@ -267,6 +280,10 @@ def _save_cloud_profile(account: Any, session: Any, local_error: Exception | Non
     is_authenticated = getattr(account, "is_authenticated", None)
     current_user = getattr(account, "current_user", None)
     if account is None or is_authenticated is None or not is_authenticated() or current_user is None:
+        try:
+            session.cloud_save_pending = False
+        except Exception:
+            pass
         if local_error is not None:
             _mark_sync_error(session, local_error)
         else:
@@ -274,6 +291,21 @@ def _save_cloud_profile(account: Any, session: Any, local_error: Exception | Non
             session.last_sync_error = None
         return
 
+    # Defer the upload when the account manager is busy instead of failing it.
+    if getattr(account, "is_busy", False):
+        try:
+            session.cloud_save_pending = True
+            session.sync_status = "syncing"
+        except Exception:
+            pass
+        if local_error is not None:
+            _mark_sync_error(session, local_error)
+        return
+
+    try:
+        session.cloud_save_pending = False
+    except Exception:
+        pass
     profile = session_to_profile(session, current_user.id)
     session.sync_status = "syncing"
 

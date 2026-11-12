@@ -359,6 +359,8 @@ class GameWorldRenderMixin:
                 sprites.draw_ship(surface, ship_pos, self.heading, self._ship_length_px(), self.ship)
                 if self.flight is not None and self.flight.shield_remaining > 0.0:
                     sprites.draw_shield(surface, ship_pos, 0.6 * self._ship_length_px(), self.t)
+                if self.flight is not None and getattr(self.flight, "phase_remaining", 0.0) > 0.0:
+                    sprites.draw_phase(surface, ship_pos, 0.65 * self._ship_length_px(), self.t)
         finally:
             try:
                 surface.set_clip(prev_clip)

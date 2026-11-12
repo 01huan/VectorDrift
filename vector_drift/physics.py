@@ -133,8 +133,16 @@ class Flight:
         self.boost_charges = 0
         self.boost_impulse = 5.0
         self.shield_pulse_charges = 0
+        self.magnet_charges = 0
+        self.time_freeze_charges = 0
+        self.phase_charges = 0
+        self.brake_charges = 0
+        self.blink_charges = 0
+        self.time_freeze_remaining = 0.0
+        self.phase_remaining = 0.0
         self.dt = dt
         self.max_steps = round(level.time_limit / dt)
+        self._frozen_steps = 0
 
         self.x, self.y = level.start if start is None else start
         self.vx = self.vy = 0.0
@@ -152,7 +160,7 @@ class Flight:
 
     @property
     def time(self):
-        return self.steps * self.dt
+        return (self.steps - self._frozen_steps) * self.dt
 
     @property
     def time_left(self):
@@ -169,6 +177,15 @@ class Flight:
     @property
     def running(self):
         return self.outcome is Outcome.RUNNING
+
+    def _tick_effects(self):
+        self.steps += 1
+        if self.time_freeze_remaining > 0.0:
+            self._frozen_steps += 1
+        self.time_freeze_remaining = max(0.0, self.time_freeze_remaining - self.dt)
+        self.phase_remaining = max(0.0, self.phase_remaining - self.dt)
+        self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
+        self.magnet_remaining = max(0.0, self.magnet_remaining - self.dt)
 
     def step(self):
         if not self.running:
@@ -196,15 +213,11 @@ class Flight:
 
         except (ArithmeticError, ValueError, TypeError, OverflowError,
                 RecursionError, MemoryError):
-            self.steps += 1
-            self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
-            self.magnet_remaining = max(0.0, self.magnet_remaining - self.dt)
+            self._tick_effects()
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
-        self.steps += 1
-        self.shield_remaining = max(0.0, self.shield_remaining - self.dt)
-        self.magnet_remaining = max(0.0, self.magnet_remaining - self.dt)
+        self._tick_effects()
  
         if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
             self.outcome = Outcome.DIVERGED
@@ -398,8 +411,11 @@ class Flight:
         """True if the segment p0->p1 hits one of ``obstacles`` before parameter t.
 
         Same rules as _bounce_along_path: under shield protection the first
-        bumper touched is passed, so only a later one can block.
+        bumper touched is passed, so only a later one can block. A phased ship
+        passes through every bumper, so none of them block the way to a pole.
         """
+        if self.phase_remaining > 0.0:
+            return False
         hits = sorted(hit for center, radius, _ in obstacles
                       if (hit := segment_circle_first_hit(p0, p1, center, radius)) is not None)
         if self.shield_remaining > 0.0:
@@ -507,6 +523,9 @@ class Flight:
         (_bounce_off_edge) and later bumpers reflect as usual; once the
         protection is gone, leaving the map is OUT_OF_BOUNDS in step().
         """
+        if self.phase_remaining > 0.0:
+            self.trail.append((self.x, self.y))
+            return
         if not obstacles and not self._edge_can_bounce():
             self.trail.append((self.x, self.y))
             return
@@ -557,17 +576,30 @@ class Flight:
         self.x, self.y = end
         self.trail.append((self.x, self.y))
 
-    def boost(self, impulse=None):
-        """Consume one boost charge and add an impulse along the current velocity.
+    ABILITY_CHARGE_ATTRS = {
+        "ability_boost": "boost_charges",
+        "ability_shield_pulse": "shield_pulse_charges",
+        "ability_magnet": "magnet_charges",
+        "ability_time_freeze": "time_freeze_charges",
+        "ability_phase": "phase_charges",
+        "ability_brake": "brake_charges",
+        "ability_blink": "blink_charges",
+    }
 
-        Returns True if a charge was used. Safe to call when none remain.
-        """
+    def set_ability_charges(self, charges):
+        charges = charges if isinstance(charges, dict) else {}
+        for ability_id, attr in self.ABILITY_CHARGE_ATTRS.items():
+            try:
+                setattr(self, attr, max(0, int(charges.get(ability_id, 0))))
+            except (TypeError, ValueError):
+                setattr(self, attr, 0)
+
+    def boost(self, impulse=None):
         if self.boost_charges <= 0 or not self.running:
             return False
         imp = self.boost_impulse if impulse is None else float(impulse)
         speed = math.hypot(self.vx, self.vy)
         if speed < 1e-9:
-            # No heading yet: boost toward the target.
             tx, ty = self.target
             dx, dy = tx - self.x, ty - self.y
             dist = math.hypot(dx, dy)
@@ -581,10 +613,6 @@ class Flight:
         return True
 
     def shield_pulse(self):
-        """Consume one shield-pulse charge and grant 3 s of shield.
-
-        Returns True if a charge was used. Safe to call when none remain.
-        """
         if not self.running or self.shield_pulse_charges <= 0:
             return False
         self.shield_remaining = max(self.shield_remaining, 3.0)
@@ -592,11 +620,85 @@ class Flight:
         return True
 
     def magnet_pulse(self, duration=None, force=None):
-        """Activate the magnet ability: pull toward the target for a short time."""
-        if not self.running:
+        if not self.running or self.magnet_charges <= 0:
             return False
         self.magnet_remaining = float(duration) if duration is not None else 3.0
         self.magnet_force = float(force) if force is not None else 6.0
+        self.magnet_charges -= 1
+        return True
+
+    def time_freeze(self, duration=3.0):
+        if self.time_freeze_charges <= 0 or not self.running:
+            return False
+        try:
+            duration = float(duration)
+        except (TypeError, ValueError):
+            return False
+        if duration <= 0.0:
+            return False
+        added_steps = max(1, round(duration / self.dt))
+        self.time_freeze_remaining += duration
+        self.max_steps += added_steps
+        self.time_freeze_charges -= 1
+        return True
+
+    def phase_shift(self, duration=2.5):
+        if self.phase_charges <= 0 or not self.running:
+            return False
+        try:
+            duration = float(duration)
+        except (TypeError, ValueError):
+            return False
+        if duration <= 0.0:
+            return False
+        self.phase_remaining = max(self.phase_remaining, duration)
+        self.phase_charges -= 1
+        return True
+
+    def retro_burn(self, factor=0.4):
+        if self.brake_charges <= 0 or not self.running:
+            return False
+        try:
+            factor = min(1.0, max(0.0, float(factor)))
+        except (TypeError, ValueError):
+            factor = 0.4
+        self.vx *= factor
+        self.vy *= factor
+        self.brake_charges -= 1
+        return True
+
+    def blink(self, distance=2.5):
+        if self.blink_charges <= 0 or not self.running:
+            return False
+        try:
+            distance = float(distance)
+        except (TypeError, ValueError):
+            return False
+        if distance <= 0.0:
+            return False
+        speed = math.hypot(self.vx, self.vy)
+        if speed > 1e-9:
+            dx, dy = self.vx / speed, self.vy / speed
+        else:
+            tx, ty = self.target
+            dx, dy = tx - self.x, ty - self.y
+            dist = math.hypot(dx, dy)
+            if dist <= 1e-9:
+                return False
+            dx, dy = dx / dist, dy / dist
+        self.trail.append((self.x, self.y))
+        self.trail_breaks.append(len(self.trail))
+        self.x, self.y = self.x + dx * distance, self.y + dy * distance
+        self.trail.append((self.x, self.y))
+        self.teleports += 1
+        from vector_drift.physics_core import segment_hits_circle
+        if segment_hits_circle((self.x, self.y), (self.x, self.y),
+                               self.target, self.hit_radius):
+            self.outcome = Outcome.REACHED
+        elif not self.unbound and (abs(self.x) > self.bounds[0]
+                                   or abs(self.y) > self.bounds[1]):
+            self.outcome = Outcome.OUT_OF_BOUNDS
+        self.blink_charges -= 1
         return True
 
     def advance(self, frame_dt, on_step=None):

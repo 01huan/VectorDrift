@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import pygame
 
 from .. import config
+from ..abilities import all_abilities, charge_count
 from ..money import Money
 from ..config import px
 from ..desktop import set_cursor
@@ -46,6 +47,7 @@ class Session:
     auth_status: str = "guest"          # guest | pending_verification | authenticated
     profile_loaded: bool = False
     sync_status: str = "idle"           # idle | syncing | error
+    cloud_save_pending: bool = False    # deferred cloud upload while account busy
     last_sync_error: str | None = None
     @property
     def launch_records(self):
@@ -231,26 +233,14 @@ class InventoryMixin:
         y += px(10)
         draw_text(surface, "Active Skills", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
         y += px(24)
-        charges = getattr(session, "ability_charges", {}) or {}
-        skill_names = {
-            "ability_boost": "Boost",
-            "ability_shield_pulse": "Shield Pulse",
-            "ability_magnet": "Magnet",
-        }
-        skill_keys = {
-            "ability_boost": "B",
-            "ability_shield_pulse": "V",
-            "ability_magnet": "M",
-        }
         any_skill = False
-        for aid, name in skill_names.items():
-            count = int(charges.get(aid, 0)) if isinstance(charges, dict) else 0
-            owned = aid in getattr(session, "purchased_items", set()) or count > 0
-            if not owned:
+        for ability in all_abilities():
+            count = charge_count(session, ability.id)
+            if count <= 0:
                 continue
             any_skill = True
-            label = f"{name} ({skill_keys[aid]})"
-            if count > 0:
+            label = f"{ability.name} ({ability.key})"
+            if ability.consumable and count > 1:
                 label = f"{label} x{count}"
             draw_text(surface, label, (card.x + px(40), y), 15, config.TEXT)
             y += px(20)
@@ -334,6 +324,16 @@ class SceneManager:
         if self.account is not None:
             try:
                 self.account.poll()
+            except Exception:
+                pass
+            # Retry a cloud upload that was deferred because the account
+            # manager was busy.  By now poll() has drained the queue, so a
+            # still-idle manager means we can safely start the upload.
+            try:
+                if (not getattr(self.account, "is_busy", False)
+                        and getattr(self.session, "cloud_save_pending", False)):
+                    from vector_drift.account.integration import save_progress
+                    save_progress(self.account, self.session)
             except Exception:
                 pass
         self.scene.update(dt)

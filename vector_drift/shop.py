@@ -96,14 +96,19 @@ def purchase_item(item: ShopItem, session) -> bool:
         item.purchase(session)
     except Exception:
         return False
-    try:
-        purchased = getattr(session, "purchased_items", None)
-        if purchased is None:
-            purchased = set()
-            setattr(session, "purchased_items", purchased)
-        purchased.add(item.id)
-    except Exception:
-        pass
+    # Abilities manage their own ownership (charges or purchased_items via
+    # their _purchase callback); recording every ability id here would pollute
+    # purchased_items with consumable ability ids.  Ships and other items are
+    # still tracked the generic way.
+    if getattr(item, "category", None) != "ability":
+        try:
+            purchased = getattr(session, "purchased_items", None)
+            if purchased is None:
+                purchased = set()
+                setattr(session, "purchased_items", purchased)
+            purchased.add(item.id)
+        except Exception:
+            pass
     return True
 
 
@@ -180,31 +185,36 @@ _register_ships()
 
 
 def _register_abilities() -> None:
-    # Consumable abilities: every purchase grants exactly one use; there is no
-    # permanent unlock and no upper bound on how many times you can buy them.
-    for aid, name, desc, price in (
-        ("ability_boost", "Boost", "Instant speed burst along your heading (B). One use per purchase.", 3),
-        ("ability_shield_pulse", "Shield Pulse", "Instant 3 s shield (V). One use per purchase.", 5),
-        ("ability_magnet", "Magnet", "Pull toward the target for 3 s during a flight (M). One use per purchase.", 8),
-    ):
+    from .abilities import ABILITIES
+
+    for aid, ability in ABILITIES.items():
         if aid in ITEMS:
             continue
 
-        def _owned(s, aid=aid):
-            return False  # consumable: never "owned", can be bought repeatedly
+        def _owned(s, aid=aid, consumable=ability.consumable):
+            if consumable:
+                return False
+            return aid in getattr(s, "purchased_items", set())
 
-        def _purchase(s, aid=aid):
-            charges = getattr(s, "ability_charges", None)
-            if not isinstance(charges, dict):
-                charges = {}
-                setattr(s, "ability_charges", charges)
-            charges[aid] = int(charges.get(aid, 0)) + 1
+        def _purchase(s, aid=aid, consumable=ability.consumable):
+            if consumable:
+                charges = getattr(s, "ability_charges", None)
+                if not isinstance(charges, dict):
+                    charges = {}
+                    setattr(s, "ability_charges", charges)
+                charges[aid] = int(charges.get(aid, 0)) + 1
+            else:
+                purchased = getattr(s, "purchased_items", None)
+                if not isinstance(purchased, set):
+                    purchased = set()
+                    setattr(s, "purchased_items", purchased)
+                purchased.add(aid)
 
         register_item(ShopItem(
             id=aid,
-            name=name,
-            description=desc,
-            price=price,
+            name=ability.name,
+            description=ability.description,
+            price=ability.price,
             category="ability",
             icon="ship",
             owned=_owned,

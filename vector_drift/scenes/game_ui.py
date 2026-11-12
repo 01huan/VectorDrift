@@ -6,6 +6,7 @@ from dataclasses import replace
 import pygame
 
 from .. import config, render, sprites
+from ..abilities import all_abilities, charge_count
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
@@ -65,19 +66,14 @@ class GameUIMixin:
             self.inventory_button.draw(surface)
         except Exception:
             pass
-        # Active skill hints below the inventory button.
+        # Active skill hints below the inventory button: only skills owned right now.
         skill_y = px(100)
-        session = self.session
-        charges = getattr(session, "ability_charges", {}) or {}
-        for aid, name, key in (("ability_boost", "Boost", "B"),
-                               ("ability_shield_pulse", "Shield Pulse", "V"),
-                               ("ability_magnet", "Magnet", "M")):
-            count = int(charges.get(aid, 0)) if isinstance(charges, dict) else 0
-            owned = aid in getattr(session, "purchased_items", set()) or count > 0
-            if not owned:
+        for ability in all_abilities():
+            count = charge_count(self.session, ability.id)
+            if count <= 0:
                 continue
-            label = f"{name} ({key})"
-            if count > 0:
+            label = f"{ability.name} ({ability.key})"
+            if ability.consumable and count > 1:
                 label = f"{label} x{count}"
             draw_text(surface, label, (config.WINDOW_W - px(14), skill_y), 13,
                       config.TEXT, anchor="topright")
@@ -128,27 +124,14 @@ class GameUIMixin:
         # Active skills category
         draw_text(surface, "Active Skills", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
         y += px(24)
-        charges = getattr(session, "ability_charges", {}) or {}
-        skill_names = {
-            "ability_boost": "Boost",
-            "ability_shield_pulse": "Shield Pulse",
-            "ability_magnet": "Magnet",
-        }
-        skill_keys = {
-            "ability_boost": "B",
-            "ability_shield_pulse": "V",
-            "ability_magnet": "M",
-        }
         any_skill = False
-        for aid, name in skill_names.items():
-            count = int(charges.get(aid, 0)) if isinstance(charges, dict) else 0
-            # Permanent unlocks are tracked via purchased_items even with 0 charges.
-            owned = aid in getattr(session, "purchased_items", set()) or count > 0
-            if not owned:
+        for ability in all_abilities():
+            count = charge_count(session, ability.id)
+            if count <= 0:
                 continue
             any_skill = True
-            label = f"{name} ({skill_keys[aid]})"
-            if count > 0:
+            label = f"{ability.name} ({ability.key})"
+            if ability.consumable and count > 1:
                 label = f"{label} x{count}"
             draw_text(surface, label, (card.x + px(40), y), 15, config.TEXT)
             y += px(20)

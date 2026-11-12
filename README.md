@@ -207,7 +207,17 @@ There are six visual ship skins: `ship01` through `ship06`. `ship01` is owned by
 
 The current shop catalog contains ship skins and active abilities. Owned ships can be selected with the previous/next ship arrows on the game screen. A locked ship cannot be used until it has been purchased.
 
-Active abilities are purchased in the Shop and used during a flight with a key: **Boost** (`B`) grants an instant speed burst along the ship's heading (three charges per flight), **Shield Pulse** (`V`) grants an instant 3-second shield, and **Magnet** (`M`) pulls the ship toward the target for 3 seconds. Boost and Shield Pulse are permanent unlocks; Magnet is consumable — each purchase grants one use. Purchased abilities and remaining uses are saved with the player's profile.
+Active abilities are purchased in the Shop and used during a flight with a key. Every purchase grants **one use**; remaining uses are shown in the top-right corner of the game screen during a flight and are saved with the player's profile. Only abilities the player currently owns are shown there.
+
+| Ability | Key | Effect |
+|---|---|---|
+| **Boost** | `B` | Instant speed burst along the ship's heading. |
+| **Shield Pulse** | `V` | Instant 3-second shield: the next bumper is passed instead of reflected. |
+| **Magnet** | `M` | Pulls the ship toward the target for 3 seconds. |
+| **Time Freeze** | `T` | Pauses the flight clock for 3 seconds (the ship keeps flying). |
+| **Phase Shift** | `G` | Passes through obstacles for 2.5 seconds. |
+| **Retro Burn** | `X` | Instantly cuts the ship's speed to 40%. |
+| **Blink** | `Q` | Teleports 2.5 m along the heading (or toward the target at rest). |
 
 ## Custom Level Editor
 
@@ -357,6 +367,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels, Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
 | `Esc` with a popup open | Close the topmost Hint or AI Solver popup first. |
 | `Tab`, `Up`, or `Down` | Switch between the `Fx` and `Fy` editor lines. |
+| `B`, `V`, `M`, `T`, `G`, `X`, `Q` | Trigger an owned active ability during a flight (see **Ships and Shop**). |
 | Mouse drag / double-click | Select text in the active formula line. |
 | `Shift` + Arrow / `Home` / `End` | Extend the text selection. |
 | `Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V` | Select all, copy, cut, and paste in the active line. |
