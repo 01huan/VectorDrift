@@ -164,6 +164,37 @@ LEVELS = [
             PickupSpec(center=(-5.1, -5.6), radius=0.45, kind="unbound"),
         ),
     ),
+    # Shield intro (flies right to left): one column of 9 rocks at x = 0,
+    # r = 0.8, centers 1.55 m apart. That is under the 1.6 m diameter, so
+    # neighbours overlap and the middle is sealed. The outermost rocks reach
+    # |y| = 6.2 + 0.8 + hull 0.2 = 7.2, leaving a 0.3 m slit to the 7.5 m
+    # edge at the top and the bottom. The slits are intentional: hard to
+    # thread on purpose without a bounce, much easier once a Shield bounces
+    # the ship off the edge. The other way is a Shield carrying the ship
+    # through the wall (tests/test_level7.py flies both).
+    LevelSpec(
+        id=7,
+        name="First Shield",
+        start=(7.0, 0.0),
+        target_center=(-7.0, 0.0),
+        target_radius=1.0,
+        ship_id="ship01",
+        obstacles=(
+            ObstacleSpec(center=(0.0, -6.2), radius=0.8),
+            ObstacleSpec(center=(0.0, -4.65), radius=0.8),
+            ObstacleSpec(center=(0.0, -3.1), radius=0.8),
+            ObstacleSpec(center=(0.0, -1.55), radius=0.8),
+            ObstacleSpec(center=(0.0, 0.0), radius=0.8),
+            ObstacleSpec(center=(0.0, 1.55), radius=0.8),
+            ObstacleSpec(center=(0.0, 3.1), radius=0.8),
+            ObstacleSpec(center=(0.0, 4.65), radius=0.8),
+            ObstacleSpec(center=(0.0, 6.2), radius=0.8),
+        ),
+        pickups=(
+            PickupSpec(center=(3.5, 4.0), radius=0.45, kind="shield"),
+            PickupSpec(center=(3.5, -4.0), radius=0.45, kind="shield"),
+        ),
+    ),
     # Checkpoint intro: two level-1 screens side by side. In world terms the
     # ship goes x = -7 -> 7 (checkpoint) -> 21 (planet); the pan is (14, 0) and
     # the screens share x in [4, 10] of section 1 (= [-10, -4] of section 2),

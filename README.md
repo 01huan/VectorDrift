@@ -39,12 +39,12 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 4 | First Wormhole | A wall of bumpers, a black/white wormhole pair, and a coin pickup. |
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
 | 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. |
-| 7 | Coming soon | Placeholder; not currently a playable random level. |
+| 7 | First Shield | A column of bumpers seals the middle, leaving narrow slits at the top and bottom edges; two Shield pickups let the ship pass through the wall or bounce off the edge round it. The ship flies right to left. |
 | 8 | Random Drift | Procedurally generated layouts from six generation modules (see below). |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |
 | 10–24 | Coming soon | Placeholder level slots. |
 
-The current fixed campaign consists of Levels **1–6 and 9**. Level **8** is the only registered procedural level in this snapshot. The level selector reserves the other numbered slots for future content.
+The current fixed campaign consists of Levels **1–7 and 9**. Level **8** is the only registered procedural level in this snapshot. The level selector reserves the other numbered slots for future content.
 
 ### Level 8 generation
 

@@ -18,7 +18,9 @@ from vector_drift.physics import Flight, ForceField, Outcome
 FIXED_IDS = [lv.id for lv in LEVELS if not is_dynamic_level(lv.id)]
 # Fixed levels whose hint is still to be written. Strict: the check fails
 # again as soon as the hint exists, so remember to drop it here.
-HINTS_PENDING = set()
+# Level 7 (First Shield): the hint is written after play-testing, not from
+# the reference answers in tests/test_level7.py.
+HINTS_PENDING = {7}
 
 
 def _hint_case(level_id):
@@ -97,7 +99,7 @@ def _level(**fields):
     ({"level": {"2": _level(steps=["ok", ""])}}, "level 2: 'steps'"),
     ({"level": {"2": {"steps": ["Look right."], "answers": [{"fx": "5", "fy": "0"}]}}},
      "level 2: 'answer_note'"),
-    ({"level": {"7": _level()}}, "level 7"),
+    ({"level": {"10": _level()}}, "level 10"),   # no such fixed level
     ({"level": {"0": _level()}}, "level 0"),
     ({"level": {"one": _level()}}, "'one'"),
 ])
