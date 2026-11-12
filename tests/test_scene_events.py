@@ -68,11 +68,9 @@ def test_levels_scene_events_and_pages():
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(surface)
     scene.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(100, 100)))
-    if scene.next_button is not None:
-        scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.next_button.rect.center))
-        scene.draw(surface)
-    if scene.prev_button is not None:
-        scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.prev_button.rect.center))
+    scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.next_arrow.rect.center))
+    scene.draw(surface)
+    scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.prev_arrow.rect.center))
     scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.shop_button.rect.center))
     scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.menu_button.rect.center))
 

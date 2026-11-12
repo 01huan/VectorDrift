@@ -343,6 +343,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `L` | Open Login or Account. |
 | `Ctrl+M` | Toggle global mute. |
 | `Esc` in the level selector | Return to the main menu. |
+| `<` / `>` arrows, `←` / `→` or the mouse wheel in the level selector | Previous / next page of nine levels (wheel down is the next page; the dots below the grid show the current page). |
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
 | Tutorial button | Watch the opening story again. |
 | Replays button | Open saved launch replays. |

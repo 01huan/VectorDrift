@@ -37,6 +37,7 @@ class Session:
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
     level_source: str | None = None  # where the current level was launched from
+    level_select_page: tuple | None = None  # (page, level_id) level select last showed; this launch only
     seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
