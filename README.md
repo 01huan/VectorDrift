@@ -290,6 +290,14 @@ Image assets are loaded from `assets/images/`. If an image is missing or unreada
 - Python **3.11 or newer** (`tomllib` is used to read the TOML hint file).
 - The packages listed in `requirements.txt`.
 
+### Quick start (Windows)
+
+Double-click [`run.bat`](run.bat). It finds an installed Python 3.11+ (`py -3`, `python`, or `python3`) and starts the game. When the dependencies are already installed it uses that Python right away; otherwise it creates a private `.venv` next to the project and installs only the packages that are missing. On Python versions without a prebuilt `pygame` wheel the launcher installs `pygame-ce` instead, which provides the same `pygame` module.
+
+The launcher reuses the existing `.venv` on later runs and keeps the console window open with the reason when something fails, so the first start may take a moment while the dependencies are downloaded.
+
+Other platforms start the game with `python main.py` (see **Install and launch** below).
+
 ### Install and launch
 
 Clone the repository:
@@ -466,6 +474,7 @@ The SQL schema enables Row Level Security on both tables. A player can read/inse
 ```text
 VectorDrift/
 ├── main.py                         # Application entry point and Pygame loop
+├── run.bat                         # One-click Windows launcher (detects Python, sets up .venv)
 ├── requirements.txt                # Runtime and test dependencies
 ├── .env.example                    # Optional Supabase configuration template
 ├── docs/
