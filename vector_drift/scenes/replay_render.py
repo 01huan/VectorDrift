@@ -7,6 +7,7 @@ import pygame
 
 from .. import config, sprites
 from ..config import px
+from . import ability_effects as afx
 from .replay_data import START_MARKER_RADIUS_M, trail_strokes
 
 
@@ -74,6 +75,29 @@ class ReplayRenderMixin:
         if self._section_total > 1:
             label += f" · section {self._section_index + 1}/{self._section_total}"
         return label
+
+    def _draw_ability_fx(self, surface, frame):
+        """The flashes of the abilities that were used, at the playback spot.
+
+        The effects are rebuilt from the recorded events every frame, so the
+        playback shows exactly the flashes that belong to its position (and
+        seeking back and forth shows them again).
+        """
+        events = getattr(self, "_ability_events", None)
+        if not events:
+            return
+        try:
+            now = float(frame.get("t", 0.0)) if isinstance(frame, dict) else 0.0
+        except (TypeError, ValueError):
+            now = 0.0
+        effects = afx.effects_at(events, now)
+        if not effects:
+            return
+        try:
+            afx.draw_effects(surface, effects, self._viewport.to_screen,
+                             self._viewport.length, self._t)
+        except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
+            pass
 
     def draw(self, surface):
         surface.fill(config.BG)
@@ -178,6 +202,7 @@ class ReplayRenderMixin:
             except pygame.error:
                 pass
             sprites.draw_ship(surface, ship_pos, heading, self._viewport.length(self._ship.length), self._ship)
+            self._draw_ability_fx(surface, cur)
 
         if prev_clip is not None:
             try:

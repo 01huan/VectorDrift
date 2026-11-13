@@ -14,7 +14,7 @@ from ..expr_parser import diagnose_expression
 # through this module so tests can monkeypatch scenes.replay.draw_text.
 from ..ui import Button, draw_text
 from .base import Scene
-from ..replay import ReplayPlayer, section_index_from
+from ..replay import ReplayPlayer, normalize_ability_events, section_index_from
 from .replay_camera import ReplayCameraMixin
 # Re-exported for callers/tests that historically imported these names here.
 from .replay_data import (JUMP_SLACK_M, START_MARKER_RADIUS_M, _get, _is_jump,
@@ -46,6 +46,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         self._obstacles = ()
         self._pickups = ()
         self._holes = ()
+        self._ability_events = ()     # the active abilities used in this launch
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
@@ -115,6 +116,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         self._obstacles = ()
         self._pickups = ()
         self._holes = ()
+        self._ability_events = ()
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
@@ -189,9 +191,22 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         self._base_pickups = tuple(self._pickups)
         self._base_obstacles = tuple(self._obstacles)
 
+        # The active abilities used in this launch: the replay shows the same
+        # flashes the live game showed (old saves have none).
+        self._ability_events = self._recorded_ability_events(rec)
+
         unbound_activated = self._apply_pickup_events_from_record(rec)
         if unbound_activated:
             self._unbound = True
+
+    @staticmethod
+    def _recorded_ability_events(rec):
+        """The ability uses this launch recorded (empty for old saves)."""
+        try:
+            raw = rec.get("ability_events") if isinstance(rec, dict) else getattr(rec, "ability_events", None)
+        except Exception:
+            raw = None
+        return tuple(normalize_ability_events(raw))
 
     def _apply_pickup_events_from_record(self, rec):
         events = None

@@ -61,6 +61,7 @@ class GameUpdateMixin:
             log.exception("unexpected editor failure")
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
             self.pickup_fx.update(dt)
+            self.ability_fx.update(dt)
             self._update_flight(dt)
             self._update_camera(dt)
             try:

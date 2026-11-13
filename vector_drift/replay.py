@@ -61,6 +61,37 @@ def section_index_from(value):
     return value
 
 
+def normalize_ability_events(data):
+    """Clean the recorded ability uses of a launch.
+
+    Only usable dicts survive: the ability id, its name, the spot where it
+    was used (world m) and the flight time it was used at. Old saves have no
+    ability events at all, which is the same as having none.
+    """
+    out = []
+    for event in (data or []):
+        if not isinstance(event, dict):
+            continue
+        try:
+            t = float(event.get("t", 0.0))
+            x = float(event.get("x", 0.0))
+            y = float(event.get("y", 0.0))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not (math.isfinite(t) and math.isfinite(x) and math.isfinite(y)):
+            continue
+        out.append({
+            "kind": "ability",
+            "ability": str(event.get("ability", "")),
+            "name": str(event.get("name", "")),
+            "key": str(event.get("key", "")),
+            "t": t,
+            "x": x,
+            "y": y,
+        })
+    return out
+
+
 @dataclass
 class ReplayRecord:
     level_id: int = 0
@@ -75,6 +106,10 @@ class ReplayRecord:
     obstacle_centers: List = field(default_factory=list)
     level_snapshot: Optional[dict] = None
     pickup_events: List = field(default_factory=list)
+    # The active abilities that were used during the launch: every entry says
+    # which ability, where it was used (world m) and when (flight time), so
+    # the replay can show the same flashes the live game showed.
+    ability_events: List = field(default_factory=list)
     # Which screen of a multi-section level the launch flew (0-based, like
     # data.section_level). One-screen levels and old saves are always 0.
     section_index: int = 0
@@ -92,6 +127,7 @@ class ReplayRecord:
             "consumed_pickups": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.consumed_pickups or [])],
             "obstacle_centers": [list(c) if not isinstance(c, (list, tuple)) else list(c) for c in (self.obstacle_centers or [])],
             "pickup_events": [e if isinstance(e, dict) else dict(e) for e in (self.pickup_events or [])],
+            "ability_events": normalize_ability_events(self.ability_events),
             "section_index": section_index_from(self.section_index),
         }
         if isinstance(self.level_snapshot, dict):
@@ -136,6 +172,8 @@ class ReplayRecord:
                             if isinstance(data, dict) and isinstance(data.get("level_snapshot"), dict)
                             else None),
             pickup_events=list(data.get("pickup_events") or []) if isinstance(data, dict) else [],
+            ability_events=normalize_ability_events(
+                data.get("ability_events") if isinstance(data, dict) else None),
             section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
         )
 

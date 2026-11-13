@@ -283,6 +283,7 @@ class GameUIMixin:
         self._trail_count = 0
         self._clear_history()
         self.pickup_fx.clear()
+        self.ability_fx.clear()
         self.banner = None
         self.heading = self._heading_to_target()
         self._validate()

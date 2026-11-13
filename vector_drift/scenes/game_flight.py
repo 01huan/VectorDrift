@@ -149,8 +149,18 @@ class GameFlightMixin:
         ability = ability_for_key_code(key)
         if ability is None or self.flight is None:
             return False
-        if not use_ability(self.session, ability.id, self.flight):
+        flight = self.flight
+        # Where and when the ability was used: taken before the ability fires,
+        # because a blink moves the ship right away.
+        spot = (float(getattr(flight, "x", 0.0)), float(getattr(flight, "y", 0.0)))
+        when = float(getattr(flight, "time", 0.0))
+        if not use_ability(self.session, ability.id, flight):
             return False
+        # The flash and the replay entry are presentation only: a scene
+        # without them still uses the ability.
+        show = getattr(self, "_show_ability_effect", None)
+        if callable(show):
+            show(ability, spot, when)
         try:
             self._save_progress()
         except Exception:
@@ -161,10 +171,40 @@ class GameFlightMixin:
             pass
         return True
 
+    def _show_ability_effect(self, ability, spot, when):
+        """Show the ability's flash and remember the use for the replay.
+
+        Presentation only: the ability's rules were already applied by the
+        flight. A scene without the effect layer (or without the replay list)
+        still uses the ability, it just shows nothing and records nothing.
+        """
+        event = {
+            "kind": "ability",
+            "ability": getattr(ability, "id", ""),
+            "name": getattr(ability, "name", ""),
+            "key": getattr(ability, "key", ""),
+            "t": when,
+            "x": spot[0],
+            "y": spot[1],
+        }
+        try:
+            events = getattr(self, "_replay_ability_events", None)
+            if isinstance(events, list):
+                events.append(event)
+        except Exception:
+            pass
+        try:
+            effects = getattr(self, "ability_fx", None)
+            if effects is not None:
+                effects.add(event["ability"], event["name"], spot)
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------ flow
     def _try_launch(self):
         self._replay_frames = []
         self._replay_pickup_events = []
+        self._replay_ability_events = []
         # Snapshot the level state at launch so replays can reproduce it
         # (pickups already consumed in previous runs, obstacles already
         # destroyed by an earlier shockwave).
@@ -191,6 +231,7 @@ class GameFlightMixin:
         self.flight.set_ability_charges(charges)
         self._prefetch_arrows()         # drawn ahead in the background, not here
         self.pickup_fx.clear()          # the last flight's texts must not hold back this one's timer
+        self.ability_fx.clear()         # the last flight's flashes must not hold back this one's timer
         self.trail.clear()
         self._trail_count = 0
         self._bounces_heard = 0
@@ -228,6 +269,9 @@ class GameFlightMixin:
                 "level_snapshot": getattr(self, "_replay_level_snapshot", None),
                 # Pickup events during this flight (shockwave, unbound, etc.)
                 "pickup_events": list(getattr(self, "_replay_pickup_events", []) or []),
+                # The active abilities used during this flight: the replay
+                # shows the same flashes the live game showed.
+                "ability_events": list(getattr(self, "_replay_ability_events", []) or []),
                 # Which screen this launch flew (multi-section levels); the
                 # replay rebuilds that section, not section 1.
                 "section_index": self.section_index,

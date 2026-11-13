@@ -8,6 +8,7 @@ from .. import config, render, sprites
 from ..config import px
 from ..background import BackgroundBuilder
 from ..coords import Viewport
+from . import ability_effects as afx
 from .game_layout import (
     ARRIVED, CHECKPOINT_LIFE_POP_S, FLIGHT, HISTORY_ALPHA, PANNING, SETUP,
     SHIP_MIN_SCALE, UNBOUND_EDGE, ZOOM_LEVELS_AT_LAUNCH, ZOOM_LEVELS_KEPT,
@@ -258,6 +259,17 @@ class GameWorldRenderMixin:
         length = self.ship.length
         return max(self.camera.length(length), SHIP_MIN_SCALE * self.viewport.length(length))
 
+    def _draw_ability_fx(self, surface):
+        """The flashes of the abilities that were used (world positions)."""
+        effects = getattr(self, "ability_fx", None)
+        if effects is None or not effects.effects:
+            return
+        try:
+            afx.draw_effects(surface, effects.effects, self.camera.to_screen,
+                             self.camera.length, self.t)
+        except _RENDER_ERRORS as exc:
+            log.warning("ability effect draw contained: %r", exc)
+
     def _draw_unbound_edge(self, surface):
         """While Unbound is active the map edge is a dashed line: it is open."""
         flight = self.flight
@@ -312,6 +324,7 @@ class GameWorldRenderMixin:
                                index=self.section_index, launch=self.launch_pos, flash=flash)
             if pan is None:
                 self._draw_pickup_fx(surface)
+                self._draw_ability_fx(surface)
 
             if pan is not None and pan.t < CHECKPOINT_LIFE_POP_S:
                 # The checkpoint's life was just taken: it pops off the checkpoint.

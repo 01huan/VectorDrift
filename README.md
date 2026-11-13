@@ -219,6 +219,8 @@ Active abilities are purchased in the Shop and used during a flight with a key. 
 | **Retro Burn** | `X` | Instantly cuts the ship's speed to 40%. |
 | **Blink** | `Q` | Teleports 2.5 m along the heading (or toward the target at rest). |
 
+Using an ability flashes at the ship's position: rings expand from the spot where the ability fired and the ability's name floats up and fades out. The use is recorded with the launch, so the [replay](#replays) shows the same flash at the same moment.
+
 ## Custom Level Editor
 
 Open **Level Editor** from the level selector, then choose **New** or select one of your saved custom levels.
@@ -258,7 +260,7 @@ If neither a built-in configuration nor a valid custom configuration is availabl
 
 The Replays screen is available from the main menu. The game keeps the **10 most recent launches** in the player profile.
 
-A replay record includes the level and section, selected ship, `Fx`/`Fy` expressions, outcome, and (for procedural maps) the random seed. Its recorded frames contain time, position, velocity, and force data. The record also preserves relevant pickup/obstacle state so the replay can reconstruct a run after pickups were consumed or a shockwave destroyed rocks. Wormhole transitions break the trail rather than drawing a line across the map.
+A replay record includes the level and section, selected ship, `Fx`/`Fy` expressions, outcome, and (for procedural maps) the random seed. Its recorded frames contain time, position, velocity, and force data. The record also preserves relevant pickup/obstacle state so the replay can reconstruct a run after pickups were consumed or a shockwave destroyed rocks. Wormhole transitions break the trail rather than drawing a line across the map. The active abilities used during the launch are recorded too, so the playback shows the same flashes the live game showed.
 
 Replay controls:
 

@@ -26,6 +26,7 @@ from ..solver.interface import SolveResult
 from .base import Scene
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
+from . import ability_effects as afx
 from . import pickup_effects as pfx
 from .game_section_pan import SectionPan
 log = logging.getLogger(__name__)
@@ -132,6 +133,10 @@ class GameCoreMixin:
         self._mouse_pos = (-1, -1)
         # What taking a pickup looks like (presentation only, see pickup_effects).
         self.pickup_fx = pfx.PickupEffects()
+        # What using an active ability looks like (presentation only, see
+        # ability_effects). The uses of this launch are kept for the replay.
+        self.ability_fx = afx.AbilityEffects()
+        self._replay_ability_events = []
         self._coins_rect = None         # where the coin count was last drawn (fly target)
 
         # Widgets
