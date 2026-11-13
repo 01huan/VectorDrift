@@ -78,9 +78,25 @@ def test_level_one_has_no_coin():
     assert not _coins(_scene(1))
 
 
+def _pan_to_next_screen(scene):
+    """Let the checkpoint pan finish: the camera moves on to the next screen."""
+    for _ in range(60 * 3):
+        if scene.pan is None:
+            break
+        scene.update(1 / 60)
+
+
 def _arrive(scene):
-    """End a flight on the target (random maps have no stored answer to fly)."""
-    scene.flight = SimpleNamespace(time=1.0, trail=[])
+    """End a flight on the target (random maps have no stored answer to fly).
+
+    A random map may be made of several screens: every screen but the last
+    one ends on a checkpoint, so the ship flies on to the next screen.
+    """
+    while not scene.on_last_section:
+        scene.flight = SimpleNamespace(time=1.0, trail=[], x=0.0, y=0.0)
+        scene._end_flight(Outcome.REACHED)
+        _pan_to_next_screen(scene)
+    scene.flight = SimpleNamespace(time=1.0, trail=[], x=0.0, y=0.0)
     scene._end_flight(Outcome.REACHED)
 
 

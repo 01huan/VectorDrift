@@ -14,13 +14,35 @@ from vector_drift.level_modules import (
     generate_layout,
     known_modules,
 )
-from vector_drift.level_presets import PRESET_8
+from vector_drift.level_presets import PRESET_8, RandomPreset
 from vector_drift.level_validator import validate_level
 from dataclasses import replace
 
 TEMPLATES = {t.generator: t for t in PRESET_8.templates}
 
 ALL_MODULES = ("corridor", "extreme_time", "wormhole_network", "maze", "bomb")
+
+# The themes the random level rotation actually uses.
+ROTATION_MODULES = ("corridor", "extreme_time", "wormhole_network", "maze")
+
+# The bomb theme is not part of the rotation any more, but the module itself
+# still works: this preset keeps it covered.
+BOMB = RandomPreset(
+    level_id=8,
+    name="Random Drift Bomb",
+    generator="bomb",
+    time_limit=10.0,
+    lives=4,
+    target_radius=0.8,
+    min_start_target_dist=10.0,
+    num_hidden_points=0,
+    num_obstacles_min=3,
+    num_obstacles_max=6,
+    num_direct_blockers=0,
+    required_pickup_kinds=("shockwave",),
+    pickup_groups=(("money", (1, 2), 0.5), ("life", (1, 1), 0.5)),
+)
+TEMPLATES["bomb"] = BOMB
 
 
 def _module_layout(module, seed):
@@ -142,9 +164,10 @@ def test_level8_offers_every_module():
     seen = set()
     for seed in range(40):
         _, report = generate_random_level_seeded(seed)
-        seen.add(report.generator)
+        # A merged level reports every screen's module.
+        seen.update(report.metrics["modules"])
         assert report.ok
-    assert seen == set(ALL_MODULES)
+    assert seen == set(ROTATION_MODULES)
 
 
 def generate_random_level_seeded(seed):

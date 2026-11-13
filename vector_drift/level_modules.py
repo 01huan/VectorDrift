@@ -10,10 +10,12 @@ required pickups and any teleports).  Modules are selected by the preset's
   hole pair, so the level is only solvable by chaining the wormholes.
 * ``"maze"`` -- a perfect maze (plus a braid of extra loops) whose walls are
   bumper rocks; the entrance and exit are the start and the target.
-* ``"bomb"`` -- the target is sealed by a bumper ring that only a shockwave
-  pickup can open; the shockwave is a required pickup.
 * ``"extreme_time"`` -- a winding slalom against a very tight time limit, with
   extra-time pickups on the route.
+* ``"bomb"`` -- the target is sealed by a bumper ring that only a shockwave
+  pickup can open; the shockwave is a required pickup. Not part of the random
+  level rotation any more (see level_presets.py), but kept as a module for
+  custom presets.
 
 Pure logic (no pygame); everything runs off the seeded ``rng`` so a seed always
 reproduces the same layout.  Tunables live in ``level_presets.py``.

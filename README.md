@@ -17,7 +17,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Mathematical force-field editor** — write general expressions in `x` and `y`, with syntax highlighting, validation, error locations, and independent undo/redo histories for `Fx` and `Fy`.
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
-- **Procedural level generation** — Level 8 builds a new course from one of six seeded generation modules (two corridor flavours, wormhole network, maze, bomb run, extreme time).
+- **Procedural level generation** — Level 8 builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
 - **Procedural Level Validator** — every generated map is checked before play: fast path analysis (A*, route and seal checks) plus an AI Solver probe that confirms a solution exists under the formal physics; invalid maps are regenerated automatically.
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
@@ -40,7 +40,7 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
 | 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. |
 | 7 | First Shield | A column of bumpers seals the middle, leaving narrow slits at the top and bottom edges; two Shield pickups let the ship pass through the wall or bounce off the edge round it. The ship flies right to left. |
-| 8 | Random Drift | Procedurally generated layouts from six generation modules (see below). |
+| 8 | Random Drift | Procedurally generated layouts from five generation modules, merged into one to three screens (see below). |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |
 | 10–24 | Coming soon | Placeholder level slots. |
 
@@ -48,15 +48,16 @@ The current fixed campaign consists of Levels **1–7 and 9**. Level **8** is th
 
 ### Level 8 generation
 
-Level 8 is generated when it is entered from the level selector. The generator chooses one of six complete module presets, builds the module's layout, validates it (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering Level 8 as a new run generates a new seed and layout.
+Level 8 is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering Level 8 as a new run generates a new seed and layout.
 
 The modules:
 
-- **Corridor (Random Drift I / II)** — the original hidden-waypoint route. Obstacles are placed outside a clearance corridor around a hidden route and block the direct start-to-target line, so a straight-line solution is not enough. Template I uses a 10-second limit, 5 lives, 5–20 obstacles with money/life pickups and two black/white wormhole pairs; template II uses a 12-second limit, 3 lives, 10–18 obstacles and groups of shockwave, extra-time, shield, life, and money pickups.
-- **Wormhole network (Random Drift III)** — full-height walls of bumper rocks seal the map behind gates. Each gate is a black/white wormhole pair and the hidden route chains through them, so the only way through a sealed sector is by teleporting. 12 seconds, 4 lives.
-- **Maze (Random Drift IV)** — a braided perfect maze (randomized depth-first search with extra loops knocked out) whose walls are bumper rocks; the start and target sit in opposite corner cells. 15 seconds, 5 lives.
-- **Bomb run (Random Drift V)** — the planet is sealed inside a ring of bumper rocks. A shockwave pickup on the approach blasts the ring open; it is a required pickup, and the validator rejects any map where it is missing, unreachable, or fails to open a path. 10 seconds, 4 lives.
-- **Extreme time (Random Drift VI)** — a winding slalom route against a very tight 6-second limit, with extra-time pickups placed along the route. 3 lives.
+- **Corridor (Random Drift I / II)** — the original hidden-waypoint route. Obstacles are placed outside a clearance corridor around a hidden route and block the direct start-to-target line, so a straight-line solution is not enough. Template I uses a 10-second limit, 5 lives, 5–20 obstacles with money, extra-time, life and Unbound pickups and two black/white wormhole pairs; template II uses a 12-second limit, 3 lives, 10–18 obstacles and groups of shockwave, extra-time, shield, life, money and Unbound pickups.
+- **Wormhole network (Random Drift III)** — full-height walls of bumper rocks seal the map behind gates. Each gate is a black/white wormhole pair and the hidden route chains through them, so the only way through a sealed sector is by teleporting. 12 seconds, 4 lives, money, life and Unbound pickups.
+- **Maze (Random Drift IV)** — a braided perfect maze (randomized depth-first search with extra loops knocked out) whose walls are bumper rocks; the start and target sit in opposite corner cells. 15 seconds, 5 lives, money, extra-time, life and Unbound pickups.
+- **Extreme time (Random Drift V)** — a winding slalom route against a very tight 6-second limit, with extra-time pickups placed along the route. 3 lives, extra-time, money and Unbound pickups.
+
+Each template lists the pickup groups it places; the groups are drawn at random inside their range, so the number of pickups on a screen scales with the screen's difficulty instead of being fixed. A screen never ends up empty-handed and never turns into a treasure hunt.
 
 ### Procedural Level Validator
 
@@ -67,7 +68,6 @@ Generating a map is not enough: Level 8 also verifies the map before play. Every
 - Grid A* reachability from start to target — no map ships with every path blocked.
 - The intended route's legs must be clear of obstacles.
 - Wormhole walls must be sealed end to end (the route goes through the gates, not through a gap).
-- The bomb ring must be sealed on approach, and blasting a shockwave must open a path to the target.
 - Required pickups must be present and reachable from the start.
 - Start and target must be inside the world bounds, far enough apart, and clear of the rocks.
 
@@ -108,7 +108,7 @@ A black hole is paired with a white hole. Touching the black hole transports the
 
 ### Flight outcomes and lives
 
-A level supplies its own time limit and number of lives. Many levels use 10 seconds and 5 lives, but this is not universal: for example, Level 5 has 9 seconds, and the six Level 8 module presets have different limits and life counts. Every failed launch costs one life.
+A level supplies its own time limit and number of lives. Many levels use 10 seconds and 5 lives, but this is not universal: for example, Level 5 has 9 seconds, and the five Level 8 module presets have different limits and life counts. Every failed launch costs one life.
 
 * ​**Time up**​: the next launch starts at rest where the ship stopped, provided it stopped inside the normal map.
 * ​**Abort / Out of bounds / Diverged**​: the next launch starts at the beginning of the current section. The stop button and the pause-menu Abort action both abort an active flight.
@@ -481,7 +481,8 @@ VectorDrift/
     ├── data.py                     # Ship and level specifications
     ├── level_presets.py            # Procedural-level presets (templates + ValidationProfile)
     ├── random_level.py             # Seeded level generator (module dispatch + validated retry)
-    ├── level_modules.py            # Generation modules: corridor, wormhole network, maze, bomb, extreme time
+    ├── level_modules.py            # Generation modules: corridor, wormhole network, maze, extreme time
+    ├── level_merge.py              # Merges 1-3 generated layouts into one multi-screen level
     ├── level_validator.py          # Procedural Level Validator (path analysis + AI Solver probe)
     ├── expr_parser.py              # Mathematical expression parser/evaluator
     ├── physics.py                  # Force fields and flight simulation
@@ -522,7 +523,7 @@ The test suite covers expression parsing/evaluation, physics and edge cases, lev
 
 ### Add a random level
 
-Register a `RandomPreset` in `vector_drift/level_presets.py`. Generation itself lives in `vector_drift/level_modules.py` (corridor, wormhole network, maze, bomb, extreme time); it builds a `GeneratedLayout` (the `LevelSpec` plus the intended route, required pickups and any teleports) and `vector_drift/level_validator.py` verifies it — fast path analysis (grid A*, route clearance, wall/ring seals, required-pickup reachability, difficulty heuristics, trivial-field detection) plus an AI Solver probe — before the level is accepted. Invalid layouts are regenerated with a fresh deterministic seed (see `ValidationProfile` on the preset). `data.all_levels()` adds a level-selector card for each registered dynamic preset.
+Register a `RandomPreset` in `vector_drift/level_presets.py`. Generation itself lives in `vector_drift/level_modules.py` (corridor, wormhole network, maze, extreme time); it builds a `GeneratedLayout` (the `LevelSpec` plus the intended route, required pickups and any teleports) and `vector_drift/level_validator.py` verifies it — fast path analysis (grid A*, route clearance, wall/ring seals, required-pickup reachability, difficulty heuristics, trivial-field detection) plus an AI Solver probe — before the level is accepted. Invalid layouts are regenerated with a fresh deterministic seed (see `ValidationProfile` on the preset). `vector_drift/level_merge.py` then merges one to three of those layouts (one per template of the preset) into a single multi-screen level whose screens are chained by checkpoints; `max_sections` on the preset caps how many screens a level may have. `data.all_levels()` adds a level-selector card for each registered dynamic preset.
 
 ### Add a pickup type
 

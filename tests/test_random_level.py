@@ -42,6 +42,12 @@ def corridor_clearance(level, segments):
     return worst
 
 
+def _screens(level):
+    """Every screen of a level (one per merged template), as plain levels."""
+    from vector_drift.data import section_count, section_level
+    return [section_level(level, k) for k in range(section_count(level))]
+
+
 def test_endpoints_keep_distance_L():
     for seed in range(20):
         level = generate_random_level(seed=seed)
@@ -103,11 +109,19 @@ def test_level_spec_fields():
     level = generate_random_level(seed=7)
     assert level.id == PRESET_8.level_id
     assert level.name == PRESET_8.name
+    screens = _screens(level)
+    first = screens[0]
+    # The level's own screen fields mirror its first screen, which comes
+    # from one complete template.
+    assert (level.ship_id, level.target_radius, level.time_limit) == \
+        (first.ship_id, first.target_radius, first.time_limit)
     assert any(
-        (level.ship_id, level.target_radius, level.time_limit, level.lives)
-        == (template.ship_id, template.target_radius, template.time_limit, template.lives)
+        (first.ship_id, first.target_radius, first.time_limit)
+        == (template.ship_id, template.target_radius, template.time_limit)
         for template in PRESET_8.templates
     )
+    # The lives are shared by the whole run (one screen's budget).
+    assert level.lives == screens[0].lives
 
 
 def test_random_level_selects_one_complete_template_per_generation():
@@ -149,22 +163,21 @@ def test_random_level_selects_one_complete_template_per_generation():
 
         outcome = (
             level.time_limit,
-            level.lives,
             len(level.obstacles),
             tuple(p.kind for p in level.pickups),
         )
         outcomes.add(outcome)
-        if level.lives == 2:
-            assert level.time_limit == 11.0
-            assert level.obstacles == ()
-            assert tuple(p.kind for p in level.pickups) == ("life",)
-        else:
-            assert level.lives == 4
-            assert level.time_limit == 17.0
-            assert len(level.obstacles) == 1
-            assert level.pickups == ()
+        # Every screen (one per merged template) uses one complete template.
+        for screen in _screens(level):
+            if screen.time_limit == 11.0:        # the pickup template
+                assert screen.obstacles == ()
+                assert tuple(p.kind for p in screen.pickups) == ("life",)
+            else:                                # the empty template
+                assert screen.time_limit == 17.0
+                assert len(screen.obstacles) == 1
+                assert screen.pickups == ()
 
-    assert outcomes == {(11.0, 2, 0, ("life",)), (17.0, 4, 1, ())}
+    assert outcomes == {(11.0, 0, ("life",)), (17.0, 1, ())}
 
 
 # --- extensibility: presets / Level 8 / custom rules -------------------
@@ -179,7 +192,7 @@ def test_level8_contains_the_original_corridor_templates():
     generators = [t.generator for t in get_preset(8).templates]
     assert generators.count("corridor") == 2
     assert set(generators) == {"corridor", "wormhole_network", "maze",
-                               "bomb", "extreme_time"}
+                               "extreme_time"}
     p7, p8 = [t for t in get_preset(8).templates if t.generator == "corridor"]
     assert (p8.num_obstacles, p8.target_radius) != (p7.num_obstacles, p7.target_radius)
     lv8 = generate_random_level(8, seed=7)
@@ -190,7 +203,53 @@ def test_level8_contains_the_original_corridor_templates():
 def test_level8_ships_all_modules():
     generators = {t.generator for t in get_preset(8).templates}
     assert generators == {"corridor", "wormhole_network", "maze",
-                          "bomb", "extreme_time"}
+                          "extreme_time"}
+
+
+def test_the_bomb_theme_is_not_part_of_the_random_rotation():
+    """The bomb theme was removed: no template and no generated screen uses it."""
+    from vector_drift.level_presets import get_preset
+    from vector_drift.level_modules import GENERATORS
+
+    assert "bomb" not in {t.generator for t in get_preset(8).templates}
+    # The module itself still exists (custom presets may use it).
+    assert "bomb" in GENERATORS
+    for seed in range(20):
+        _, report = generate_random_level(8, seed=seed, return_report=True)
+        assert "bomb" not in report.metrics["modules"]
+
+
+# --- pickups: every kind is used, and their number stays balanced -----------
+
+def test_random_levels_use_every_kind_of_pickup():
+    kinds = set()
+    for seed in range(30):
+        level = generate_random_level(8, seed=seed, run_solver=False)
+        for screen in _screens(level):
+            kinds.update(p.kind for p in screen.pickups)
+    assert kinds == {"shockwave", "extratime", "shield", "life", "money",
+                     "unbound"}
+
+
+def test_random_levels_place_the_unbound_pickup():
+    unbound = 0
+    screens = 0
+    for seed in range(30):
+        level = generate_random_level(8, seed=seed, run_solver=False)
+        for screen in _screens(level):
+            screens += 1
+            unbound += any(p.kind == "unbound" for p in screen.pickups)
+    assert screens, "no random screen was generated"
+    assert unbound >= screens // 2, "the unbound pickup should be common"
+
+
+def test_random_levels_keep_the_pickups_in_proportion_to_the_obstacles():
+    """Too few pickups make a screen dull, too many make it trivial."""
+    for seed in range(30):
+        level = generate_random_level(8, seed=seed, run_solver=False)
+        for screen in _screens(level):
+            assert screen.pickups, "a screen without any pickup is dull"
+            assert len(screen.pickups) <= 12, "too many pickups in one screen"
 
 
 def test_level8_layout_respects_own_preset():

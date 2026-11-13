@@ -185,6 +185,22 @@ def test_this_runs_coins_count_toward_the_price(monkeypatch):
     assert scene.ai_reveal_button.enabled
 
 
+def _fly_to_the_last_screen(scene, seconds=2.0):
+    """A random map may have several screens: only the last one holds the planet.
+
+    Every screen but the last ends on a checkpoint, so the ship flies on.
+    """
+    while not scene.on_last_section:
+        scene.flight = SimpleNamespace(time=seconds, trail=[], x=0.0, y=0.0)
+        scene._end_flight(Outcome.REACHED)
+        for _ in range(60 * 3):          # the checkpoint pan to the next screen
+            if scene.pan is None:
+                break
+            scene.update(1 / 60)
+    scene.flight = SimpleNamespace(time=seconds, trail=[], x=0.0, y=0.0)
+    scene._end_flight(Outcome.REACHED)
+
+
 def test_a_win_after_the_reveal_still_records_best_time(monkeypatch):
     manager = _manager(coins=10)
     manager.session.records[8] = 99.0
@@ -193,14 +209,14 @@ def test_a_win_after_the_reveal_still_records_best_time(monkeypatch):
     _reveal(scene)
     _click(scene, scene.ai_close_button.rect)
 
-    scene.flight = SimpleNamespace(time=2.0, trail=[])
-    scene._end_flight(Outcome.REACHED)
+    screens = scene.section_total
+    _fly_to_the_last_screen(scene)
     for _ in range(120):
         if not isinstance(manager.scene, GameScene):
             break
         scene.update(1 / 60)
     assert isinstance(manager.scene, WinScene)
-    assert manager.session.records[8] == 2.0
+    assert manager.session.records[8] == 2.0 * screens
     assert manager.session.stats["solution_used"] is True
 
     texts = []

@@ -1,4 +1,11 @@
-"""Random-level presets and their optional complete generation templates."""
+"""Random-level presets and their optional complete generation templates.
+
+A preset is one complete generation configuration (obstacles, pickups, time
+limit, ...).  A preset with ``templates`` is a *pool*: every random level
+picks one to three of them and merges one generated layout per template into
+a single multi-screen level (see level_merge.py); ``max_sections`` caps how
+many screens a level may have.
+"""
 
 from __future__ import annotations
 
@@ -79,6 +86,9 @@ class RandomPreset:
     num_wormholes: int = 0
     num_portals: int = 0
     templates: tuple[RandomPreset, ...] = ()
+    # How many screens (generated levels) one random level may be merged from.
+    # 1 = one screen (no checkpoint), 3 = up to three chained screens.
+    max_sections: int = 3
     card_blurb: str = "New maze every visit"
     extra_rules: tuple = field(default=(), compare=False, repr=False)
     # Which generation module builds this template (see level_modules.py).
@@ -121,7 +131,8 @@ _PRESET_8_TEMPLATE_1 = RandomPreset(
     max_place_attempts=500,
     max_level_attempts=10,
     num_direct_blockers=1,
-    pickup_groups=(("life", (1, 2), 0.5), ("money", (1, 2), 0.5)),
+    pickup_groups=(("money", (1, 3), 0.5), ("extratime", (1, 2), 0.5),
+                   ("life", (1, 1), 0.5), ("unbound", (1, 1), 0.5)),
     num_holes=2,
     card_blurb="New maze every visit",
 )
@@ -145,7 +156,9 @@ _PRESET_8_TEMPLATE_2 = RandomPreset(
     target_clearance=1.2,
     min_obstacle_gap=0.4,
     num_direct_blockers=2,
-    pickup_groups=(("shockwave", (1, 3), 0.5), ("extratime", (1, 3), 0.5), ("shield", (1, 3), 0.5), ("life", (1, 3), 0.5), ("money", (1, 3), 0.5)),
+    pickup_groups=(("money", (1, 2), 0.5), ("extratime", (1, 2), 0.5),
+                   ("shield", (1, 1), 0.5), ("shockwave", (1, 2), 0.5),
+                   ("life", (1, 1), 0.5), ("unbound", (1, 1), 0.5)),
     card_blurb="Denser maze, smaller target; shockwaves, extratime and shields",
 )
 
@@ -167,7 +180,11 @@ _PRESET_8_WORMHOLE = RandomPreset(
     min_obstacle_gap=0.4,
     num_direct_blockers=0,
     num_holes=3,
-    pickup_groups=(("money", (1, 2), 0.5), ("life", (1, 2), 0.5)),
+    # The sealed gates leave little room on the flight legs, so the pickups
+    # may sit a little further off the route than in the other themes.
+    pickup_corridor_max=1.0,
+    pickup_groups=(("money", (1, 2), 0.5), ("life", (1, 1), 0.5),
+                   ("unbound", (1, 1), 0.5)),
     card_blurb="Wormhole gates: chain the black holes through sealed sectors",
 )
 
@@ -182,7 +199,8 @@ _PRESET_8_MAZE = RandomPreset(
     num_hidden_points=0,
     num_obstacles=0,
     num_direct_blockers=0,
-    pickup_groups=(("money", (2, 4), 0.5), ("extratime", (1, 1), 0.5)),
+    pickup_groups=(("money", (2, 4), 0.5), ("extratime", (1, 1), 0.5),
+                   ("life", (1, 1), 0.5), ("unbound", (1, 1), 0.5)),
     # The maze's 15 s limit makes a full PSO probe expensive and rarely
     # informative; use a cheaper one (the BFS route still guarantees a path).
     validation=ValidationProfile(solver_particles=8, solver_simulations=8,
@@ -190,26 +208,9 @@ _PRESET_8_MAZE = RandomPreset(
     card_blurb="A sealed maze; find the hidden route to the planet",
 )
 
-_PRESET_8_BOMB = RandomPreset(
-    level_id=8,
-    name="Random Drift V",
-    generator="bomb",
-    time_limit=10.0,
-    lives=4,
-    target_radius=0.8,
-    min_start_target_dist=10.0,
-    num_hidden_points=0,
-    num_obstacles_min=3,
-    num_obstacles_max=6,
-    num_direct_blockers=0,
-    required_pickup_kinds=("shockwave",),
-    pickup_groups=(("money", (1, 2), 0.5), ("life", (1, 2), 0.5)),
-    card_blurb="Bomb run: blast the ring to reach the planet",
-)
-
 _PRESET_8_EXTREME_TIME = RandomPreset(
     level_id=8,
-    name="Random Drift VI",
+    name="Random Drift V",
     generator="extreme_time",
     time_limit=0.50,
     lives=2,
@@ -224,7 +225,8 @@ _PRESET_8_EXTREME_TIME = RandomPreset(
     corridor_clearance=0.7,
     min_obstacle_gap=0.3,
     num_direct_blockers=0,
-    pickup_groups=(("extratime", (1, 2), 0.5), ("money", (1, 2), 0.5)),
+    pickup_groups=(("extratime", (1, 2), 0.5), ("money", (1, 1), 0.5),
+                   ("unbound", (1, 1), 0.5)),
     card_blurb="Extreme time: a fast slalom against the clock",
 )
 
@@ -232,8 +234,9 @@ PRESET_8 = replace(
     _PRESET_8_TEMPLATE_2,
     name="Random Drift",  # the card name; templates carry their own flavour names
     templates=(_PRESET_8_TEMPLATE_1, _PRESET_8_TEMPLATE_2, _PRESET_8_WORMHOLE,
-               _PRESET_8_MAZE, _PRESET_8_BOMB, _PRESET_8_EXTREME_TIME),
-    card_blurb="New module every visit: wormhole gates, maze, bomb run, extreme time",
+               _PRESET_8_MAZE, _PRESET_8_EXTREME_TIME),
+    max_sections=3,
+    card_blurb="One to three merged screens per visit: wormhole gates, maze, extreme time",
 )
 
 PRESETS = {8: PRESET_8}

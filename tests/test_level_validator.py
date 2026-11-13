@@ -9,11 +9,29 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 from dataclasses import replace
 
 from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec, get_level
-from vector_drift.level_presets import PRESET_8
+from vector_drift.level_presets import PRESET_8, RandomPreset
 from vector_drift.level_validator import (
     ValidationCheck,
     ValidationReport,
     validate_level,
+)
+
+# The bomb theme is not part of the random level rotation any more; this
+# preset keeps the bomb-only checks covered.
+BOMB = RandomPreset(
+    level_id=8,
+    name="Random Drift Bomb",
+    generator="bomb",
+    time_limit=10.0,
+    lives=4,
+    target_radius=0.8,
+    min_start_target_dist=10.0,
+    num_hidden_points=0,
+    num_obstacles_min=3,
+    num_obstacles_max=6,
+    num_direct_blockers=0,
+    required_pickup_kinds=("shockwave",),
+    pickup_groups=(("money", (1, 2), 0.5), ("life", (1, 1), 0.5)),
 )
 
 
@@ -67,8 +85,7 @@ def test_endpoint_too_close_is_rejected():
 
 
 def test_required_pickup_missing_is_rejected():
-    template = [t for t in PRESET_8.templates if t.generator == "bomb"][0]
-    preset = replace(template, templates=(), required_pickup_kinds=("shockwave",))
+    preset = replace(BOMB, templates=(), required_pickup_kinds=("shockwave",))
     level = LevelSpec(
         id=993, name="NoShockwave", start=(-7.0, 0.0), target_center=(7.0, 0.0),
         target_radius=0.8, ship_id="ship01", time_limit=10.0, lives=3,
@@ -81,8 +98,7 @@ def test_required_pickup_missing_is_rejected():
 
 def test_required_pickup_unreachable_is_rejected():
     """A shockwave sealed inside an isolated rock pocket can never be reached."""
-    template = [t for t in PRESET_8.templates if t.generator == "bomb"][0]
-    preset = replace(template, templates=(), required_pickup_kinds=("shockwave",))
+    preset = replace(BOMB, templates=(), required_pickup_kinds=("shockwave",))
     shock = PickupSpec(center=(0.0, 0.0), radius=0.5, kind="shockwave")
     pocket = tuple(ObstacleSpec(center=(0.0, y), radius=0.75)
                    for y in (-3.0, -1.6, -0.75, 0.0, 0.75, 1.6, 3.0))
@@ -210,8 +226,7 @@ def test_broken_wormhole_wall_gap_is_rejected():
 
 
 def test_bomb_level_needs_blastable_ring():
-    template = [t for t in PRESET_8.templates if t.generator == "bomb"][0]
-    preset = replace(template, templates=(), name=PRESET_8.name)
+    preset = replace(BOMB, templates=(), name=PRESET_8.name)
     from vector_drift.level_modules import generate_layout
     layout = generate_layout(5, preset)
     report = _validate(layout.level, preset=preset, route=layout.route,
