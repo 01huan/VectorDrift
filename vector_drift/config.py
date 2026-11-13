@@ -11,7 +11,8 @@ ASSETS_DIR = ROOT_DIR / "assets"
 # --- Display scale ---------------------------------------------------------
 # Layout is designed for 1280x720 "logical" pixels. We tell Windows we handle
 # DPI ourselves and draw everything UI_SCALE times larger, so it stays sharp
-# instead of being stretched (blurry/pixelated) by the OS.
+# instead of being stretched (blurry/pixelated) by the OS.  On Linux and macOS
+# the desktop size is read from SDL, which scales the same way.
 #
 # By default the game runs fullscreen: UI_SCALE is chosen so the 16:9 layout
 # fills the screen, and any leftover strip (e.g. on a 16:10 screen) is drawn in
@@ -21,10 +22,34 @@ HEADLESS = os.environ.get("SDL_VIDEODRIVER") == "dummy"
 FULLSCREEN = not HEADLESS and not os.environ.get("VECTOR_DRIFT_WINDOWED")
 
 
+def _desktop_screen_info():
+    """(dpi_scale, screen_w, screen_h) of the primary display, from SDL.
+
+    The portable path for Linux and macOS, where there is no Win32 API to
+    ask.  The video driver is started here (no window yet) because SDL only
+    knows the desktop size once it is running.
+    """
+    try:
+        import pygame
+        if not pygame.display.get_init():
+            pygame.display.init()
+        sizes = pygame.display.get_desktop_sizes()
+    except Exception:
+        return 1.0, None, None             # no display / no video driver
+    if not sizes:
+        return 1.0, None, None
+    width, height = sizes[0]
+    if width <= 0 or height <= 0:
+        return 1.0, None, None
+    return 1.0, width, height
+
+
 def _screen_info():
     """(dpi_scale, screen_w, screen_h) in real pixels; makes the process DPI-aware."""
-    if sys.platform != "win32" or HEADLESS:
+    if HEADLESS:
         return 1.0, None, None
+    if sys.platform != "win32":
+        return _desktop_screen_info()
     try:
         import ctypes
         try:

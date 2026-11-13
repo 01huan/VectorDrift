@@ -296,7 +296,13 @@ Double-click [`run.bat`](run.bat). It finds an installed Python 3.11+ (`py -3`, 
 
 The launcher reuses the existing `.venv` on later runs and keeps the console window open with the reason when something fails, so the first start may take a moment while the dependencies are downloaded.
 
-Other platforms start the game with `python main.py` (see **Install and launch** below).
+### Quick start (macOS / Linux)
+
+Run [`run.sh`](run.sh) from a terminal (`sh run.sh`), or double-click [`run.command`](run.command) on macOS. It finds an installed Python 3.11+ (`python3`, `python`, `python3.13`, ...) and starts the game. When the dependencies are already installed it uses that Python right away; otherwise it creates a private `.venv` next to the project and installs only the packages that are missing. On Python versions without a prebuilt `pygame` wheel the launcher installs `pygame-ce` instead, which provides the same `pygame` module.
+
+The launcher reuses the existing `.venv` on later runs and keeps the terminal open with the reason when something fails, so the first start may take a moment while the dependencies are downloaded.
+
+If the scripts are not executable (for example after copying them out of a Windows checkout), run `chmod +x run.sh run.command` once, or start the game with `python main.py` (see **Install and launch** below).
 
 ### Install and launch
 
@@ -333,7 +339,7 @@ python main.py
 
 ### Display options
 
-By default, the game opens a borderless desktop-sized window and draws on a 1280×720 logical canvas. The layout scales to fit the available display; unused strips on non-16:9 displays are filled with the background color. On Windows, the application enables DPI awareness to keep the UI sharp on high-DPI displays.
+By default, the game opens a borderless desktop-sized window and draws on a 1280×720 logical canvas. The layout scales to fit the available display; unused strips on non-16:9 displays are filled with the background color. On Windows, the application enables DPI awareness to keep the UI sharp on high-DPI displays; on Linux and macOS the desktop size is read from SDL, so the same scaling applies there.
 
 - `VECTOR_DRIFT_WINDOWED=1` runs the game in a regular window.
 - `VECTOR_DRIFT_SCALE` forces a UI scale, for example `1`, `1.5`, or `2`.
@@ -349,7 +355,7 @@ python main.py
 VECTOR_DRIFT_WINDOWED=1 python main.py
 ```
 
-The formula editor detaches from the operating-system input method while the game is active so keyboard input is handled by the editor. Use `Quit` in the main menu or `Alt+F4` to close the game.
+The formula editor detaches from the operating-system input method while the game is active so keyboard input is handled by the editor. Use `Quit` in the main menu or `Alt+F4` (`Cmd+Q` on macOS) to close the game.
 
 ## Controls
 
@@ -475,6 +481,8 @@ The SQL schema enables Row Level Security on both tables. A player can read/inse
 VectorDrift/
 ├── main.py                         # Application entry point and Pygame loop
 ├── run.bat                         # One-click Windows launcher (detects Python, sets up .venv)
+├── run.sh                          # One-click Linux/macOS launcher (same steps as run.bat)
+├── run.command                     # macOS double-click wrapper that runs run.sh
 ├── requirements.txt                # Runtime and test dependencies
 ├── .env.example                    # Optional Supabase configuration template
 ├── docs/

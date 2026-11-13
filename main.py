@@ -3,6 +3,15 @@
 import os
 
 
+def desktop_size(pygame):
+    """(width, height) of the primary desktop, or None when it cannot be read."""
+    try:
+        sizes = pygame.display.get_desktop_sizes()
+    except pygame.error:
+        return None
+    return sizes[0] if sizes else None
+
+
 def open_display():
     import pygame
     from vector_drift import config
@@ -13,7 +22,12 @@ def open_display():
         # fullscreen: the exclusive window gets special focus handling that
         # kept the Win+Shift+S snipping overlay from capturing the game.
         os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "0,0")
-        dw, dh = pygame.display.get_desktop_sizes()[0]                  # desktop resolution
+        size = desktop_size(pygame)
+        if size is None:
+            # No desktop size (no video driver): fall back to a plain window.
+            display = pygame.display.set_mode((config.WINDOW_W, config.WINDOW_H))
+            return display, display, (0, 0)
+        dw, dh = size                                   # desktop resolution
         display = pygame.display.set_mode((dw, dh), pygame.NOFRAME)
         w, h = min(config.WINDOW_W, dw), min(config.WINDOW_H, dh)
         offset = ((dw - w) // 2, (dh - h) // 2)

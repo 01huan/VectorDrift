@@ -11,9 +11,14 @@ _font_cache = {}
 
 _FONT_CHOICES = {
     # kind: (asset file, system font fallbacks)
-    "ui": ("ui.ttf", "segoeui,arial,helvetica"),
-    "bold": ("ui_bold.ttf", "segoeuisemibold,segoeui,arial"),
-    "mono": ("mono.ttf", "consolas,couriernew,dejavusansmono"),
+    # The fallbacks are tried in order, so Windows keeps its own fonts first;
+    # macOS and Linux add theirs (Helvetica/Menlo, DejaVu/Liberation/Noto).
+    "ui": ("ui.ttf", "segoeui,arial,helvetica,helveticaneue,liberationsans,"
+                    "notosans,ubuntu,dejavusans"),
+    "bold": ("ui_bold.ttf", "segoeuisemibold,segoeuibold,segoeui,arial,helvetica,"
+                            "helveticaneue,liberationsans,notosans,ubuntu,dejavusans"),
+    "mono": ("mono.ttf", "consolas,couriernew,dejavusansmono,liberationmono,"
+                         "notosansmono,menlo,monaco,courier"),
 }
 
 
