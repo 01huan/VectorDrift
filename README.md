@@ -304,6 +304,12 @@ The launcher reuses the existing `.venv` on later runs and keeps the terminal op
 
 If the scripts are not executable (for example after copying them out of a Windows checkout), run `chmod +x run.sh run.command` once, or start the game with `python main.py` (see **Install and launch** below).
 
+On macOS, a downloaded `run.command` is blocked by Gatekeeper ("cannot be opened because it is from an unidentified developer"). Right-click it and choose **Open** once, or remove the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine run.command run.sh
+```
+
 ### Install and launch
 
 Clone the repository:
@@ -339,10 +345,17 @@ python main.py
 
 ### Display options
 
-By default, the game opens a borderless desktop-sized window and draws on a 1280×720 logical canvas. The layout scales to fit the available display; unused strips on non-16:9 displays are filled with the background color. On Windows, the application enables DPI awareness to keep the UI sharp on high-DPI displays; on Linux and macOS the desktop size is read from SDL, so the same scaling applies there.
+By default, the game opens a borderless desktop-sized window and draws on a 1280×720 logical canvas. The layout scales to fit the available display; unused strips on non-16:9 displays are filled with the background color.
+
+The screen is measured **once**, when `vector_drift.config` is imported, and the window and the canvas are built from that single measurement, so the canvas can never end up larger than the window.
+
+- On **Windows** the size comes from the Win32 API in real pixels, after the process has been marked DPI-aware. The UI is therefore drawn at the native resolution and stays sharp on high-DPI displays.
+- On **Linux and macOS** the size comes from SDL. SDL reports the desktop size in *points* on macOS, so on a Retina display the game runs at the "looks like" resolution and the system scales it up, which is softer than on Windows. Use `VECTOR_DRIFT_SCALE` to pick a different layout size.
 
 - `VECTOR_DRIFT_WINDOWED=1` runs the game in a regular window.
 - `VECTOR_DRIFT_SCALE` forces a UI scale, for example `1`, `1.5`, or `2`.
+
+On Linux and macOS the windowed mode stays at 1x, because those platforms do not report a display scale; `VECTOR_DRIFT_SCALE` overrides it.
 
 Examples:
 

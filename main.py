@@ -3,13 +3,13 @@
 import os
 
 
-def desktop_size(pygame):
-    """(width, height) of the primary desktop, or None when it cannot be read."""
+def set_mode(pygame, size, flags=0):
+    """pygame.display.set_mode with a readable error message."""
     try:
-        sizes = pygame.display.get_desktop_sizes()
-    except pygame.error:
-        return None
-    return sizes[0] if sizes else None
+        return pygame.display.set_mode(size, flags)
+    except pygame.error as exc:
+        raise RuntimeError(
+            f"Vector Drift cannot open a {size[0]}x{size[1]} window: {exc}") from exc
 
 
 def open_display():
@@ -22,18 +22,20 @@ def open_display():
         # fullscreen: the exclusive window gets special focus handling that
         # kept the Win+Shift+S snipping overlay from capturing the game.
         os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "0,0")
-        size = desktop_size(pygame)
-        if size is None:
+        # config.SCREEN_SIZE is the only source of truth: the window and the
+        # canvas are built from the same numbers, so the canvas can never be
+        # bigger than the window (which would cut the game off).
+        dw, dh = config.SCREEN_SIZE
+        if not dw or not dh:
             # No desktop size (no video driver): fall back to a plain window.
-            display = pygame.display.set_mode((config.WINDOW_W, config.WINDOW_H))
+            display = set_mode(pygame, (config.WINDOW_W, config.WINDOW_H))
             return display, display, (0, 0)
-        dw, dh = size                                   # desktop resolution
-        display = pygame.display.set_mode((dw, dh), pygame.NOFRAME)
+        display = set_mode(pygame, (dw, dh), pygame.NOFRAME)
         w, h = min(config.WINDOW_W, dw), min(config.WINDOW_H, dh)
         offset = ((dw - w) // 2, (dh - h) // 2)
         display.fill(config.BG)
         return display, display.subsurface((*offset, w, h)), offset
-    display = pygame.display.set_mode((config.WINDOW_W, config.WINDOW_H))
+    display = set_mode(pygame, (config.WINDOW_W, config.WINDOW_H))
     return display, display, (0, 0)
 
 

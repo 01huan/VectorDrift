@@ -8,6 +8,8 @@
 #  2. Uses it right away when the dependencies are already installed
 #  3. Otherwise creates a private .venv and installs what is missing
 #  4. Starts main.py and keeps this terminal open when something fails
+#
+#  Every failure is handled explicitly, so "set -e" can be added safely.
 # ============================================================================
 set -u
 
@@ -71,10 +73,11 @@ need_pygame() {
 # --- Accept a candidate interpreter only if it is a real Python 3.11+ -------
 # $@ = the candidate command, for example "python3" or "python3.12".
 # The Microsoft Store stub and Python 2 both fail this test.
+# Always returns 0: a rejected candidate is a normal outcome, not an error.
 try_python() {
-    "$@" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1 || return 1
-    found_exe=$("$@" -c "import sys; print(sys.executable)" 2>/dev/null) || return 1
-    [ -n "$found_exe" ] || return 1
+    "$@" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1 || return 0
+    found_exe=$("$@" -c "import sys; print(sys.executable)" 2>/dev/null) || return 0
+    [ -n "$found_exe" ] || return 0
     if [ -z "$PY_EXE" ]; then
         PY_EXE=$found_exe
     fi
@@ -83,6 +86,18 @@ try_python() {
         PY_READY=$found_exe
     fi
     return 0
+}
+
+# --- remove the private environment ------------------------------------------
+# Only ever the .venv inside this folder: the path is checked before the
+# directory is deleted, so a wrong $SCRIPT_DIR cannot wipe something else.
+# $1 = the .venv directory
+remove_venv() {
+    if [ "$1" = "$SCRIPT_DIR/.venv" ]; then
+        rm -rf "$1"
+    else
+        echo "[setup] Refusing to remove $1 - keeping it."
+    fi
 }
 
 # --- always work inside the folder of this file (spaces in the path are OK) ---
@@ -146,7 +161,7 @@ else
     if [ -x "$VENV_PY" ]; then
         if ! "$VENV_PY" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1; then
             echo "[setup] The existing .venv cannot be used - rebuilding it ..."
-            rm -rf "$VENV_DIR"
+            remove_venv "$VENV_DIR"
         fi
     fi
 
@@ -154,7 +169,7 @@ else
         echo "[setup] Creating a private environment in .venv ..."
         if ! "$PY_EXE" -m venv --system-site-packages "$VENV_DIR"; then
             echo "[setup] Could not create .venv - falling back to the system Python."
-            rm -rf "$VENV_DIR"
+            remove_venv "$VENV_DIR"
         fi
     fi
 
@@ -196,8 +211,9 @@ else
     need_package numpy numpy
     need_package supabase supabase
     need_package dotenv python-dotenv
-    # pytest is only needed for the test suite - never block the game on it.
-    if ! "$PY_RUN" -c "import pytest" >/dev/null 2>&1; then
+    # pytest is only needed for the test suite - never block the game on it,
+    # and never install it into the user's own Python.
+    if [ -n "$IN_VENV" ] && ! "$PY_RUN" -c "import pytest" >/dev/null 2>&1; then
         pip_install --only-binary=:all: pytest
     fi
 
@@ -205,6 +221,10 @@ else
         echo ""
         echo "[ERROR] Could not install the dependencies."
         echo "        Check the internet connection and run this file again."
+        echo "        If your Python is managed by the system (Debian and Ubuntu"
+        echo "        mark it EXTERNALLY-MANAGED), install the packages by hand"
+        echo "        with 'pip install --user -r requirements.txt', or remove that"
+        echo "        marker, then run this file again."
         pause
         exit 1
     fi

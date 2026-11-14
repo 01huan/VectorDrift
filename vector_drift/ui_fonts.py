@@ -1,6 +1,7 @@
 """Fonts and basic widgets: Button, CodeEditor."""
 
 import re
+import warnings
 
 import pygame
 
@@ -22,6 +23,17 @@ _FONT_CHOICES = {
 }
 
 
+def _system_font(names, size, bold):
+    """The first available system font from a comma separated list of names.
+
+    pygame warns when none of the names exists; the built-in font is a fine
+    fallback and the warning would repeat for every new font size.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return pygame.font.SysFont(names, size, bold=bold)
+
+
 def get_font(size, kind="ui"):
     """Font at a logical size (scaled to real pixels)."""
     key = (kind, size)
@@ -32,7 +44,7 @@ def get_font(size, kind="ui"):
         if path.exists():
             font = pygame.font.Font(str(path), px(size))
         else:
-            font = pygame.font.SysFont(sys_names, px(size), bold=(kind == "bold"))
+            font = _system_font(sys_names, px(size), bold=(kind == "bold"))
         _font_cache[key] = font
     return font
 
@@ -175,4 +187,4 @@ class Button:
 
 
 
-__all__ = ['Button', 'COIN_GOLD', '_FONT_CHOICES', '_font_cache', '_icon', 'coin_price_parts', 'config', 'draw_coins', 'draw_icon_row', 'draw_panel_box', 'draw_text', 'get_font', 'px', 'pygame', 're', 'wrap_text']
+__all__ = ['Button', 'COIN_GOLD', '_FONT_CHOICES', '_font_cache', '_icon', 'coin_price_parts', 'config', 'draw_coins', 'draw_icon_row', 'draw_panel_box', 'draw_text', 'get_font', 'px', 'pygame', 're', 'warnings', 'wrap_text']

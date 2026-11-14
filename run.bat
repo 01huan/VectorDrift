@@ -11,15 +11,25 @@ rem  4. Starts main.py and keeps this window open when something fails
 rem ===========================================================================
 setlocal EnableExtensions
 
-chcp 65001 >nul 2>&1
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "PIP_DISABLE_PIP_VERSION_CHECK=1"
 title Vector Drift
 
+rem --- the console code page is switched to UTF-8 for the output of the game
+rem --- and restored on the way out, so a shared console is left as it was.
+set "OLD_CP="
+for /f "tokens=2 delims=:" %%a in ('chcp 2^>nul') do set "OLD_CP=%%a"
+if defined OLD_CP set "OLD_CP=%OLD_CP: =%"
+chcp 65001 >nul 2>&1
+
+set "PUSHED="
+set "EXIT_CODE=0"
+
 rem --- always work inside the folder of this file (spaces in the path are OK) ---
 pushd "%~dp0"
 if errorlevel 1 goto :folder_error
+set "PUSHED=1"
 
 if not exist "main.py" goto :missing_files
 if not exist "requirements.txt" goto :missing_files
@@ -60,7 +70,7 @@ if exist "%VENV_PY%" (
     "%VENV_PY%" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
     if errorlevel 1 (
         echo [setup] The existing .venv cannot be used - rebuilding it ...
-        rmdir /s /q "%VENV_DIR%" >nul 2>&1
+        call :remove_venv "%VENV_DIR%"
     )
 )
 
@@ -70,6 +80,7 @@ echo [setup] Creating a private environment in .venv ...
 "%PY_EXE%" -m venv --system-site-packages "%VENV_DIR%"
 if errorlevel 1 (
     echo [setup] Could not create .venv - falling back to the system Python.
+    call :remove_venv "%VENV_DIR%"
     set "PY_RUN=%PY_EXE%"
     goto :deps
 )
@@ -108,9 +119,12 @@ call :need_pygame
 call :need_package numpy numpy
 call :need_package supabase supabase
 call :need_package dotenv python-dotenv
-rem pytest is only needed for the test suite - never block the game on it.
+rem pytest is only needed for the test suite - never block the game on it,
+rem and never install it into the user's own Python.
+if not defined IN_VENV goto :deps_check
 "%PY_RUN%" -c "import pytest" >nul 2>&1
 if errorlevel 1 call :pip_install --only-binary=:all: pytest
+:deps_check
 "%PY_RUN%" -c "import pygame, numpy, supabase, dotenv" >nul 2>&1
 if errorlevel 1 goto :deps_failed
 
@@ -123,13 +137,18 @@ echo [run] Starting Vector Drift ...
 echo.
 "%PY_RUN%" main.py %*
 set "EXIT_CODE=%ERRORLEVEL%"
-if "%EXIT_CODE%"=="0" goto :done
+if "%EXIT_CODE%"=="0" goto :finish
 echo.
 echo [ERROR] The game stopped with exit code %EXIT_CODE%.
 pause
-:done
-popd
-exit /b %EXIT_CODE%
+
+rem ---------------------------------------------------------------------------
+rem  Leave: restore the console code page and the folder, then exit.
+rem ---------------------------------------------------------------------------
+:finish
+if defined OLD_CP chcp %OLD_CP% >nul 2>&1
+if defined PUSHED popd
+endlocal & exit /b %EXIT_CODE%
 
 
 rem ===========================================================================
@@ -153,6 +172,17 @@ if defined PY_READY goto :eof
 for /f "delims=" %%P in ('call %* -c "import sys; print(sys.executable)" 2^>nul') do set "PY_READY=%%P"
 goto :eof
 
+rem --- Remove the private environment ----------------------------------------
+rem  %1 = the .venv directory.  Only the .venv inside this folder is ever
+rem  deleted, so a wrong path cannot wipe something else.
+:remove_venv
+if "%~1"=="%CD%\.venv" (
+    rmdir /s /q "%~1" >nul 2>&1
+) else (
+    echo [setup] Refusing to remove %~1 - keeping it.
+)
+goto :eof
+
 rem --- Install a package unless its module already imports -------------------
 rem  %1 = module name, %2 = package name on PyPI
 rem  A wheel is tried first because it is fast; the source build is the
@@ -167,7 +197,7 @@ call :pip_install %~2
 goto :eof
 
 rem --- pygame needs its own rule: the official package has no wheels for the
-rem  newest Python releases, so fall back to its maintained drop-in fork -----
+rem --- newest Python releases, so fall back to its maintained drop-in fork ---
 :need_pygame
 "%PY_RUN%" -c "import pygame" >nul 2>&1
 if not errorlevel 1 goto :eof
@@ -190,19 +220,24 @@ if defined IN_VENV goto :eof
 "%PY_RUN%" -m pip install --user %*
 goto :eof
 
+rem ===========================================================================
+rem  Error paths
+rem ===========================================================================
+
 :folder_error
 echo.
 echo [ERROR] Cannot open the VectorDrift folder.
 pause
-exit /b 1
+set "EXIT_CODE=1"
+goto :finish
 
 :missing_files
 echo.
 echo [ERROR] main.py or requirements.txt is missing.
 echo         Keep this file inside the VectorDrift folder.
 pause
-popd
-exit /b 1
+set "EXIT_CODE=1"
+goto :finish
 
 :no_python
 echo.
@@ -213,8 +248,8 @@ echo      and tick "Add python.exe to PATH" in the installer.
 echo   2. Run this file again.
 echo.
 pause
-popd
-exit /b 1
+set "EXIT_CODE=1"
+goto :finish
 
 :no_pip
 echo.
@@ -222,13 +257,17 @@ echo [ERROR] pip is not available for this Python installation.
 echo         Reinstall Python with the "pip" option ticked, or install pip
 echo         manually, then run this file again.
 pause
-popd
-exit /b 1
+set "EXIT_CODE=1"
+goto :finish
 
 :deps_failed
 echo.
 echo [ERROR] Could not install the dependencies.
 echo         Check the internet connection and run this file again.
+echo         If your Python is managed by the system (Debian and Ubuntu mark
+echo         it EXTERNALLY-MANAGED), install the packages by hand with
+echo         "pip install --user -r requirements.txt", or remove that marker,
+echo         then run this file again.
 pause
-popd
-exit /b 1
+set "EXIT_CODE=1"
+goto :finish

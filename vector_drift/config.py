@@ -1,7 +1,14 @@
-"""Global constants: window layout, colors, physics parameters."""
+"""Global constants: window layout, colors, physics parameters.
+
+Importing this module measures the primary display, because the layout is
+built around the real pixel size of the screen.  On Windows the size comes
+from the Win32 API; everywhere else it comes from SDL, which means the SDL
+video subsystem is started here (set SDL_VIDEODRIVER=dummy to skip that).
+"""
 
 import os
 import sys
+import warnings
 from pathlib import Path
 
 # --- Paths ---------------------------------------------------------------
@@ -22,44 +29,87 @@ HEADLESS = os.environ.get("SDL_VIDEODRIVER") == "dummy"
 FULLSCREEN = not HEADLESS and not os.environ.get("VECTOR_DRIFT_WINDOWED")
 
 
-def _desktop_screen_info():
-    """(dpi_scale, screen_w, screen_h) of the primary display, from SDL.
+def _set_dpi_awareness():
+    """Tell Windows that this process scales its own UI (Windows only).
 
-    The portable path for Linux and macOS, where there is no Win32 API to
-    ask.  The video driver is started here (no window yet) because SDL only
-    knows the desktop size once it is running.
+    Best effort: it fails on old Windows versions and when a window already
+    exists.  It has to run before SDL starts, otherwise SDL keeps the
+    desktop size in unscaled (logical) pixels while the Win32 API reports
+    real ones - the two would disagree and the canvas would be clipped.
     """
-    try:
-        import pygame
-        if not pygame.display.get_init():
-            pygame.display.init()
-        sizes = pygame.display.get_desktop_sizes()
-    except Exception:
-        return 1.0, None, None             # no display / no video driver
-    if not sizes:
-        return 1.0, None, None
-    width, height = sizes[0]
-    if width <= 0 or height <= 0:
-        return 1.0, None, None
-    return 1.0, width, height
-
-
-def _screen_info():
-    """(dpi_scale, screen_w, screen_h) in real pixels; makes the process DPI-aware."""
-    if HEADLESS:
-        return 1.0, None, None
     if sys.platform != "win32":
-        return _desktop_screen_info()
+        return
     try:
         import ctypes
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)     # per-monitor aware
         except (AttributeError, OSError):
             ctypes.windll.user32.SetProcessDPIAware()
-        user32 = ctypes.windll.user32
-        return user32.GetDpiForSystem() / 96, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
     except (AttributeError, OSError):
-        return 1.0, None, None
+        pass
+
+
+def _win_screen_size():
+    """(width, height) of the primary display in real pixels, (None, None) on failure."""
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    except (AttributeError, OSError):
+        return None, None
+
+
+def _win_dpi_scale():
+    """The Windows display scale (1.0 = 100%), or 1.0 when it is unknown."""
+    try:
+        import ctypes
+        return ctypes.windll.user32.GetDpiForSystem() / 96
+    except (AttributeError, OSError):
+        return 1.0
+
+
+def _sdl_screen_size():
+    """(width, height) of the primary display in real pixels, (None, None) on failure.
+
+    SDL is the only portable way to ask, so the video subsystem is started
+    here (no window is opened yet).
+    """
+    try:
+        import pygame
+        if not pygame.display.get_init():
+            pygame.display.init()
+        sizes = pygame.display.get_desktop_sizes()
+    except Exception as exc:                  # no display / no video driver
+        warnings.warn(f"Vector Drift: cannot measure the screen ({exc}); "
+                      "the game runs at 1x.", RuntimeWarning)
+        return None, None
+    if not sizes:
+        return None, None
+    width, height = sizes[0]
+    if width <= 0 or height <= 0:
+        return None, None
+    return width, height
+
+
+def detect_screen():
+    """(width, height, dpi_scale) of the primary display in real pixels.
+
+    (None, None, 1.0) when the size cannot be measured.  This is the only
+    answer the game uses, so the window and the canvas can never disagree
+    about how big the screen is.
+    """
+    if HEADLESS:
+        return None, None, 1.0
+    if sys.platform == "win32":
+        _set_dpi_awareness()
+        width, height = _win_screen_size()
+        return width, height, _win_dpi_scale()
+    width, height = _sdl_screen_size()
+    return width, height, 1.0
+
+
+SCREEN_W, SCREEN_H, DPI_SCALE = detect_screen()
+SCREEN_SIZE = (SCREEN_W, SCREEN_H)
 
 
 def _detect_ui_scale(dpi_scale, screen_w, screen_h):
@@ -70,12 +120,14 @@ def _detect_ui_scale(dpi_scale, screen_w, screen_h):
         return 1.0
     if FULLSCREEN:
         return min(screen_w / BASE_W, screen_h / BASE_H)
-    # Windowed: leave room for the title bar and taskbar.
+    # Windowed: leave room for the title bar and taskbar.  Linux and macOS do
+    # not report a display scale, so they stay at 1x unless VECTOR_DRIFT_SCALE
+    # says otherwise.
     fit = min(screen_w * 0.95 / BASE_W, screen_h * 0.88 / BASE_H)
     return max(1.0, min(dpi_scale, fit))
 
 
-UI_SCALE = _detect_ui_scale(*_screen_info())
+UI_SCALE = _detect_ui_scale(DPI_SCALE, SCREEN_W, SCREEN_H)
 
 
 def px(value):
