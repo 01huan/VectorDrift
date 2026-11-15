@@ -27,6 +27,7 @@ from ..solver.interface import SolveResult
 from .base import Scene
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
+from . import game_functions as gfunc
 from . import pickup_effects as pfx
 from .game_section_pan import SectionPan
 log = logging.getLogger(__name__)
@@ -56,6 +57,8 @@ class GameUIMixin:
         self._draw_fly_texts(surface)
         if self.ai_popup:
             self._draw_ai_popup(surface)
+        if getattr(self, "lab_popup", False):
+            gfunc.draw(surface, self)
         if self.hint_popup is not None:
             self.hint_popup.answer_price = self._answer_price()
             self.hint_popup.available = self._available_coins()

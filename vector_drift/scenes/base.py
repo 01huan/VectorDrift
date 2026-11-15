@@ -37,6 +37,9 @@ class Session:
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
+    # The Function Lab's library: named Fx/Fy pairs the player saved.
+    function_library: list = field(default_factory=list)     # list of SavedFunction
+    imported_function_id: str | None = None                 # the one imported for levels
     level_source: str | None = None  # where the current level was launched from
     level_select_page: tuple | None = None  # (page, level_id) level select last showed; this launch only
     seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
@@ -50,6 +53,14 @@ class Session:
     sync_status: str = "idle"           # idle | syncing | error
     cloud_save_pending: bool = False    # deferred cloud upload while account busy
     last_sync_error: str | None = None
+
+    @property
+    def imported_function(self):
+        """The function the player imported for use in the normal levels."""
+        from ..function_library import find_function
+
+        return find_function(self.function_library, self.imported_function_id)
+
     @property
     def launch_records(self):
         return self.replays

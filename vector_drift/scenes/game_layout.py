@@ -86,6 +86,9 @@ EDITOR_Y = 354
 TELEMETRY_ROW_H = 20
 LEGEND_LABEL_Y = 636
 LEGEND_Y = 662
+# The "Lab" button (the player's saved functions) next to the Hint / AI
+# Solver button at the bottom of the panel.
+LAB_BTN_W = 64
 
 
 def ease_in_out(p):
@@ -130,5 +133,6 @@ __all__ = [
     "SHIP_MIN_SCALE", "RUN_GREEN", "PAD", "CX", "CONTENT_W", "LOGO_Y", "LOGO_W",
     "LEVEL_ROW_Y", "SHIP_LABEL_Y", "SHIP_BOX", "SHIP_NAME_Y", "SHIP_MASS_Y",
     "STATUS_Y", "EDITOR_Y", "TELEMETRY_ROW_H", "LEGEND_LABEL_Y", "LEGEND_Y",
+    "LAB_BTN_W",
     "zoom_level", "level_zoom", "R", "ease_in_out", "pan_offsets", "fmt_pair", "fmt_clock",
 ]

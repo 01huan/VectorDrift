@@ -30,6 +30,11 @@ def _consumable_ability_ids() -> set:
     except Exception:
         return set()
 CUSTOM_LEVELS_KEY = "custom_levels"
+# The Function Lab's library (named Fx/Fy pairs) rides along in the profile's
+# stats, so the cloud schema needs no new column.
+FUNCTION_LIBRARY_KEY = "function_library"
+# The id of the function the player imported for use in the normal levels.
+IMPORTED_FUNCTION_KEY = "imported_function_id"
 # Whether the intro story has started (Session.seen_intro), saved the same way.
 # Missing means not seen. Applying a save keeps it if either side saw it.
 SEEN_INTRO_KEY = "seen_intro"
@@ -66,6 +71,13 @@ def _restore_custom_levels(session: Any, rows: Any) -> None:
     session.custom_level_ids = {level.id for level in levels}
 
 
+def _restore_function_library(session: Any, rows: Any) -> None:
+    """Put the saved functions back into the session."""
+    from vector_drift.function_library import library_from_rows
+
+    session.function_library = library_from_rows(rows)
+
+
 def _session_class():
     from vector_drift.scenes.base import Session
 
@@ -91,6 +103,9 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         except Exception:
             pass
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
+    _restore_function_library(session, stats.pop(FUNCTION_LIBRARY_KEY, None))
+    imported_id = stats.pop(IMPORTED_FUNCTION_KEY, None)
+    session.imported_function_id = str(imported_id) if imported_id else None
     charges = stats.pop(ABILITY_CHARGES_KEY, None) or {}
     existing = getattr(session, "ability_charges", None)
     merged = dict(existing) if isinstance(existing, dict) else {}
@@ -215,10 +230,14 @@ def apply_best_profile(session: Any, cloud_profile: Any, user_id: str, email: st
 
 
 def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
+    from vector_drift.function_library import library_to_rows
+
     stats = {**(session.stats or {}),
              CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
              SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
              CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
+             FUNCTION_LIBRARY_KEY: library_to_rows(getattr(session, "function_library", ())),
+             IMPORTED_FUNCTION_KEY: getattr(session, "imported_function_id", None),
              ABILITY_CHARGES_KEY: {
                  **(session.stats.get(ABILITY_CHARGES_KEY, {}) if isinstance(getattr(session, "stats", None), dict) else {}),
                  **(getattr(session, "ability_charges", {}) or {}),
@@ -260,6 +279,9 @@ def reset_session_to_guest(session: Any) -> None:
 
     session.custom_levels = []
     session.custom_level_ids = set()
+    # The Function Lab's library is deleted with the rest of the local data.
+    session.function_library = []
+    session.imported_function_id = None
     # register_custom_level() never writes to LEVELS (built-ins are
     # immutable), so clearing the custom registry is enough.
     data.CUSTOM_LEVELS.clear()

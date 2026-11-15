@@ -134,7 +134,9 @@ class LevelSelectScene(InventoryMixin, Scene):
                                  style="primary", font_size=17)
         self.editor_button = Button((config.WINDOW_W - px(360), px(20), px(160), px(40)), "Level Editor",
                                    style="plain", font_size=17)
-        self.tutorial_button = Button((config.WINDOW_W - px(540), px(20), px(160), px(40)), TUTORIAL_LABEL,
+        self.lab_button = Button((config.WINDOW_W - px(540), px(20), px(160), px(40)), "Function Lab",
+                                 style="plain", font_size=17)
+        self.tutorial_button = Button((config.WINDOW_W - px(720), px(20), px(160), px(40)), TUTORIAL_LABEL,
                                      style="plain", font_size=17)
         self._rebuild_cards()
 
@@ -142,7 +144,13 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.audio.play("click")
         self.session.level_id = level_id
         self.session.level_select_page = (self.page, level_id)
-        self.session.fx_text = self.session.fy_text = ""
+        # An imported function is the one the player wants to use, so the
+        # editor starts with it (the formulas stay editable as usual).
+        imported = getattr(self.session, "imported_function", None)
+        if imported is not None:
+            self.session.fx_text, self.session.fy_text = imported.fx, imported.fy
+        else:
+            self.session.fx_text = self.session.fy_text = ""
         self.session.editor_history = None      # a new start: no undo into another run
         self.session.ship_id = None             # start on the level's newest ship
         # Fresh solvable layout for dynamic levels on every entry; static
@@ -170,6 +178,11 @@ class LevelSelectScene(InventoryMixin, Scene):
         from .story import StoryScene
         self.manager.switch(StoryScene(self.manager))
 
+    def _open_lab(self):
+        self.audio.play("click")
+        from .function_lab import FunctionLabScene
+        self.manager.switch(FunctionLabScene(self.manager))
+
     def handle_event(self, event):
         if self._handle_inventory_event(event):
             return
@@ -179,6 +192,7 @@ class LevelSelectScene(InventoryMixin, Scene):
             self.next_arrow.update_hover(event.pos)
             self.shop_button.handle_event(event)
             self.editor_button.handle_event(event)
+            self.lab_button.handle_event(event)
             self.tutorial_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lid, rect in self.cards:
@@ -197,6 +211,9 @@ class LevelSelectScene(InventoryMixin, Scene):
                 return
             if self.tutorial_button.handle_event(event) == "click":
                 self._open_tutorial()
+                return
+            if self.lab_button.handle_event(event) == "click":
+                self._open_lab()
                 return
             if self.editor_button.handle_event(event) == "click":
                 self.audio.play("click")
@@ -241,6 +258,7 @@ class LevelSelectScene(InventoryMixin, Scene):
         self._draw_page_dots(surface)
         self.tutorial_button.draw(surface)
         self.editor_button.draw(surface)
+        self.lab_button.draw(surface)
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)
         self._draw_inventory_button(surface)

@@ -95,6 +95,7 @@ class GameHudRenderMixin:
             self.ai_button.label = ("AI Solver" if self.ai_status != "error"
                                     else "AI Solver (Failed)")
         self.ai_button.draw(surface)
+        self.lab_button.draw(surface)
 
     def _draw_telemetry(self, surface, area):
         in_flight = self.flight is not None

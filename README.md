@@ -15,6 +15,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 ## Features
 
 - **Mathematical force-field editor** — write general expressions in `x` and `y`, with syntax highlighting, validation, error locations, and independent undo/redo histories for `Fx` and `Fy`.
+- **Function Lab** — write a force function of your own, watch the field it produces, give it a name, save it in your library and import it into the normal levels.
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
 - **Procedural level generation** — Level 8 builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
@@ -240,6 +241,21 @@ The current editor does **not** expose controls for custom time/life settings, w
 
 Custom levels can be played locally and are included in local/cloud player progress. Custom levels do not earn coin payouts or campaign clear rewards.
 
+## Function Lab
+
+Open **Function Lab** from the level selector to write a force function of your own and keep it in your library.
+
+The lab is a place of its own:
+
+- **Write** the two components of the field (`Fx` and `Fy`) in the code editor. The editor works like the one in a level: syntax highlighting, error marks under the offending line, and separate undo histories per line.
+- **Watch** the function: the preview shows the force field it produces on the usual map, with the longest arrow's force in newtons. A probe particle (1 kg, released at `(-6, 0) m`) traces the path the ship would take, so a swirling field is easy to recognise.
+- **Name** the function and **Save** it. Saving stores the name and both formulas in your library; saving again after a **Load** updates the same entry. The library holds up to 60 functions.
+- **Import** a function when it is ready. The imported function is marked *in use* and is what the normal levels start with: open any level and the editor already holds its formulas. They stay editable like any other formulas.
+
+Every library row has three actions: **Load** (put the function into the editor so it can be changed), **Import** (make it the function the levels use) and **×** (delete it).
+
+The game screen has a **Lab** button that lists the same library, so a saved function can be loaded into the editor at any time before a launch. The library and the imported function are part of the player profile: they are saved locally and, when signed in, synchronized with the cloud profile like the rest of the progress. Deleting the local data removes them too.
+
 ## Public Community Levels
 
 The **Public Levels** page is part of the Level Editor menu.
@@ -413,6 +429,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Esc` in the level selector | Return to the main menu. |
 | `<` / `>` arrows, `←` / `→` or the mouse wheel in the level selector | Previous / next page of nine levels (wheel down is the next page; the dots below the grid show the current page). |
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
+| Function Lab button | Open the Function Lab. |
 | Tutorial button | Watch the opening story again. |
 | Replays button | Open saved launch replays. |
 
@@ -425,6 +442,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels, Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
 | `Esc` with a popup open | Close the topmost Hint or AI Solver popup first. |
 | `Tab`, `Up`, or `Down` | Switch between the `Fx` and `Fy` editor lines. |
+| Lab button | List the functions saved in the Function Lab; picking one writes it into the editor. |
 | `B`, `V`, `M`, `T`, `G`, `X`, `Q` | Trigger an owned active ability during a flight (see **Ships and Shop**). |
 | Mouse drag / double-click | Select text in the active formula line. |
 | `Shift` + Arrow / `Home` / `End` | Extend the text selection. |
@@ -525,7 +543,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
 
@@ -559,6 +577,7 @@ VectorDrift/
     ├── level_merge.py              # Merges 1-3 generated layouts into one multi-screen level
     ├── level_validator.py          # Procedural Level Validator (path analysis + AI Solver probe)
     ├── expr_parser.py              # Mathematical expression parser/evaluator
+    ├── function_library.py         # The Function Lab's saved functions (data model)
     ├── physics.py                  # Force fields and flight simulation
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
@@ -576,6 +595,8 @@ VectorDrift/
     ├── account/                    # Auth, local profiles, Supabase, community
     ├── solver/                     # Solver API, PSO, templates, evaluation, data
     └── scenes/                     # Menu, gameplay, editor, account, replay, etc.
+        ├── function_lab.py         # The Function Lab screen
+        └── game_functions.py       # In-game picker for the saved functions
 ```
 
 ## Development

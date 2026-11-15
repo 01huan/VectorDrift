@@ -26,6 +26,7 @@ from ..solver.interface import SolveResult
 from .base import Scene
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
+from . import game_functions as gfunc
 from . import pickup_effects as pfx
 from .game_section_pan import SectionPan
 log = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ class GameFlightMixin:
         if self.hint_popup is not None:
             self._handle_hint_event(event)
             return                      # modal: nothing behind it takes input
+        if getattr(self, "lab_popup", False):
+            if gfunc.handle_event(self, event):
+                return                  # modal: nothing behind it takes input
         if self.ai_popup and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self.audio.play("click")    # same as its Close button
             self.ai_popup = False
@@ -112,6 +116,10 @@ class GameFlightMixin:
             from .base import back_scene_for_level
             Target = back_scene_for_level(self.session, self)
             self.manager.switch(Target(self.manager))
+            return
+        if self.lab_button.handle_event(event) == "click":
+            self.audio.play("click")
+            gfunc.open_popup(self)
             return
         if self.prev_ship.handle_event(event) == "click":
             self._switch_ship(-1)
