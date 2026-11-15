@@ -22,7 +22,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
 - **Custom level editor** — create, edit, save, and play your own layouts.
-- **Community levels** — browse public levels and upload or delete your own levels through an optional Supabase backend.
+- **Community levels** — browse, search and sort public levels (fuzzy search by level name and uploader, sorting by time limit, obstacles, pickups and player statistics) and upload or delete your own levels through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
 - **Progression and persistence** — earn coins, buy ship skins, keep best times, and save progress locally or to an optional online account.
 - **Music and art** — music, sound effects, and replaceable image/audio assets.
@@ -250,6 +250,35 @@ The **Public Levels** page is part of the Level Editor menu.
 - A player can delete their own uploaded levels. Supabase Row Level Security also restricts deletion to the owning user.
 - Opening a community level loads it into the local custom-level list so it can be played like another custom level.
 
+### Searching and sorting
+
+The page has a search bar above the level cards:
+
+| Control | What it does |
+|---|---|
+| **Name** | Fuzzy search over the level names. It does not need an exact match: a typo or a part of the name is enough. The closer a level matches, the earlier it is listed. |
+| **By** | Fuzzy search over the uploader names, with the same "closest match first" rule. |
+| **Sort** | Cycles through the sort orders: newest, oldest, time limit, number of obstacles, number of pickups, number of one pickup kind, plays, clears, and players who cleared. |
+| **↑ / ↓** | Flips the direction of the chosen sort order. |
+| **Pickup** | Chooses which pickup kind the "pickup count" order uses (shockwave, extra time, shield, life, money, Unbound). |
+| **At least plays / clears / players** | Only lists levels with at least that many plays, clears, or players who cleared them. |
+| **Reset** | Clears every search box and filter and goes back to the default order. |
+| **Prev / Next**, mouse wheel | Turn the page when the search result has more levels than fit on the screen. |
+
+Both text searches have to match: a level is listed when its name is close to the **Name** query *and* its uploader is close to the **By** query. When a search is used, the closeness decides the order and the chosen sort order breaks the ties.
+
+Every card also shows the level's time limit, its number of obstacles and pickups, and its statistics.
+
+### Community level statistics
+
+Every community level counts how often it was played, how often it was cleared and how many **different** players cleared it:
+
+- a **play** is counted when a community level is launched;
+- a **clear** is counted when the ship reaches the target;
+- the **players** counter counts the different players who cleared the level. A signed-in player is identified by the account id, a guest by a random id that is kept in the local profile.
+
+The counters live on the level row in the database and are raised by the `community_level_record_play` and `community_level_record_clear` database functions, so two players never overwrite each other's count. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; on an older database the levels are still listed and searched, only without their counters.
+
 Community features use the built-in Supabase backend by default. Players do not need to provide their own credentials to browse public levels or use online account features.
 
 Players can optionally configure their own Supabase project through a .env file. When custom credentials are provided, they override the built-in configuration.
@@ -405,6 +434,18 @@ The formula editor detaches from the operating-system input method while the gam
 
 The formula editor also supports paired-parenthesis editing: typing `(` around a selection wraps it; typing `(` at the end of an expression (or before a space) inserts a matching `)` and places the cursor inside; typing `)` before an existing matching close parenthesis moves past it; Backspace inside an empty `()` removes the pair. `Fx` and `Fy` maintain separate edit histories.
 
+### Public Levels page
+
+| Input | Action |
+|---|---|
+| Click a search box and type | Fuzzy search by level name or by uploader name; the closest match is listed first. |
+| Click **Sort** | Next sort order (newest, oldest, time limit, obstacles, pickups, one pickup kind, plays, clears, players). |
+| Click **↑ / ↓** | Flip the direction of the sort order. |
+| Click **Pickup** | Choose the pickup kind the "pickup count" order uses. |
+| Click **Reset** | Clear all searches and filters. |
+| Click **Prev / Next**, or use the mouse wheel | Turn the page of the search result. |
+| Click a card | Download the level and play it. |
+
 ### Level editor
 
 | Input | Action |
@@ -466,7 +507,7 @@ No additional configuration is required. Simply launch the game, and the built-i
 
 1. Create a Supabase project.
 2. In the project's Authentication settings, enable the Email provider and configure email confirmation/password recovery to match your project.
-3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles` and `community_levels` tables, their Row Level Security policies, and the profile-creation trigger.
+3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles` and `community_levels` tables, their Row Level Security policies, the profile-creation trigger, and the database functions that count the [community level statistics](#community-level-statistics).
 4. Copy `.env.example` to `.env` and replace the placeholder values with your own project URL and public anon key:
 
    ```dotenv
@@ -484,7 +525,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, whether the opening story has been seen, and other stats. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
 
@@ -511,6 +552,7 @@ VectorDrift/
 └── vector_drift/
     ├── config.py                   # Display, gameplay, physics, and economy constants
     ├── data.py                     # Ship and level specifications
+    ├── community_browse.py         # Community browser rules: fuzzy search, filters, sorting
     ├── level_presets.py            # Procedural-level presets (templates + ValidationProfile)
     ├── random_level.py             # Seeded level generator (module dispatch + validated retry)
     ├── level_modules.py            # Generation modules: corridor, wormhole network, maze, extreme time
@@ -529,6 +571,7 @@ VectorDrift/
     ├── background.py               # Background/field layer work
     ├── coords.py                   # World-to-screen coordinate transforms
     ├── ui.py                       # Buttons, code editor, text and UI helpers
+    ├── ui_input.py                 # Single-line text field (search boxes, filters)
     ├── shop.py / money.py          # Shop catalog and currency
     ├── account/                    # Auth, local profiles, Supabase, community
     ├── solver/                     # Solver API, PSO, templates, evaluation, data

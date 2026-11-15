@@ -22,6 +22,12 @@ from .supabase_client import get_client
 
 TABLE = "community_levels"
 
+# Columns the browser needs.  The statistics columns were added after the
+# first release of the table, so an older database does not have them yet:
+# the fetch falls back to the plain column list when the extended one fails.
+BASE_COLUMNS = "id, user_id, uploader_name, level_name, level_data, created_at"
+STAT_COLUMNS = "play_count, clear_count, clear_players"
+
 
 def _run_async(
     fn: Callable[[], Any],
@@ -139,19 +145,85 @@ def fetch_community_levels(
     on_success: Optional[Callable[[list[dict]], None]] = None,
     on_error: Optional[Callable[[Exception], None]] = None,
 ) -> None:
-    """Fetch all public community levels, newest first."""
+    """Fetch all public community levels, newest first.
+
+    The statistics columns (``play_count`` / ``clear_count`` /
+    ``clear_players``) are requested too, but a database that was created
+    before they existed answers with an error.  In that case the plain
+    column list is used instead: the levels still show up, only without
+    their counters.
+    """
 
     def _fn() -> list[dict]:
         client = get_client()
-        resp = (
-            client.table(TABLE)
-            .select(
-                "id, user_id, uploader_name, level_name, level_data, created_at"
+        try:
+            resp = (
+                client.table(TABLE)
+                .select(f"{BASE_COLUMNS}, {STAT_COLUMNS}")
+                .order("created_at", desc=True)
+                .execute()
             )
-            .order("created_at", desc=True)
-            .execute()
-        )
+        except Exception:
+            resp = (
+                client.table(TABLE)
+                .select(BASE_COLUMNS)
+                .order("created_at", desc=True)
+                .execute()
+            )
         return getattr(resp, "data", None) or []
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def record_community_play(
+    level_id: str,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Count one play of a community level.
+
+    The counter lives on the level row and is raised by a database function
+    (``community_level_record_play``), so two players never overwrite each
+    other's count.  A database without that function simply does not count
+    the play: the error is reported to the caller, never raised into the
+    game loop.
+    """
+    if not level_id:
+        if on_error is not None:
+            on_error(ValueError("no community level id"))
+        return
+
+    def _fn() -> Any:
+        client = get_client()
+        return client.rpc("community_level_record_play", {"p_level_id": str(level_id)}).execute()
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def record_community_clear(
+    level_id: str,
+    player_key: Optional[str] = None,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Count one clear of a community level.
+
+    ``player_key`` identifies the player (the account id, or the local
+    player id for a guest).  The database keeps the keys of the players who
+    cleared the level, so it can also report how many *different* players
+    cleared it.
+    """
+    if not level_id:
+        if on_error is not None:
+            on_error(ValueError("no community level id"))
+        return
+
+    def _fn() -> Any:
+        client = get_client()
+        return client.rpc(
+            "community_level_record_clear",
+            {"p_level_id": str(level_id), "p_player_key": player_key or ""},
+        ).execute()
 
     _run_async(_fn, on_success=on_success, on_error=on_error)
 

@@ -40,6 +40,7 @@ class Session:
     level_source: str | None = None  # where the current level was launched from
     level_select_page: tuple | None = None  # (page, level_id) level select last showed; this launch only
     seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
+    player_key: str | None = None   # local id of this player (community statistics); saved
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None

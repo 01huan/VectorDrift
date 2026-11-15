@@ -51,8 +51,18 @@ create table if not exists public.community_levels (
     uploader_name text not null default '',   -- 上傳者的帳號名稱，社區卡片顯示此欄位，不顯示信箱
     level_name text not null,
     level_data jsonb not null default '{}'::jsonb,
-    created_at timestamptz not null default now()
+    created_at timestamptz not null default now(),
+    -- 瀏覽統計：遊玩次數、通關次數、通關的玩家（用來算通關人數）
+    play_count integer not null default 0,
+    clear_count integer not null default 0,
+    clear_players jsonb not null default '[]'::jsonb
 );
+
+-- 舊的資料庫沒有統計欄位時補上（已存在就不動）。
+alter table public.community_levels
+    add column if not exists play_count integer not null default 0,
+    add column if not exists clear_count integer not null default 0,
+    add column if not exists clear_players jsonb not null default '[]'::jsonb;
 
 alter table public.community_levels enable row level security;
 
@@ -65,3 +75,52 @@ create policy "community_levels_delete_own" on public.community_levels
 -- 帳號上傳者可修改自己上傳的社區關卡（改名時同步 uploader_name、修改關卡時同步 level_name/level_data）。
 create policy "community_levels_update_own" on public.community_levels
     for update using (auth.uid() = user_id);
+
+-- 統計計數用資料庫函式更新，避免兩位玩家同時加一而互相覆蓋。
+-- 這些函式對 anon / authenticated 開放（遊客沒有帳號也要能計數），
+-- 所以數字只是「盡力而為」的統計，不是防弊機制。
+-- 遊玩一次：play_count + 1。
+create or replace function public.community_level_record_play(p_level_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    update public.community_levels
+       set play_count = play_count + 1
+     where id = p_level_id;
+end;
+$$;
+
+-- 通關一次：clear_count + 1，並把玩家代號記進 clear_players（不重複），
+-- 這樣就能算出「有幾位不同的玩家通關過」。
+create or replace function public.community_level_record_clear(p_level_id uuid, p_player_key text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if p_level_id is null then
+        return;
+    end if;
+    if p_player_key is null or p_player_key = '' then
+        update public.community_levels
+           set clear_count = clear_count + 1
+         where id = p_level_id;
+        return;
+    end if;
+    update public.community_levels
+       set clear_count = clear_count + 1,
+           clear_players = case
+               when clear_players ? p_player_key then clear_players
+               else clear_players || jsonb_build_array(p_player_key)
+           end
+     where id = p_level_id;
+end;
+$$;
+
+grant execute on function public.community_level_record_play(uuid) to anon, authenticated;
+grant execute on function public.community_level_record_clear(uuid, text) to anon, authenticated;
+

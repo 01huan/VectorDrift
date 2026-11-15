@@ -56,6 +56,33 @@ def draw_text(surface, text, pos, size=16, color=config.TEXT, kind="ui", anchor=
     return rect
 
 
+def fit_text(text, max_width, size=16, kind="ui"):
+    """`text` shortened with an ellipsis so it fits into `max_width` pixels.
+
+    Used for labels that come from the outside (level names, uploader names)
+    and must not spill out of their panel.  The cut is estimated first, so a
+    long name does not need one font measurement per character.
+    """
+    text = "" if text is None else str(text)
+    if max_width <= 0:
+        return ""
+    font = get_font(size, kind)
+    width = font.size(text)[0]
+    if width <= max_width:
+        return text
+    ellipsis = "…"
+    ellipsis_width = font.size(ellipsis)[0]
+    if ellipsis_width > max_width:
+        return ""
+    keep = max(1, int(len(text) * max_width / width))
+    trimmed = text[:keep]
+    while trimmed and font.size(trimmed)[0] + ellipsis_width > max_width:
+        trimmed = trimmed[:-1]
+    while len(trimmed) < len(text) and font.size(text[:len(trimmed) + 1])[0] + ellipsis_width <= max_width:
+        trimmed = text[:len(trimmed) + 1]
+    return trimmed + ellipsis
+
+
 def wrap_text(text, size, max_width, kind="ui"):
     """Split `text` into lines no wider than `max_width` real pixels (word wrap).
 
@@ -187,4 +214,4 @@ class Button:
 
 
 
-__all__ = ['Button', 'COIN_GOLD', '_FONT_CHOICES', '_font_cache', '_icon', 'coin_price_parts', 'config', 'draw_coins', 'draw_icon_row', 'draw_panel_box', 'draw_text', 'get_font', 'px', 'pygame', 're', 'warnings', 'wrap_text']
+__all__ = ['Button', 'COIN_GOLD', '_FONT_CHOICES', '_font_cache', '_icon', 'coin_price_parts', 'config', 'draw_coins', 'draw_icon_row', 'draw_panel_box', 'draw_text', 'fit_text', 'get_font', 'px', 'pygame', 're', 'warnings', 'wrap_text']

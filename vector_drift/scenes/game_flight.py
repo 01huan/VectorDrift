@@ -239,6 +239,7 @@ class GameFlightMixin:
         self._replay_teleports = 0
         self.state = FLIGHT
         self._record_replay_frame(self.flight)
+        self._record_community_stat("play")
         self.banner = None
         self._refresh_buttons()
         self.audio.play("launch")
@@ -295,6 +296,7 @@ class GameFlightMixin:
             self.arrive_timer = config.WIN_DELAY
             self.hint_popup = None
             self._pay_clear_reward()
+            self._record_community_stat("clear")
             best = self.session.records.get(self.level.id)
             if best is None or self.total_time < best:
                 self.session.records[self.level.id] = self.total_time
@@ -343,6 +345,31 @@ class GameFlightMixin:
         self.history.fill((0, 0, 0, 0), self.history_bounds)
         self.history_bounds = pygame.Rect(0, 0, 0, 0)
         self._history_legs = []
+
+    # ---------------------------------------------------------- community stats
+
+    def _record_community_stat(self, kind: str) -> None:
+        """Count a play or a clear of a community level.
+
+        Only community levels are counted (they are the ones the public page
+        lists).  The counter lives on the level row in the database; when the
+        database does not have it (or the network is down) the count is simply
+        lost -- the game never stops for a statistic.
+        """
+        try:
+            from .. import data
+            remote_id = data.community_remote_id(self.level.id)
+            if not remote_id:
+                return
+            from ..account import community
+            account = getattr(self.manager, "account", None)
+            if kind == "clear":
+                from ..account.player_identity import player_key
+                community.record_community_clear(remote_id, player_key(self.session, account))
+            else:
+                community.record_community_play(remote_id)
+        except Exception:  # pragma: no cover - a statistic must never break a flight
+            pass
 
     def _respawn_every_life_pickups(self):
         """A new life starts: the RESPAWN_EVERY_LIFE pickups (unbound) are back."""

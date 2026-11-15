@@ -33,6 +33,10 @@ CUSTOM_LEVELS_KEY = "custom_levels"
 # Whether the intro story has started (Session.seen_intro), saved the same way.
 # Missing means not seen. Applying a save keeps it if either side saw it.
 SEEN_INTRO_KEY = "seen_intro"
+# Local id of the player (Session.player_key): the community statistics use
+# it to count the different players who cleared a level.  It rides along in
+# the profile's stats, so no extra column is needed.
+PLAYER_KEY_KEY = "player_key"
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -80,6 +84,12 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     session.clear_rewarded_levels = rewarded
     saved_intro = stats.pop(SEEN_INTRO_KEY, False) is True
     session.seen_intro = bool(getattr(session, "seen_intro", False)) or saved_intro
+    saved_player_key = stats.pop(PLAYER_KEY_KEY, None)
+    if saved_player_key:
+        try:
+            session.player_key = str(saved_player_key)
+        except Exception:
+            pass
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     charges = stats.pop(ABILITY_CHARGES_KEY, None) or {}
     existing = getattr(session, "ability_charges", None)
@@ -201,6 +211,17 @@ def apply_best_profile(session: Any, cloud_profile: Any, user_id: str, email: st
 
 
 def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
+    stats = {**(session.stats or {}),
+             CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
+             SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
+             CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
+             ABILITY_CHARGES_KEY: {
+                 **(session.stats.get(ABILITY_CHARGES_KEY, {}) if isinstance(getattr(session, "stats", None), dict) else {}),
+                 **(getattr(session, "ability_charges", {}) or {}),
+             }}
+    player_key = getattr(session, "player_key", None)
+    if player_key:
+        stats[PLAYER_KEY_KEY] = str(player_key)
     return PlayerProfile(
         user_id=user_id,
         display_name=session.display_name,
@@ -210,14 +231,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
         records=dict(session.records or {}),
         replays=list(getattr(session, "replays", None) or getattr(session, "launch_records", None) or [])[-10:],
         collected_money_pickups=set(session.collected_money_pickups or set()),
-        stats={**(session.stats or {}),
-               CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
-               SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
-               CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
-               ABILITY_CHARGES_KEY: {
-                   **(session.stats.get(ABILITY_CHARGES_KEY, {}) if isinstance(getattr(session, "stats", None), dict) else {}),
-                   **(getattr(session, "ability_charges", {}) or {}),
-               }},
+        stats=stats,
         updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -263,6 +277,12 @@ def reset_session_to_guest(session: Any) -> None:
     session.level_id = 1
     session.ship_id = None
     session.hint_answer_confirmed = False
+    # The local player id belongs to the deleted data: a fresh one is made
+    # when the player plays a community level again.
+    try:
+        session.player_key = None
+    except Exception:
+        pass
 
 
 def apply_guest_profile_to_session(session, profile):
