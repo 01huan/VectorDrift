@@ -93,3 +93,21 @@ def test_launcher_keeps_the_test_dependencies_optional():
 
 def test_launcher_explains_a_missing_pip():
     assert ":no_pip" in _text()
+
+
+def test_launcher_keeps_the_console_code_page_a_plain_number():
+    # "chcp" prints a localized sentence ("Active code page: 437."), and the
+    # trailing dot is not a valid code page: "chcp 437." fails, so the
+    # console would stay on UTF-8 instead of being restored.
+    text = _text()
+    assert ":clean_codepage" in text
+    assert 'set "OLD_CP=%OLD_CP:.=%"' in text
+    assert 'delims=0123456789' in text
+
+
+def test_launcher_does_not_need_pip_when_the_dependencies_are_installed():
+    # The fast path only has to start the game: a Python without pip (a
+    # Debian system Python, for example) must not stop the launcher.
+    block = _text().split("\n:use_system", 1)[1].split("\n:", 1)[0]
+    assert "goto :run" in block
+    assert "goto :deps" not in block

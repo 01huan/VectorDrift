@@ -41,10 +41,18 @@ def _set_dpi_awareness():
         return
     try:
         import ctypes
-        try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)     # per-monitor aware
-        except (AttributeError, OSError):
-            ctypes.windll.user32.SetProcessDPIAware()
+    except (ImportError, OSError):
+        return
+    try:
+        # SetProcessDpiAwareness reports a failure in its return value
+        # (an HRESULT), not as an exception, so the result has to be
+        # checked - otherwise the fallback below would never run.
+        if ctypes.windll.shcore.SetProcessDpiAwareness(2) == 0:  # per-monitor aware
+            return
+    except (AttributeError, OSError):
+        pass                                            # Windows 8 and older
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()        # system aware
     except (AttributeError, OSError):
         pass
 
@@ -115,7 +123,12 @@ SCREEN_SIZE = (SCREEN_W, SCREEN_H)
 def _detect_ui_scale(dpi_scale, screen_w, screen_h):
     override = os.environ.get("VECTOR_DRIFT_SCALE")
     if override:
-        return max(0.5, float(override))
+        try:
+            return max(0.5, float(override))
+        except ValueError:
+            # A broken value must not stop the game from starting.
+            warnings.warn(f"Vector Drift: VECTOR_DRIFT_SCALE={override!r} is not a "
+                          "number; the scale is detected automatically.", RuntimeWarning)
     if not screen_w:
         return 1.0
     if FULLSCREEN:

@@ -11,6 +11,14 @@ def test_detect_ui_scale_override(monkeypatch):
     assert config._detect_ui_scale(1.0, 1920, 1080) == 1.5
 
 
+def test_detect_ui_scale_ignores_a_broken_override(monkeypatch):
+    # A typo in the environment must not stop the game from starting.
+    monkeypatch.setenv("VECTOR_DRIFT_SCALE", "big")
+    monkeypatch.setattr(config, "FULLSCREEN", True)
+    with pytest.warns(RuntimeWarning):
+        assert config._detect_ui_scale(1.0, 1920, 1080) == 1920 / 1280
+
+
 def test_detect_ui_scale_no_screen():
     assert config._detect_ui_scale(1.0, None, None) == 1.0
 
@@ -57,6 +65,43 @@ def test_win_screen_size_reports_the_primary_display(monkeypatch):
     import ctypes
     monkeypatch.setattr(ctypes, "windll", type("W", (), {"user32": _User32})())
     assert config._win_screen_size() == (1920, 1080)
+
+
+def _fake_dpi_api(monkeypatch, shcore_result):
+    """Replace the Win32 DPI calls and record which ones were used."""
+    calls = []
+
+    class _Shcore:
+        @staticmethod
+        def SetProcessDpiAwareness(level):
+            calls.append(("shcore", level))
+            return shcore_result
+
+    class _User32:
+        @staticmethod
+        def SetProcessDPIAware():
+            calls.append(("user32", None))
+            return 1
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    import ctypes
+    monkeypatch.setattr(ctypes, "windll",
+                        type("W", (), {"shcore": _Shcore, "user32": _User32})())
+    return calls
+
+
+def test_set_dpi_awareness_uses_the_new_api_when_it_works(monkeypatch):
+    calls = _fake_dpi_api(monkeypatch, 0)          # S_OK
+    config._set_dpi_awareness()
+    assert calls == [("shcore", 2)]
+
+
+def test_set_dpi_awareness_falls_back_when_the_new_api_refuses(monkeypatch):
+    # SetProcessDpiAwareness reports the failure in its return value and
+    # never raises, so the fallback has to look at the result.
+    calls = _fake_dpi_api(monkeypatch, -2147024891)  # E_ACCESSDENIED
+    config._set_dpi_awareness()
+    assert calls == [("shcore", 2), ("user32", None)]
 
 
 def test_sdl_screen_size_uses_sdl(monkeypatch):

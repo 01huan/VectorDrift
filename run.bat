@@ -18,9 +18,11 @@ title Vector Drift
 
 rem --- the console code page is switched to UTF-8 for the output of the game
 rem --- and restored on the way out, so a shared console is left as it was.
+rem --- "chcp" prints a localized sentence ("Active code page: 437."), so only
+rem --- the digits are kept later on: "chcp 437." is not a valid code page.
 set "OLD_CP="
 for /f "tokens=2 delims=:" %%a in ('chcp 2^>nul') do set "OLD_CP=%%a"
-if defined OLD_CP set "OLD_CP=%OLD_CP: =%"
+call :clean_codepage
 chcp 65001 >nul 2>&1
 
 set "PUSHED="
@@ -95,6 +97,8 @@ goto :deps
 set "PY_RUN=%PY_READY%"
 echo [setup] Using the system Python: %PY_RUN%
 echo [setup] All dependencies are already installed.
+rem Everything the game needs is installed, so pip is not required at all.
+goto :run
 
 rem ---------------------------------------------------------------------------
 rem  3. Dependencies
@@ -154,6 +158,19 @@ endlocal & exit /b %EXIT_CODE%
 rem ===========================================================================
 rem  Subroutines
 rem ===========================================================================
+
+rem --- Keep only the digits of the console code page in %OLD_CP% ----------
+rem  The sentence "chcp" prints is localized ("Active code page: 437."), and
+rem  the trailing dot is not a valid code page: "chcp 437." fails.  Anything
+rem  that is not a plain number is dropped, so the console is never left
+rem  with a broken code page.
+:clean_codepage
+if not defined OLD_CP goto :eof
+set "OLD_CP=%OLD_CP: =%"
+set "OLD_CP=%OLD_CP:.=%"
+set "OLD_CP=%OLD_CP:"=%"
+for /f "delims=0123456789" %%a in ("%OLD_CP%") do set "OLD_CP="
+goto :eof
 
 rem --- Accept a candidate interpreter only if it is a real Python 3.11+ ------
 rem  %* = the candidate command, for example "py -3" or "python".

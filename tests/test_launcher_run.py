@@ -154,3 +154,48 @@ def test_run_bat_restores_the_console_code_page(project):
     after = subprocess.run(["cmd", "/c", "chcp"], capture_output=True, text=True,
                            stdin=subprocess.DEVNULL)
     assert after.stdout.strip() == before.stdout.strip()
+
+
+def _code_page_cleanup(tmp_path):
+    """A batch file that runs the launcher's code-page cleanup on a value.
+
+    The launcher reads the code page from the sentence "chcp" prints.  That
+    sentence is localized and ends with a dot on English Windows ("Active
+    code page: 437."), and "chcp 437." is not a valid code page - so the
+    launcher has to reduce the text to the plain number.
+    """
+    text = (ROOT / "run.bat").read_text(encoding="utf-8")
+    start = text.index("\n:clean_codepage") + 1
+    body = text[start:text.index("\n:", start + 1)]
+    script = tmp_path / "codepage.bat"
+    script.write_text(
+        "@echo off\r\n"
+        ":check\r\n"
+        'set "OLD_CP="\r\n'
+        'for /f "tokens=2 delims=:" %%a in ("%~1") do set "OLD_CP=%%a"\r\n'
+        "call :clean_codepage\r\n"
+        'echo OLD_CP=%OLD_CP%\r\n'
+        "goto :eof\r\n"
+        + body.replace("\n", "\r\n"),
+        encoding="ascii",
+    )
+    return script
+
+
+@pytest.mark.skipif(os.name != "nt", reason="cmd.exe runs the launcher")
+def test_the_console_code_page_is_reduced_to_a_plain_number(tmp_path):
+    script = _code_page_cleanup(tmp_path)
+
+    def _clean(sentence):
+        result = subprocess.run(
+            ["cmd", "/c", str(script), sentence],
+            capture_output=True, text=True, timeout=60,
+            stdin=subprocess.DEVNULL,
+        )
+        return result.stdout.strip()
+
+    assert _clean("Active code page: 437.") == "OLD_CP=437"
+    assert _clean("Active code page: 950") == "OLD_CP=950"
+    assert _clean("Active code page: 65001.") == "OLD_CP=65001"
+    # Anything that is not a number is dropped: the console is left alone.
+    assert _clean("Active code page: ???") == "OLD_CP="

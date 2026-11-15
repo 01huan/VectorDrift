@@ -80,6 +80,20 @@ def test_open_display_reports_a_window_that_cannot_be_opened(monkeypatch):
         main.open_display()
 
 
+def test_main_explains_a_window_that_cannot_be_opened(monkeypatch, capsys):
+    # A window that cannot be opened is a setup problem: the player gets a
+    # readable message instead of a traceback.
+    def _no_display():
+        raise RuntimeError("Vector Drift cannot open a 1920x1080 window: nope")
+
+    monkeypatch.setattr(main, "open_display", _no_display)
+
+    assert main.main() == 1
+    err = capsys.readouterr().err
+    assert "cannot open" in err
+    assert "VECTOR_DRIFT_WINDOWED" in err
+
+
 def test_margin_rects_are_the_empty_strips_around_the_canvas(monkeypatch):
     monkeypatch.setattr(config, "FULLSCREEN", True)
     monkeypatch.setattr(config, "SCREEN_SIZE", (2560, 1080))

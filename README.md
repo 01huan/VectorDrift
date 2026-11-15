@@ -353,7 +353,7 @@ The screen is measured **once**, when `vector_drift.config` is imported, and the
 - On **Linux and macOS** the size comes from SDL. SDL reports the desktop size in *points* on macOS, so on a Retina display the game runs at the "looks like" resolution and the system scales it up, which is softer than on Windows. Use `VECTOR_DRIFT_SCALE` to pick a different layout size.
 
 - `VECTOR_DRIFT_WINDOWED=1` runs the game in a regular window.
-- `VECTOR_DRIFT_SCALE` forces a UI scale, for example `1`, `1.5`, or `2`.
+- `VECTOR_DRIFT_SCALE` forces a UI scale, for example `1`, `1.5`, or `2`. A value that is not a number is ignored: the game warns and detects the scale itself.
 
 On Linux and macOS the windowed mode stays at 1x, because those platforms do not report a display scale; `VECTOR_DRIFT_SCALE` overrides it.
 

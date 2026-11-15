@@ -1,6 +1,7 @@
 """Vector Drift - entry point.  Run:  python main.py"""
 
 import os
+import sys
 
 
 def set_mode(pygame, size, flags=0):
@@ -74,7 +75,15 @@ def main():
         except pygame.error:
             pass
 
-    display, screen, offset = open_display()
+    try:
+        display, screen, offset = open_display()
+    except RuntimeError as exc:
+        # A window that cannot be opened is a setup problem, not a crash:
+        # explain it instead of dumping a traceback on the player.
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        print("[ERROR] Try VECTOR_DRIFT_WINDOWED=1, or a smaller "
+              "VECTOR_DRIFT_SCALE, and start the game again.", file=sys.stderr)
+        return 1
     margins = margin_rects(display, screen, offset)
     pygame.display.set_caption(config.TITLE)
     pygame.key.set_repeat(400, 35)
@@ -133,7 +142,8 @@ def main():
         pygame.display.flip()
 
     pygame.quit()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
