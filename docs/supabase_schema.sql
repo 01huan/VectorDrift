@@ -16,10 +16,14 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- Drop first so this file can be re-run to upgrade an existing project.
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
     for select using (auth.uid() = id);
+drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own" on public.profiles
     for insert with check (auth.uid() = id);
+drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
     for update using (auth.uid() = id);
 
@@ -66,13 +70,18 @@ alter table public.community_levels
 
 alter table public.community_levels enable row level security;
 
+-- Drop first so this file can be re-run to add the statistics columns above.
+drop policy if exists "community_levels_select_public" on public.community_levels;
 create policy "community_levels_select_public" on public.community_levels
     for select using (true);
+drop policy if exists "community_levels_insert_authenticated" on public.community_levels;
 create policy "community_levels_insert_authenticated" on public.community_levels
     for insert with check (auth.uid() = user_id);
+drop policy if exists "community_levels_delete_own" on public.community_levels;
 create policy "community_levels_delete_own" on public.community_levels
     for delete using (auth.uid() = user_id);
 -- 帳號上傳者可修改自己上傳的社區關卡（改名時同步 uploader_name、修改關卡時同步 level_name/level_data）。
+drop policy if exists "community_levels_update_own" on public.community_levels;
 create policy "community_levels_update_own" on public.community_levels
     for update using (auth.uid() = user_id);
 
@@ -95,12 +104,16 @@ $$;
 
 -- 通關一次：clear_count + 1，並把玩家代號記進 clear_players（不重複），
 -- 這樣就能算出「有幾位不同的玩家通關過」。
+-- clear_players 是公開可讀的欄位，所以只存玩家代號的雜湊；雜湊再加上關卡 id，
+-- 同一個玩家在不同關卡的代號不同，無法用來跨關卡追蹤。
 create or replace function public.community_level_record_clear(p_level_id uuid, p_player_key text)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+    v_player_key text;
 begin
     if p_level_id is null then
         return;
@@ -111,11 +124,12 @@ begin
          where id = p_level_id;
         return;
     end if;
+    v_player_key := 'v1:' || md5(p_level_id::text || ':' || p_player_key);
     update public.community_levels
        set clear_count = clear_count + 1,
            clear_players = case
-               when clear_players ? p_player_key then clear_players
-               else clear_players || jsonb_build_array(p_player_key)
+               when clear_players ? v_player_key then clear_players
+               else clear_players || jsonb_build_array(v_player_key)
            end
      where id = p_level_id;
 end;
@@ -124,3 +138,15 @@ $$;
 grant execute on function public.community_level_record_play(uuid) to anon, authenticated;
 grant execute on function public.community_level_record_clear(uuid, text) to anon, authenticated;
 
+-- 舊版函式曾把原始玩家代號寫進 clear_players；改成只留每關的雜湊。
+-- 'v1:' 前綴讓這段可以重複執行，已轉換的項目不會被再次雜湊。
+update public.community_levels as cl
+   set clear_players = coalesce(
+       (select jsonb_agg(distinct
+                   case when value like 'v1:%' then value
+                        else 'v1:' || md5(cl.id::text || ':' || value)
+                   end)
+          from jsonb_array_elements_text(cl.clear_players) as value),
+       '[]'::jsonb)
+ where jsonb_typeof(cl.clear_players) = 'array'
+   and cl.clear_players <> '[]'::jsonb;

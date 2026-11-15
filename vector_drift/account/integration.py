@@ -171,6 +171,10 @@ def profiles_equal(a: Any, b: Any) -> bool:
         # seen_intro is merged (either side True), so it never needs a choice.
         stats = dict(getattr(profile, "stats", {}) or {})
         stats.pop(SEEN_INTRO_KEY, None)
+        # The player id is an installation detail, not game progress: two
+        # devices signed into the same account each generate their own id and
+        # must not be treated as a local/cloud conflict.
+        stats.pop(PLAYER_KEY_KEY, None)
         return stats
 
     return (

@@ -9,8 +9,9 @@ an identity, so every player gets one:
 * a guest gets a random id that is stored in the local profile, so the guest
   counts once per installation.
 
-The id never leaves the machine except as part of the "players who cleared
-this level" list on the level row.
+The id is sent to the clear-recording function, which stores only a hash
+combined with the level id, so the public level row cannot be used to read
+or link player ids.
 """
 
 from __future__ import annotations

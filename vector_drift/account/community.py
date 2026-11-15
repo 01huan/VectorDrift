@@ -209,9 +209,9 @@ def record_community_clear(
     """Count one clear of a community level.
 
     ``player_key`` identifies the player (the account id, or the local
-    player id for a guest).  The database keeps the keys of the players who
-    cleared the level, so it can also report how many *different* players
-    cleared it.
+    player id for a guest).  The database keeps a per-level hash of the keys
+    of the players who cleared the level, so it can also report how many
+    *different* players cleared it without storing the ids themselves.
     """
     if not level_id:
         if on_error is not None:

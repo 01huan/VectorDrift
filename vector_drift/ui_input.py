@@ -69,6 +69,7 @@ class TextInput:
         """Replace the text (clipped to ``max_length``) and notify the owner."""
         if not isinstance(value, str):
             value = "" if value is None else str(value)
+        value = self._one_line(value)
         if self.numeric:
             value = "".join(ch for ch in value if ch.isdigit())
         value = value[:self.max_length]
@@ -120,8 +121,11 @@ class TextInput:
 
         self._keydown_inserted = False
         self._last_keydown_char = ""
-        mod = getattr(event, "mod", 0)
+        mod = getattr(event, "mod", 0) or 0
         ctrl = bool(mod & pygame.KMOD_CTRL)
+        # AltGr is reported as Ctrl+Alt, so it must keep typing instead of
+        # triggering the Ctrl shortcuts (e.g. Polish "ą" via AltGr+A).
+        altgr = ctrl and bool(mod & pygame.KMOD_ALT)
         if event.key == pygame.K_BACKSPACE:
             return self._delete_before()
         if event.key == pygame.K_DELETE:
@@ -142,28 +146,32 @@ class TextInput:
             self.cursor = len(self._text)
             self._update_scroll()
             return False
-        if ctrl and event.key == pygame.K_a:
+        if ctrl and not altgr and event.key == pygame.K_a:
             self.cursor = len(self._text)
             self._update_scroll()
             return False
-        if ctrl and event.key == pygame.K_c:
+        if ctrl and not altgr and event.key == pygame.K_c:
             try:
                 pygame.scrap.put_text(self._text)
             except Exception:
                 pass
             return False
-        if ctrl and event.key == pygame.K_x:
+        if ctrl and not altgr and event.key == pygame.K_x:
             try:
                 pygame.scrap.put_text(self._text)
             except Exception:
                 pass
             return self._delete_all()
-        if ctrl and event.key == pygame.K_v:
+        if ctrl and not altgr and event.key == pygame.K_v:
             try:
                 pasted = pygame.scrap.get_text()
             except Exception:
                 pasted = None
             return self._insert(pasted or "")
+        # An unhandled Ctrl shortcut must not type its letter (Ctrl+Z used to
+        # insert "z").  AltGr (Ctrl+Alt) still types through here.
+        if ctrl and not altgr:
+            return False
         unicode_text = getattr(event, "unicode", "")
         if unicode_text and len(unicode_text) == 1 and unicode_text.isprintable():
             if self._insert(unicode_text):
@@ -181,6 +189,7 @@ class TextInput:
             text = "".join(ch for ch in text if ch.isdigit())
             if not text:
                 return False
+        text = self._one_line(text)
         room = self.max_length - len(self._text)
         if room <= 0:
             return False
@@ -216,6 +225,12 @@ class TextInput:
         self._scroll = 0
         self._notify()
         return True
+
+    @staticmethod
+    def _one_line(value: str) -> str:
+        """A single line of text: line breaks and tabs from a paste become spaces."""
+        return (value.replace("\r\n", " ").replace("\r", " ")
+                .replace("\n", " ").replace("\t", " "))
 
     def _move_cursor_to_pos(self, x: int) -> None:
         """Put the cursor at the character closest to the click position."""

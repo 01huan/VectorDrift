@@ -275,9 +275,9 @@ Every community level counts how often it was played, how often it was cleared a
 
 - a **play** is counted when a community level is launched;
 - a **clear** is counted when the ship reaches the target;
-- the **players** counter counts the different players who cleared the level. A signed-in player is identified by the account id, a guest by a random id that is kept in the local profile.
+- the **players** counter counts the different players who cleared the level. A signed-in player is identified by the account id, a guest by a random id that is kept in the local profile. The database only stores a per-level hash of that id, so the public level data cannot be used to identify or track a player across levels.
 
-The counters live on the level row in the database and are raised by the `community_level_record_play` and `community_level_record_clear` database functions, so two players never overwrite each other's count. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; on an older database the levels are still listed and searched, only without their counters.
+The counters live on the level row in the database and are raised by the `community_level_record_play` and `community_level_record_clear` database functions, so two players never overwrite each other's count. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; re-running it is safe and also replaces any raw player ids stored by an older version with the per-level hashes. On an older database the levels are still listed and searched, only without their counters.
 
 Community features use the built-in Supabase backend by default. Players do not need to provide their own credentials to browse public levels or use online account features.
 

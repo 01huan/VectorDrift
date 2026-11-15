@@ -20,7 +20,7 @@ from __future__ import annotations
 import difflib
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable, Optional, Sequence
 
 __all__ = [
@@ -90,8 +90,8 @@ MIN_COVERAGE = 0.50
 def normalize_text(text: Any) -> str:
     """Case-folded, accent-free, whitespace-collapsed text.
 
-    Used for every comparison, so "Drift  Maze", "drift maze" and "Drift-Maze"
-    all compare as the same query.  ``casefold`` handles non-ASCII casing;
+    Used for every comparison, so "Drift  Maze" and "drift maze" compare as
+    the same query.  ``casefold`` handles non-ASCII casing;
     NFKD + dropping combining marks makes "Ünbound" match "unbound".
     """
     if text is None:
@@ -125,7 +125,7 @@ def _int(value: Any, default: int = 0) -> int:
         return default
     try:
         number = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
     return number if number >= 0 else default
 
@@ -136,7 +136,7 @@ def _float(value: Any, default: float = 0.0) -> float:
         return default
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
     if number != number or number in (float("inf"), float("-inf")):
         return default
@@ -144,15 +144,23 @@ def _float(value: Any, default: float = 0.0) -> float:
 
 
 def _timestamp(text: str) -> float:
-    """Seconds since the epoch for an ISO-8601 timestamp (0.0 when unknown)."""
+    """Seconds since the epoch for an ISO-8601 timestamp (0.0 when unknown).
+
+    A timestamp without an offset is read as UTC: database timestamps are
+    UTC, and the local timezone must never change how levels are ordered.
+    """
     if not text:
         return 0.0
     cleaned = text.strip()
     if cleaned.endswith("Z"):
         cleaned = cleaned[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(cleaned).timestamp()
-    except (TypeError, ValueError):
+        parsed = datetime.fromisoformat(cleaned)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp()
+    except (TypeError, ValueError, OverflowError, OSError):
+        # OSError: Windows mktime() rejects dates outside its range.
         return 0.0
 
 

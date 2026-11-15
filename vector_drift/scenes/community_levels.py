@@ -286,6 +286,9 @@ class CommunityLevelsScene(Scene):
     def _on_filter_changed(self, *_args):
         """A search box, a filter or a sort button changed: rebuild the list."""
         self._dirty = True
+        # New results are a new list: showing the old page number could land
+        # in the middle (or at the end) of them.
+        self.page = 0
 
     def _cycle_sort(self):
         """Next sort order (the direction follows the new order)."""
@@ -624,11 +627,13 @@ class CommunityLevelsScene(Scene):
         surface.fill(config.BG)
         self.back_button.draw(surface)
         self.refresh_button.draw(surface)
-        self.prev_page_button.draw(surface)
-        self.next_page_button.draw(surface)
+        # Rebuild before the paging buttons are drawn: their enabled state
+        # belongs to the result that is about to be shown.
         if self._dirty:
             self._rebuild()
             self._dirty = False
+        self.prev_page_button.draw(surface)
+        self.next_page_button.draw(surface)
         draw_text(surface, "Community Levels", (config.WINDOW_W // 2, px(30)), 28,
                   config.TEXT, kind="bold", anchor="center")
         self._draw_toolbar(surface)
