@@ -2,7 +2,9 @@
 
 Unlocked ids live in Session.achievements ({id: ISO time}); counters and
 partial progress live in Session.achievement_progress. Both are saved with
-the profile's stats (see account/integration.py), like seen_intro.
+the profile's stats (see account/integration.py), like seen_intro.  Applying
+a profile replaces them with that copy's, so the achievements follow the
+player's choice (local or cloud) when the two copies differ.
 
 The game reports what happened through a few small calls (unlock, clear,
 flight_ended, ...). check_state() looks at things the session already
@@ -101,9 +103,12 @@ def progress(session):
 def _add_to_list(session, key, value):
     """Add ``value`` to the progress list ``key``; returns the list as a set."""
     data = progress(session)
-    items = set(data.get(key) or ())
+    current = data.get(key)
+    items = set(current) if isinstance(current, (list, tuple, set, frozenset)) else set()
     items.add(value)
-    data[key] = sorted(items)
+    # Sorted by its text: the list holds level ids (numbers) and ability ids
+    # (names), and a mixed set cannot be sorted by value.
+    data[key] = sorted(items, key=str)
     return items
 
 
@@ -113,7 +118,9 @@ def unlock(manager, achievement_id, notify=True):
     A new unlock is saved; with ``notify`` it also plays the sound and
     queues the popup.
     """
-    session = manager.session
+    session = getattr(manager, "session", None)
+    if session is None:
+        return False
     if achievement_id not in BY_ID or is_unlocked(session, achievement_id):
         return False
     if not isinstance(getattr(session, "achievements", None), dict):

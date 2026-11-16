@@ -17,6 +17,7 @@ Each slot tries `.ogg`, then `.wav`, then `.mp3`.
 | `game_over` | Last life lost | Kenney *Music Jingles* |
 | `shield_break` | The shield breaks on the first rock it touches | Kenney *Sci-fi Sounds* |
 | `unbound` | The ship takes an Unbound pickup (no file yet: silent) | Kenney *Sci-fi Sounds* |
+| `achievement` | An achievement is unlocked (the popup chime) | Kenney *Music Jingles* |
 
 ## Music: `assets/music/`
 

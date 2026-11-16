@@ -376,16 +376,31 @@ class GameFlightMixin:
         except Exception:
             pass
 
-    def _report_clear(self):
-        """Tell the achievements about this clear (the flight that just reached the planet)."""
-        from ..data import is_custom_level
+    def _level_kind(self):
+        """What kind of level this is: "campaign", "random", "community" or "custom".
+
+        A community level lives in its own registry (data.COMMUNITY_LEVELS), not
+        in the player's own custom levels, so it has to be looked up there: a
+        community level is not a campaign level either.
+        """
+        from ..data import is_community_level, is_custom_level
+
         level_id = self.level.id
         if is_dynamic_level(level_id):
-            kind = "random"
-        elif is_custom_level(level_id) or level_id in getattr(self.session, "custom_level_ids", set()):
-            kind = "community" if "community" in str(self.session.level_source or "").lower() else "custom"
-        else:
-            kind = "campaign"
+            return "random"
+        if is_community_level(level_id):
+            return "community"
+        if is_custom_level(level_id) or level_id in getattr(self.session, "custom_level_ids", set()):
+            # A level the player made (or one that came from the community but
+            # whose registry entry is gone): the source tag decides.
+            source = str(self.session.level_source or "").lower()
+            return "community" if "community" in source else "custom"
+        return "campaign"
+
+    def _report_clear(self):
+        """Tell the achievements about this clear (the flight that just reached the planet)."""
+        level_id = self.level.id
+        kind = self._level_kind()
         lines = list(self.editor.lines) + ["", ""]
         achievements.clear(
             self.manager, level_id=level_id, kind=kind, attempts=self.attempts,

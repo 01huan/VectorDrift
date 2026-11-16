@@ -1,5 +1,6 @@
 """Scene interface, shared session state and the scene manager."""
 
+import logging
 from dataclasses import dataclass, field
 
 import pygame
@@ -11,6 +12,8 @@ from ..money import Money
 from ..config import px
 from ..desktop import set_cursor
 from ..ui import Button, IconButton, draw_text
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -366,8 +369,11 @@ class SceneManager:
             # Unlocks that saved progress already proves: purchases, old
             # saves loaded from disk or the cloud, ...
             self._achievement_check_in = ACHIEVEMENT_CHECK_S
-            from ..achievements import check_state
-            check_state(self)
+            try:
+                from ..achievements import check_state
+                check_state(self)
+            except Exception:       # noqa: BLE001 - a broken check never stops the game
+                log.debug("achievement check skipped", exc_info=True)
 
     def draw(self, surface):
         self.scene.draw(surface)

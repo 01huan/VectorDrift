@@ -156,24 +156,40 @@ def test_saved_progress_unlocks_on_the_next_check():
 
 
 # --- saving ----------------------------------------------------------------------
-def test_achievements_survive_save_and_load_and_merge():
+def test_achievements_survive_save_and_load():
     manager = _manager()
     ach.unlock(manager, "kaboom")
     ach.flight_ended(manager, "OUT_OF_BOUNDS", lives_left=2)
     save_guest_profile(manager.session)
 
     fresh = _manager().session
-    fresh.achievements = {"hole_in_one": "2026-01-01T00:00:00+00:00"}
     assert load_guest_profile_into_session(fresh)
-    assert set(fresh.achievements) == {"kaboom", "hole_in_one"}
+    assert set(fresh.achievements) == {"kaboom"}
     assert fresh.achievement_progress[ach.OUT_OF_BOUNDS] == 1
     assert "achievements" not in fresh.stats
 
 
-def test_achievements_alone_never_make_profiles_differ():
+def test_a_loaded_profile_replaces_the_session_achievements():
+    # The applied copy wins, like every other progress field: the player
+    # chooses local or cloud when the two differ, and the achievements go
+    # with that choice (they are not merged with the other side).
+    manager = _manager()
+    ach.unlock(manager, "kaboom")
+    save_guest_profile(manager.session)
+
+    fresh = _manager().session
+    fresh.achievements = {"hole_in_one": "2026-01-01T00:00:00+00:00"}
+    assert load_guest_profile_into_session(fresh)
+    assert set(fresh.achievements) == {"kaboom"}
+
+
+def test_achievements_alone_do_make_the_profiles_differ():
+    # The achievements are progress like the rest: they are not merged
+    # between the two copies, so a difference in them is a difference the
+    # player is asked about ("Use Local" / "Use Cloud").
     a, b = _manager().session, _manager().session
     a.achievements = {"kaboom": "t"}
-    assert profiles_equal(session_to_profile(a, "u"), session_to_profile(b, "u"))
+    assert not profiles_equal(session_to_profile(a, "u"), session_to_profile(b, "u"))
 
 
 # --- popup and page --------------------------------------------------------------

@@ -60,7 +60,9 @@ class GamePickupMixin:
         if teleports > self._teleports_heard:
             self._teleports_heard = teleports
             self.audio.play("warp")
-        achievements.in_flight(self.manager, flight, off_map=self._off_map(flight))
+        manager = getattr(self, "manager", None)     # mixin tests use a bare scene
+        if manager is not None:
+            achievements.in_flight(manager, flight, off_map=self._off_map(flight))
 
     def _drain_pickup_events(self):
         """Sync scene state and play sounds for new pickup events (once each).
@@ -156,8 +158,10 @@ class GamePickupMixin:
                     self.audio.play("shield_break")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("shield_break sfx skipped", exc_info=True)
-        for event in events:                # after the coins above are recorded
-            achievements.pickup_event(self.manager, event)
+        manager = getattr(self, "manager", None)     # mixin tests use a bare scene
+        if manager is not None:
+            for event in events:            # after the coins above are recorded
+                achievements.pickup_event(manager, event)
         self.flight.pickup_events = []
         # self.pickups holds the SAME PickupState objects the Flight just
         # consumed (passed by reference), so no re-sync is needed: used
