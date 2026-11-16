@@ -1,0 +1,164 @@
+# Tutorial mode: the Basics walkthrough and the Field guide (read by tutorial.py).
+#
+# Every text here is shown in the game as written. The maps are flown by the
+# real physics engine; tests/test_tutorial_data.py checks each one gives the
+# result the tutorial describes.
+#
+# A map ([basics.step.map], [guide...part]) has:
+#   start        - (x, y) launch point in m
+#   target       - (x, y) planet; leave it out for no planet
+#   target_radius - m (default 1.0)
+#   time_limit   - s per launch (default 10)
+#   obstacles    - [{ center = [x, y], radius = r }]
+#   pickups      - [{ center = [x, y], kind = "shockwave" | "extratime" | "shield" | "unbound" }]
+#   holes        - [{ black = [x, y], white = [x, y], radius = r }]
+# A force is two formulas, force = ["Fx", "Fy"] (never shown in the Field guide).
+
+# --- Basics: four steps in order -------------------------------------------
+# kind = "play": the player types the force and launches.
+# kind = "demo": the force is filled in (read only) and flown by the game;
+#                each [[basics.step.beat]] is one caption with Next. With
+#                launch = true the game flies before the caption shows (and
+#                stops on the flight's last frame); with false the ship is
+#                just put back where the next launch starts.
+#                point = "ship" | "start" | "" puts an arrow on that spot.
+# kind = "card": a card with one button; point = "hint" marks the Hint button.
+
+[[basics.step]]
+kind = "play"
+title = "Fly home"
+placeholders = ["5", "0"]
+text = """Your ship has no engine. You can't push it - but you can shape the space around it.
+Fx and Fy are the two parts of the force at every point of the map. The arrows show that force. The ship starts at rest and follows the arrows.
+Type **Fx = 5** and **Fy = 0**, then press **Play**."""
+success = "Home! Reach the planet to clear a level."
+map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
+
+[[basics.step]]
+kind = "demo"
+title = "Time's up"
+force = ["1", "0"]
+map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 4.0 }
+beat = [
+  { launch = true, point = "ship", text = """Time's up. Every launch has a time limit (the timer).
+When it runs out, the next launch starts right here, at rest.""" },
+  { launch = true, point = "", text = "It flew on from where it stopped." },
+]
+
+[[basics.step]]
+kind = "demo"
+title = "Out of bounds"
+force = ["0", "5"]
+map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
+beat = [
+  { launch = true, point = "", text = "Out of bounds. The ship left the map." },
+  { launch = false, point = "start", text = """After flying out of the map, the next launch starts back at the start.
+The same happens if the force becomes infinite or cannot be computed (diverged), or if you press Stop.""" },
+]
+
+[[basics.step]]
+kind = "card"
+title = "Help"
+point = "hint"
+button = "Start playing"
+text = """Stuck? **Hint** gives step-by-step tips for the level.
+Press **Esc** at any time for the menu (restart, levels, quit).
+The **Field guide** in the Tutorial menu shows what every rock, portal and pickup does."""
+map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
+
+# --- Field guide ------------------------------------------------------------
+# Categories in order; each item is a card (icon = what its picture shows:
+# "rock", "holes" or a pickup kind). Opening a card loops its parts one after
+# another: each part flies `force` for `cap` seconds (or until the flight
+# ends), holds, and starts over. show_timer = true shows the flight clock.
+
+[[guide.category]]
+name = "Obstacles"
+
+[[guide.category.item]]
+name = "Rock"
+icon = "rock"
+
+[[guide.category.item.part]]
+text = "Rocks bounce the ship off. The bounce keeps its speed."
+force = ["5", "0"]
+cap = 2.3
+start = [-7.0, 0.0]
+obstacles = [{ center = [0.0, -0.9], radius = 1.0 }]
+
+[[guide.category]]
+name = "Portals"
+
+[[guide.category.item]]
+name = "Black / white hole"
+icon = "holes"
+
+[[guide.category.item.part]]
+text = "Enter the black hole, come out of the white hole, at the same speed."
+force = ["5", "0"]
+cap = 1.9
+start = [-7.0, 0.0]
+holes = [{ black = [-3.0, 0.0], white = [3.0, 0.0], radius = 0.5 }]
+
+[[guide.category]]
+name = "Pickups"
+
+[[guide.category.item]]
+name = "Shockwave"
+icon = "shockwave"
+
+[[guide.category.item.part]]
+text = "Blasts every rock within 3 m."
+force = ["5", "0"]
+cap = 2.4
+start = [-7.0, 0.0]
+pickups = [{ center = [0.0, 0.0], kind = "shockwave" }]
+obstacles = [
+  { center = [2.2, 0.0], radius = 0.8 },
+  { center = [1.5, 1.8], radius = 0.8 },
+  { center = [1.5, -1.8], radius = 0.8 },
+  { center = [5.5, 2.5], radius = 0.8 },
+]
+
+[[guide.category.item]]
+name = "Extratime"
+icon = "extratime"
+
+[[guide.category.item.part]]
+text = "Adds 3 seconds to this flight."
+force = ["1", "0"]
+cap = 3.5
+start = [-7.0, 0.0]
+time_limit = 3.0
+show_timer = true
+pickups = [{ center = [-5.0, 0.0], kind = "extratime" }]
+
+[[guide.category.item]]
+name = "Unbound"
+icon = "unbound"
+
+[[guide.category.item.part]]
+text = "For the rest of this life the ship can leave the map."
+force = ["0", "4"]
+cap = 3.0
+start = [0.0, -3.0]
+pickups = [{ center = [0.0, -1.5], kind = "unbound" }]
+
+[[guide.category.item]]
+name = "Shield"
+icon = "shield"
+
+[[guide.category.item.part]]
+text = "Lasts 3 s. Stops the next hit: pass through one rock..."
+force = ["5", "0"]
+cap = 2.4
+start = [-7.0, 0.0]
+pickups = [{ center = [-3.0, 0.0], kind = "shield" }]
+obstacles = [{ center = [0.0, 0.0], radius = 0.8 }]
+
+[[guide.category.item.part]]
+text = "...or bounce off the map edge once."
+force = ["0", "5"]
+cap = 3.2
+start = [0.0, 0.0]
+pickups = [{ center = [0.0, 2.0], kind = "shield" }]
