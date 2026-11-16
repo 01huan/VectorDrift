@@ -11,7 +11,7 @@ from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
 from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
-                    is_custom_level, level_holes, section_count, section_level, section_shift,
+                    is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
@@ -60,8 +60,7 @@ class GameCoreMixin:
             self.level_source = _src
             self.session.level_source = _src
         self.pause_menu = None          # Esc menu; while open the level is paused
-        if is_dynamic_level(self.session.level_id) or is_custom_level(self.session.level_id) \
-                or self.session.level_id in getattr(self.session, "custom_level_ids", set()):
+        if is_dynamic_level(self.session.level_id) or is_custom_map(self.session.level_id, self.session):
             # Same seed for the whole run: random layout (random maps) and the
             # offline AI solver both key off it, so it stays stable across
             # retry/replay even for custom maps.
@@ -187,8 +186,7 @@ class GameCoreMixin:
         # Revealing the answer costs its price once per launch; that price is the
         # only cost. Clears still count toward best times, clear rewards, and coins.
         self.hint_mode = not (is_dynamic_level(self.level.id)
-                              or is_custom_level(self.level.id)
-                              or self.level.id in getattr(self.session, "custom_level_ids", set()))
+                              or is_custom_map(self.level.id, self.session))
         self.hint = self._section_hint()
         self.hint_popup = None
         self.solution_used = False

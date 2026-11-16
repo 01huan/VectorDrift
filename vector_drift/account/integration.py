@@ -59,6 +59,13 @@ def _restore_custom_levels(session: Any, rows: Any) -> None:
         level = LevelSpec.from_row(row)
         if level is None:
             continue
+        if level.id < 0:
+            # An older version added the community levels it played to the
+            # player's own custom levels.  Community levels have a negative
+            # local id and belong to another player, so they are dropped here
+            # instead of being restored as the player's own levels.
+            data.CUSTOM_LEVELS.pop(level.id, None)
+            continue
         try:
             data.register_custom_level(level)
         except ValueError:

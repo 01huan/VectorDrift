@@ -42,7 +42,7 @@ def _community_level(name="Community Level"):
     level_id = data.community_level_id("row-for-stats")
     spec = data.LevelSpec(id=level_id, name=name, start=(-7.0, 0.0),
                            target_center=(7.0, 0.0), target_radius=1.0, ship_id="ship01")
-    data.register_custom_level(spec)
+    data.register_community_level(spec)
     return level_id
 
 
@@ -52,7 +52,6 @@ def test_launching_a_community_level_counts_a_play(monkeypatch, recorded):
     level_id = _community_level()
     mgr = _manager()
     mgr.session.level_id = level_id
-    mgr.session.custom_level_ids.add(level_id)
     mgr.session.fx_text = "0"
     mgr.session.fy_text = "0"
     scene = GameScene(mgr)
@@ -79,7 +78,6 @@ def test_clearing_a_community_level_counts_a_clear(monkeypatch, recorded):
     level_id = _community_level()
     mgr = _manager()
     mgr.session.level_id = level_id
-    mgr.session.custom_level_ids.add(level_id)
     mgr.session.fx_text = "0"
     mgr.session.fy_text = "0"
     scene = GameScene(mgr)
@@ -104,7 +102,6 @@ def test_the_statistics_never_break_the_flight(monkeypatch):
     level_id = _community_level()
     mgr = _manager()
     mgr.session.level_id = level_id
-    mgr.session.custom_level_ids.add(level_id)
     mgr.session.fx_text = "0"
     mgr.session.fy_text = "0"
     scene = GameScene(mgr)

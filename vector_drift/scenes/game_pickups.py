@@ -11,7 +11,7 @@ from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
 from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
-                    is_custom_level, level_holes, section_count, section_level, section_shift,
+                    is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
@@ -131,7 +131,7 @@ class GamePickupMixin:
                 if key not in collected:
                     collected.add(key)
                     amount = event.get("amount", 1)
-                    if self.level.id not in getattr(self.session, "custom_level_ids", set()):
+                    if not is_custom_map(self.level.id, self.session):
                         self.session.money.add(amount)
                         self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid
                     self.money = self.session.money

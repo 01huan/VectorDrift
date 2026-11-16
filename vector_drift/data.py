@@ -103,6 +103,12 @@ def all_levels():
 # Custom (player-created) levels registry.
 CUSTOM_LEVELS: dict[int, "LevelSpec"] = {}
 
+# Community levels that were downloaded and are being played.  They live in
+# their own registry: a community level belongs to another player, so playing
+# one must never add it to the player's own custom levels (which are saved
+# with the profile).  The registry is runtime-only -- it is never saved.
+COMMUNITY_LEVELS: dict[int, "LevelSpec"] = {}
+
 # Community levels come from a public, untrusted table. Their local ids are
 # generated here from the remote row UUID and live in a dedicated negative
 # namespace, so they can never collide with a built-in level (positive id) or
@@ -167,11 +173,47 @@ def is_custom_level(level_id):
     return level_id in CUSTOM_LEVELS
 
 
+def register_community_level(spec):
+    """Register a downloaded community level for this session only.
+
+    A community level is somebody else's level: it is kept in its own
+    registry so that playing it never adds it to the player's own custom
+    levels (the list that is saved with the profile and shown in the level
+    editor).  The spec stays available for the game to load it.
+    """
+    COMMUNITY_LEVELS[spec.id] = spec
+    return spec
+
+
+def is_community_level(level_id):
+    """True for a community level that was downloaded in this session."""
+    return level_id in COMMUNITY_LEVELS
+
+
+def is_custom_map(level_id, session=None):
+    """True for a map that is not part of the campaign.
+
+    That is a player-created (custom) level and a community level.  Both
+    follow the same rules in a run: the AI solver replaces the authored
+    hints, the money pickups pay nothing and no clear reward is paid.
+    """
+    if level_id in CUSTOM_LEVELS or level_id in COMMUNITY_LEVELS:
+        return True
+    if session is not None:
+        ids = getattr(session, "custom_level_ids", None)
+        if ids:
+            return level_id in ids
+    return False
+
+
 def get_level(level_id, seed=None):
     """Return the spec for ``level_id``.
 
     Built-in and dynamic levels always win over custom ones: a custom id can
     never shadow them (community ids are negative, editor ids >= 1000).
+
+    Player-created levels come from ``CUSTOM_LEVELS``, community levels that
+    were downloaded this session from ``COMMUNITY_LEVELS``.
 
     Dynamic ids (see level_presets.dynamic_ids()) generate a fresh solvable
     layout on every call unless ``seed`` is given (same seed -> same layout,
@@ -188,13 +230,17 @@ def get_level(level_id, seed=None):
             return level
     if level_id in CUSTOM_LEVELS:
         return CUSTOM_LEVELS[level_id]
+    if level_id in COMMUNITY_LEVELS:
+        return COMMUNITY_LEVELS[level_id]
     raise KeyError(f"Unknown level {level_id}")
 
 
 __all__ = [
     "ShipSpec", "ObstacleSpec", "PickupSpec", "LevelSpec", "SectionSpec",
-    "HoleSpec", "SHIPS", "LEVELS", "CUSTOM_LEVELS", "all_levels", "get_level",
+    "HoleSpec", "SHIPS", "LEVELS", "CUSTOM_LEVELS", "COMMUNITY_LEVELS",
+    "all_levels", "get_level",
     "register_custom_level", "is_custom_level", "community_level_id",
+    "register_community_level", "is_community_level", "is_custom_map",
     "community_remote_id", "COMMUNITY_ID_SPACE", "COMMUNITY_REMOTE_IDS",
     "section_count", "section_level", "section_shift", "multi_section_level",
     "ship_unlocked", "default_ship_id", "level_holes",

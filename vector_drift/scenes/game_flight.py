@@ -11,7 +11,7 @@ from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
 from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
-                    is_custom_level, level_holes, section_count, section_level, section_shift,
+                    is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
@@ -227,8 +227,7 @@ class GameFlightMixin:
         if not self.valid or not self._ship_unlocked:
             self.audio.play("error")
             return
-        if (is_custom_level(self.level.id)
-                or self.level.id in getattr(self.session, "custom_level_ids", set())):
+        if is_custom_map(self.level.id, self.session):
             self._replay_level_snapshot = custom_level_to_snapshot(self.full_level)
         else:
             self._replay_level_snapshot = None

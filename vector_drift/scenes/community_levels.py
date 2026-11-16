@@ -3,7 +3,8 @@ by other players.
 
 Reads from the public ``community_levels`` Supabase table (anybody may read),
 so no login is required to browse.  Opening a card downloads the level JSON,
-registers it locally and starts the level.
+registers it for this session and starts the level.  A community level is not
+the player's own: it never joins the player's custom levels.
 
 The page has a search bar:
 
@@ -411,10 +412,11 @@ class CommunityLevelsScene(Scene):
         except (ValueError, TypeError, OverflowError) as exc:
             self.status = f"Invalid level data: {exc}"
             return
-        data.register_custom_level(spec)
-        self.session.custom_levels = [lv for lv in self.session.custom_levels if lv.id != spec.id]
-        self.session.custom_levels.append(spec)
-        self.session.custom_level_ids.add(spec.id)
+        # A community level belongs to another player: it is registered in the
+        # community registry only.  It is never added to the player's own
+        # custom levels, so playing it does not put it into the level editor
+        # list (and does not save it with the profile).
+        data.register_community_level(spec)
         self.session.level_id = spec.id
         self.session.fx_text = self.session.fy_text = ""
         self.session.random_seed = None

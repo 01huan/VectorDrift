@@ -63,8 +63,10 @@ def _account(authenticated=True, user_id="u1"):
 @pytest.fixture(autouse=True)
 def _clean_custom_levels():
     data.CUSTOM_LEVELS.clear()
+    data.COMMUNITY_LEVELS.clear()
     yield
     data.CUSTOM_LEVELS.clear()
+    data.COMMUNITY_LEVELS.clear()
 
 
 def test_delete_non_owner(monkeypatch):
@@ -165,7 +167,13 @@ def test_handle_event_open_card(monkeypatch):
     scene.handle_event(ev)
     assert isinstance(mgr.scene, FakeGame)
     assert mgr.session.level_id == data.community_level_id("a1")
-    assert data.community_level_id("a1") in mgr.session.custom_level_ids
+    # A community level is somebody else's level: playing it must not add it
+    # to the player's own custom levels.
+    assert data.community_level_id("a1") not in mgr.session.custom_level_ids
+    assert mgr.session.custom_levels == []
+    assert data.community_level_id("a1") in data.COMMUNITY_LEVELS
+    # The level is still playable: the game can load it.
+    assert data.get_level(data.community_level_id("a1")).id == data.community_level_id("a1")
 
 
 def test_handle_event_delete_own_click(monkeypatch):
@@ -276,14 +284,17 @@ def test_open_already_registered(monkeypatch):
     level_id = data.community_level_id("already-registered-row")
     spec = scene._deserialize({"name": "C", "start": [-7.0, 0.0],
                                 "target_center": [7.0, 0.0], "target_radius": 1.0}, level_id)
-    data.register_custom_level(spec)
-    mgr.session.custom_level_ids.add(level_id)
-    mgr.session.custom_levels.append(spec)
+    data.register_community_level(spec)
     lvl = {"id": "already-registered-row", "level_data": {"name": "C", "start": [-7.0, 0.0],
                           "target_center": [7.0, 0.0], "target_radius": 1.0}}
     scene._open(lvl)
-    assert level_id in mgr.session.custom_level_ids
-    assert sum(1 for s in mgr.session.custom_levels if s.id == level_id) == 1
+    scene._open(lvl)
+    # The level lives in the community registry only: it never becomes one of
+    # the player's own custom levels, not even when it is played twice.
+    assert level_id not in mgr.session.custom_level_ids
+    assert mgr.session.custom_levels == []
+    assert level_id not in data.CUSTOM_LEVELS
+    assert sum(1 for s in data.COMMUNITY_LEVELS.values() if s.id == level_id) == 1
 
 
 def test_deserialize_and_draw_preview(monkeypatch):

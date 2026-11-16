@@ -6,6 +6,7 @@ import pygame
 
 from .. import config
 from ..abilities import all_abilities, charge_count
+from ..data import is_community_level, is_custom_map
 from ..money import Money
 from ..config import px
 from ..desktop import set_cursor
@@ -132,9 +133,7 @@ for _alias in ("play_source", "origin", "played_from", "level_origin",
 
 def back_scene_for_level(session, scene=None):
     """Return the scene class to go back to from a level (play screen or result screen)."""
-    custom_ids = set(getattr(session, "custom_level_ids", ()) or ())
     level_id = getattr(session, "level_id", None)
-    is_custom = level_id in custom_ids
 
     source = None
     for obj in (scene, session):
@@ -158,14 +157,18 @@ def back_scene_for_level(session, scene=None):
                     source = val
                     break
 
-    if not is_custom:
+    s = str(source).lower() if source is not None else ""
+
+    # A community level is somebody else's level: it goes back to the public
+    # browser it was opened from, never to the player's own level list.
+    if "community" in s or is_community_level(level_id):
+        from .community_levels import CommunityLevelsScene
+        return CommunityLevelsScene
+
+    if not is_custom_map(level_id, session):
         from .levels import LevelSelectScene
         return LevelSelectScene
 
-    s = str(source).lower() if source is not None else ""
-    if "community" in s:
-        from .community_levels import CommunityLevelsScene
-        return CommunityLevelsScene
     if "editor" in s:
         from .level_editor_menu import LevelEditorMenuScene
         return LevelEditorMenuScene

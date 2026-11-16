@@ -169,7 +169,7 @@ The answer page is free on **levels 1 and 2**, and on **level 9**. On Levels 3â€
 
 ### Offline AI Solver for random and custom levels
 
-Level 8 and player-created/custom levels use the AI Solver instead of authored hints. The solver also works on community levels after they are loaded as custom levels.
+Level 8 and player-created/custom levels use the AI Solver instead of authored hints. The solver also works on community levels.
 
 The current implementation uses **Particle Swarm Optimization (PSO)**. It searches a parameterized family of force fields, evaluates candidates with the same `Flight` physics used by gameplay, and regards a candidate as a solution only if the simulated flight actually reaches the target (`Outcome.REACHED`). Search runs in the background and does not require a network connection.
 
@@ -264,7 +264,7 @@ The **Public Levels** page is part of the Level Editor menu.
 - Browsing and downloading public levels require a configured Supabase backend but do not require the player to sign in, provided the table's public-read policy is enabled.
 - Uploading requires a configured backend and an authenticated account.
 - A player can delete their own uploaded levels. Supabase Row Level Security also restricts deletion to the owning user.
-- Opening a community level loads it into the local custom-level list so it can be played like another custom level.
+- Opening a community level downloads it and starts it right away. A community level belongs to the player who uploaded it: playing it never adds it to your own custom levels, and it is not saved with your progress.
 
 ### Searching and sorting
 
