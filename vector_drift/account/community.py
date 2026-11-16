@@ -265,6 +265,40 @@ def serialize_level(level: Any) -> dict:
             }
             for item in getattr(level, "holes", ()) or ()
         ],
+        "sections": [
+            {
+                "start": list(s.start),
+                "target_center": list(s.target_center),
+                "target_radius": float(s.target_radius),
+                "time_limit": float(s.time_limit),
+                "obstacles": [
+                    {
+                        "center": list(o.center),
+                        "radius": float(o.radius),
+                        "restitution": float(o.restitution),
+                        "kind": o.kind,
+                    }
+                    for o in s.obstacles
+                ],
+                "pickups": [
+                    {
+                        "center": list(p.center),
+                        "radius": float(p.radius),
+                        "kind": p.kind,
+                    }
+                    for p in s.pickups
+                ],
+                "holes": [
+                    {
+                        "black_center": list(h.black_center),
+                        "white_center": list(h.white_center),
+                        "radius": float(h.radius),
+                    }
+                    for h in s.holes
+                ],
+            }
+            for s in getattr(level, "sections", ()) or ()
+        ],
     }
 
 

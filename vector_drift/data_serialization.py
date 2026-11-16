@@ -4,7 +4,7 @@ Kept separate from the models so the value objects stay dependency-free and
 the replay/community code can reuse the same conversion rules.
 """
 
-from .data_models import HoleSpec, LevelSpec, ObstacleSpec, PickupSpec
+from .data_models import HoleSpec, LevelSpec, ObstacleSpec, PickupSpec, SectionSpec
 
 
 def _list_or_empty(value):
@@ -71,6 +71,48 @@ def _holes_from_rows(rows):
     return tuple(_hole_from_row(item) for item in _list_or_empty(rows))
 
 
+def _section_to_row(section):
+    return {
+        "start": list(section.start),
+        "target_center": list(section.target_center),
+        "target_radius": float(section.target_radius),
+        "time_limit": float(section.time_limit),
+        "obstacles": _obstacles_to_rows(section.obstacles),
+        "pickups": _pickups_to_rows(section.pickups),
+        "holes": _holes_to_rows(section.holes),
+    }
+
+
+def _section_from_row(item):
+    if not isinstance(item, dict):
+        return None
+    try:
+        return SectionSpec(
+            start=tuple(item["start"]),
+            target_center=tuple(item["target_center"]),
+            target_radius=float(item.get("target_radius", 1.0)),
+            time_limit=float(item.get("time_limit", 10.0)),
+            obstacles=_obstacles_from_rows(item.get("obstacles", ()) or ()),
+            pickups=_pickups_from_rows(item.get("pickups", ()) or ()),
+            holes=_holes_from_rows(item.get("holes", ()) or ()),
+        )
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
+        return None
+
+
+def _sections_to_rows(sections):
+    return [_section_to_row(item) for item in _list_or_empty(sections)]
+
+
+def _sections_from_rows(rows):
+    out = []
+    for item in _list_or_empty(rows):
+        section = _section_from_row(item)
+        if section is not None:
+            out.append(section)
+    return tuple(out)
+
+
 def _level_spec_to_row(level):
     return {
         "id": int(level.id),
@@ -84,6 +126,7 @@ def _level_spec_to_row(level):
         "obstacles": _obstacles_to_rows(level.obstacles),
         "pickups": _pickups_to_rows(level.pickups),
         "holes": _holes_to_rows(getattr(level, "holes", ()) or ()),
+        "sections": _sections_to_rows(getattr(level, "sections", ()) or ()),
     }
 
 
@@ -91,6 +134,7 @@ def _level_spec_from_row(row):
     if not isinstance(row, dict):
         return None
     try:
+        sections = _sections_from_rows(row.get("sections", ()) or ())
         return LevelSpec(
             id=int(row["id"]),
             name=str(row["name"]),
@@ -103,6 +147,7 @@ def _level_spec_from_row(row):
             obstacles=_obstacles_from_rows(row.get("obstacles", ()) or ()),
             pickups=_pickups_from_rows(row.get("pickups", ()) or ()),
             holes=_holes_from_rows(row.get("holes", ()) or ()),
+            sections=sections,
         )
     except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
         return None
@@ -121,6 +166,7 @@ def _level_spec_to_snapshot(level):
         "obstacles": _obstacles_to_rows(level.obstacles),
         "pickups": _pickups_to_rows(level.pickups),
         "holes": _holes_to_rows(getattr(level, "holes", ()) or ()),
+        "sections": _sections_to_rows(getattr(level, "sections", ()) or ()),
     }
 
 
@@ -130,6 +176,7 @@ def _level_spec_from_snapshot(snapshot):
     obstacles = _obstacles_from_rows(snapshot.get("obstacles", ()))
     pickups = _pickups_from_rows(snapshot.get("pickups", ()))
     holes = _holes_from_rows(snapshot.get("holes", ()))
+    sections = _sections_from_rows(snapshot.get("sections", ()) or ())
     return LevelSpec(
         id=int(snapshot["id"]),
         name=str(snapshot["name"]),
@@ -142,6 +189,7 @@ def _level_spec_from_snapshot(snapshot):
         obstacles=obstacles,
         pickups=pickups,
         holes=holes,
+        sections=sections,
     )
 
 

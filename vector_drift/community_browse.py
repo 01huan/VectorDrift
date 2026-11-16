@@ -219,12 +219,27 @@ def level_info(row: Any) -> CommunityLevelInfo:
     name = row_name or data_name or "Community"
     names = tuple(dict.fromkeys(n for n in (row_name, data_name) if n))
 
-    obstacles = data.get("obstacles")
-    obstacle_count = len(obstacles) if isinstance(obstacles, (list, tuple)) else 0
+    sections = data.get("sections")
+    if isinstance(sections, (list, tuple)) and sections:
+        obstacle_count = 0
+        pickup_list = []
+        for s in sections:
+            if not isinstance(s, dict):
+                continue
+            obs = s.get("obstacles")
+            if isinstance(obs, (list, tuple)):
+                obstacle_count += len(obs)
+            ps = s.get("pickups")
+            if isinstance(ps, (list, tuple)):
+                pickup_list.extend(ps)
+        pickups = pickup_list
+    else:
+        obstacles = data.get("obstacles")
+        obstacle_count = len(obstacles) if isinstance(obstacles, (list, tuple)) else 0
+        pickups = data.get("pickups")
 
     pickup_counts: dict = {}
     pickup_count = 0
-    pickups = data.get("pickups")
     if isinstance(pickups, (list, tuple)):
         for item in pickups:
             pickup_count += 1
@@ -247,7 +262,7 @@ def level_info(row: Any) -> CommunityLevelInfo:
         names=names,
         created_at=created_at,
         created_ts=_timestamp(created_at),
-        time_limit=_float(data.get("time_limit"), 0.0),
+        time_limit=_float((sections[0].get("time_limit") if isinstance(sections, (list, tuple)) and sections and isinstance(sections[0], dict) else data.get("time_limit")), 0.0),
         obstacle_count=obstacle_count,
         pickup_count=pickup_count,
         pickup_counts=tuple(sorted(pickup_counts.items())),

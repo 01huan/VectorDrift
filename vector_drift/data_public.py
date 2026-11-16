@@ -8,7 +8,7 @@ counts) without limiting ordinary designs.
 
 import math
 
-from .data_models import HoleSpec, LevelSpec, ObstacleSpec, PickupSpec, SHIPS
+from .data_models import HoleSpec, LevelSpec, ObstacleSpec, PickupSpec, SectionSpec, SHIPS
 
 PUBLIC_LEVEL_MAX_NAME_LEN = 80
 PUBLIC_LEVEL_MAX_COORD = 100.0       # |x| / |y| in m
@@ -151,6 +151,22 @@ def level_spec_from_public(raw, level_id):
         raise ValueError("level_id must be an integer")
     if not isinstance(raw, dict):
         raise ValueError("level data must be an object")
+    sections_raw = raw.get("sections", ())
+    if sections_raw is None:
+        sections_raw = ()
+    if not isinstance(sections_raw, (list, tuple)):
+        raise ValueError("sections must be a list")
+    # Allow top-level fields to be derived from the first section when a
+    # multi-section layout is supplied without repeating them.
+    if sections_raw and "start" not in raw:
+        raw = dict(raw)
+        raw["start"] = sections_raw[0].get("start") if isinstance(sections_raw[0], dict) else None
+    if sections_raw and "target_center" not in raw:
+        raw = dict(raw)
+        raw["target_center"] = sections_raw[0].get("target_center") if isinstance(sections_raw[0], dict) else None
+    if sections_raw and "target_radius" not in raw:
+        raw = dict(raw)
+        raw["target_radius"] = sections_raw[0].get("target_radius") if isinstance(sections_raw[0], dict) else None
     for required in ("start", "target_center", "target_radius"):
         if required not in raw:
             raise ValueError(f"{required} is required")
@@ -194,6 +210,54 @@ def level_spec_from_public(raw, level_id):
         raise ValueError(f"holes must contain at most {PUBLIC_LEVEL_MAX_HOLES} entries")
     holes = tuple(_public_hole(item, i) for i, item in enumerate(holes_raw))
 
+    # Sections (multi-section levels).
+    sections = []
+    if sections_raw:
+        if len(sections_raw) > 10:
+            raise ValueError("sections must contain at most 10 entries")
+        for i, item in enumerate(sections_raw):
+            if not isinstance(item, dict):
+                raise ValueError(f"sections[{i}] must be an object")
+            for required in ("start", "target_center", "target_radius"):
+                if required not in item:
+                    raise ValueError(f"sections[{i}].{required} is required")
+            s_start = _public_point(item["start"], f"sections[{i}].start")
+            s_target = _public_point(item["target_center"], f"sections[{i}].target_center")
+            s_radius = _public_radius(item["target_radius"], f"sections[{i}].target_radius")
+            s_time = _public_number(item.get("time_limit", time_limit), f"sections[{i}].time_limit")
+            if not PUBLIC_LEVEL_MIN_TIME_LIMIT <= s_time <= PUBLIC_LEVEL_MAX_TIME_LIMIT:
+                raise ValueError(
+                    f"sections[{i}].time_limit must be between {PUBLIC_LEVEL_MIN_TIME_LIMIT:g} and "
+                    f"{PUBLIC_LEVEL_MAX_TIME_LIMIT:g} s"
+                )
+            obs_raw = item.get("obstacles", ())
+            if not isinstance(obs_raw, (list, tuple)):
+                raise ValueError(f"sections[{i}].obstacles must be a list")
+            if len(obs_raw) > PUBLIC_LEVEL_MAX_OBSTACLES:
+                raise ValueError(f"sections[{i}].obstacles must contain at most {PUBLIC_LEVEL_MAX_OBSTACLES} entries")
+            s_obstacles = tuple(_public_obstacle(o, j) for j, o in enumerate(obs_raw))
+            pick_raw = item.get("pickups", ())
+            if not isinstance(pick_raw, (list, tuple)):
+                raise ValueError(f"sections[{i}].pickups must be a list")
+            if len(pick_raw) > PUBLIC_LEVEL_MAX_PICKUPS:
+                raise ValueError(f"sections[{i}].pickups must contain at most {PUBLIC_LEVEL_MAX_PICKUPS} entries")
+            s_pickups = tuple(_public_pickup(p, j) for j, p in enumerate(pick_raw))
+            hole_raw = item.get("holes", ())
+            if not isinstance(hole_raw, (list, tuple)):
+                raise ValueError(f"sections[{i}].holes must be a list")
+            if len(hole_raw) > PUBLIC_LEVEL_MAX_HOLES:
+                raise ValueError(f"sections[{i}].holes must contain at most {PUBLIC_LEVEL_MAX_HOLES} entries")
+            s_holes = tuple(_public_hole(h, j) for j, h in enumerate(hole_raw))
+            sections.append(SectionSpec(
+                start=s_start,
+                target_center=s_target,
+                target_radius=s_radius,
+                time_limit=s_time,
+                obstacles=s_obstacles,
+                pickups=s_pickups,
+                holes=s_holes,
+            ))
+
     return LevelSpec(
         id=level_id,
         name=name,
@@ -206,6 +270,7 @@ def level_spec_from_public(raw, level_id):
         obstacles=obstacles,
         pickups=pickups,
         holes=holes,
+        sections=tuple(sections),
     )
 
 

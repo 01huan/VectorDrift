@@ -30,6 +30,15 @@ class LevelEditorScene(Scene):
         self.upload_button = Button((config.WINDOW_W - px(390), config.WINDOW_H - px(60), px(120), px(40)),
                                     "Upload", style="primary", font_size=16)
         self.palette = ["start", "target", "obstacle", "hole", "shockwave", "extratime", "shield", "life", "money", "unbound"]
+        self.add_checkpoint_button = Button((config.WINDOW_W - px(620), config.WINDOW_H - px(60), px(150), px(40)),
+                                           "Add Checkpoint", style="primary", font_size=14)
+        self.delete_checkpoint_button = Button((config.WINDOW_W - px(780), config.WINDOW_H - px(60), px(150), px(40)),
+                                              "Delete Checkpoint", style="plain", font_size=14)
+        self.prev_section_button = Button((config.WINDOW_W - px(940), config.WINDOW_H - px(60), px(70), px(40)),
+                                         "Prev", style="plain", font_size=14)
+        self.next_section_button = Button((config.WINDOW_W - px(860), config.WINDOW_H - px(60), px(70), px(40)),
+                                         "Next", style="plain", font_size=14)
+        self.checkpoint_button = self.add_checkpoint_button
         self.dragging = None
         self.moving = None
         self.move_offset = (0.0, 0.0)
@@ -41,6 +50,9 @@ class LevelEditorScene(Scene):
         self.obstacles = []
         self.pickups = []
         self.holes = []
+        self.time_limit = 10.0
+        self.sections = []
+        self.section_index = 0
         self._placed_start = False
         self._placed_target = False
         self.naming = False
@@ -55,12 +67,217 @@ class LevelEditorScene(Scene):
             self.obstacles = [dict(center=o.center, radius=o.radius) for o in getattr(level, "obstacles", ())]
             self.holes = [dict(black_center=tuple(getattr(h, "black_center", h[0] if isinstance(h, (tuple,list)) else (0.0,0.0))), white_center=tuple(getattr(h, "white_center", h[1] if isinstance(h, (tuple,list)) else (0.0,0.0))), radius=float(getattr(h, "radius", (h[2] if isinstance(h, (tuple,list)) and len(h)>2 else 0.5)))) for h in getattr(level, "holes", ())]
             self.pickups = [dict(center=p.center, radius=getattr(p, "radius", 0.45), kind=getattr(p, "kind", "shockwave")) for p in getattr(level, "pickups", ())]
+            self.time_limit = float(getattr(level, "time_limit", 10.0))
             self._placed_start = True
             self._placed_target = True
             self.name_buffer = getattr(level, "name", "Custom")
+            # Multi-section support.
+            if getattr(level, "sections", ()):
+                self.sections = [self._state_from_section(s) for s in level.sections]
+            else:
+                self.sections = [self._current_state()]
+            self.section_index = 0
+            # Ensure current fields mirror section 0.
+            self._apply_section(0)
+        else:
+            self.sections = [self._current_state()]
 
     def _screen_to_world(self, pos):
         return self.viewport.to_world(*pos)
+
+    def _state_from_section(self, section):
+        def _get(attr, key, default):
+            if isinstance(section, dict):
+                return section.get(key, default)
+            val = getattr(section, attr, None)
+            if val is None:
+                val = getattr(section, key, None)
+            return default if val is None else val
+
+        start = _get("start", "start", self.start)
+        target = _get("target_center", "target_center", None)
+        if target is None:
+            target = _get("target", "target", self.target)
+        target_radius = float(_get("target_radius", "target_radius", self.target_radius))
+        time_limit = float(_get("time_limit", "time_limit", 10.0))
+        # obstacles
+        obs_raw = _get("obstacles", "obstacles", ())
+        obstacles = []
+        for o in obs_raw or ():
+            if isinstance(o, dict):
+                obstacles.append({"center": tuple(o.get("center", o.get("center"))), "radius": float(o.get("radius", 0.5))})
+            else:
+                obstacles.append({"center": tuple(getattr(o, "center", (0.0, 0.0))), "radius": float(getattr(o, "radius", 0.5))})
+        # pickups
+        pick_raw = _get("pickups", "pickups", ())
+        pickups = []
+        for p in pick_raw or ():
+            if isinstance(p, dict):
+                pickups.append({"center": tuple(p.get("center", (0.0, 0.0))), "radius": float(p.get("radius", 0.45)), "kind": str(p.get("kind", "shockwave"))})
+            else:
+                pickups.append({"center": tuple(getattr(p, "center", (0.0, 0.0))), "radius": float(getattr(p, "radius", 0.45)), "kind": str(getattr(p, "kind", "shockwave"))})
+        # holes
+        hole_raw = _get("holes", "holes", ())
+        holes = []
+        for h in hole_raw or ():
+            if isinstance(h, dict):
+                holes.append({
+                    "black_center": tuple(h.get("black_center", h.get("black", (0.0, 0.0)))),
+                    "white_center": tuple(h.get("white_center", h.get("white", (0.0, 0.0)))),
+                    "radius": float(h.get("radius", 0.5)),
+                })
+            else:
+                bc = getattr(h, "black_center", None)
+                wc = getattr(h, "white_center", None)
+                if bc is None and isinstance(h, (tuple, list)):
+                    bc = h[0] if len(h) > 0 else (0.0, 0.0)
+                    wc = h[1] if len(h) > 1 else (0.0, 0.0)
+                holes.append({
+                    "black_center": tuple(bc) if bc is not None else (0.0, 0.0),
+                    "white_center": tuple(wc) if wc is not None else (0.0, 0.0),
+                    "radius": float(getattr(h, "radius", (h[2] if isinstance(h, (tuple, list)) and len(h) > 2 else 0.5))),
+                })
+        return {
+            "start": tuple(start),
+            "target": tuple(target),
+            "target_center": tuple(target),
+            "target_radius": target_radius,
+            "obstacles": obstacles,
+            "pickups": pickups,
+            "holes": holes,
+            "time_limit": time_limit,
+        }
+
+    def _current_state(self):
+        return {
+            "start": tuple(self.start),
+            "target": tuple(self.target),
+            "target_center": tuple(self.target),
+            "target_radius": float(self.target_radius),
+            "obstacles": [dict(center=tuple(o["center"]), radius=float(o["radius"])) for o in self.obstacles],
+            "pickups": [dict(center=tuple(p["center"]), radius=float(p["radius"]), kind=str(p["kind"])) for p in self.pickups],
+            "holes": [dict(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=float(h["radius"])) for h in self.holes],
+            "time_limit": float(self.time_limit),
+        }
+
+    def _apply_section(self, index):
+        if not self.sections:
+            self.sections = [self._current_state()]
+        if index < 0 or index >= len(self.sections):
+            return
+        self.section_index = index
+        state = self.sections[index]
+        self.start = tuple(state.get("start", self.start))
+        self.target = tuple(state.get("target", state.get("target_center", self.target)))
+        self.target_radius = float(state.get("target_radius", self.target_radius))
+        self.obstacles = [dict(center=tuple(o["center"]), radius=float(o["radius"])) for o in state.get("obstacles", [])]
+        self.pickups = [dict(center=tuple(p["center"]), radius=float(p["radius"]), kind=str(p["kind"])) for p in state.get("pickups", [])]
+        self.holes = [dict(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=float(h["radius"])) for h in state.get("holes", [])]
+        self.time_limit = float(state.get("time_limit", 10.0))
+        self._placed_start = True
+        self._placed_target = True
+        self.selected = None
+        self.context_menu = None
+        self.moving = None
+
+    def _save_current_section(self):
+        if not self.sections:
+            self.sections = [self._current_state()]
+            self.section_index = 0
+            return
+        if self.section_index < 0 or self.section_index >= len(self.sections):
+            self.sections.append(self._current_state())
+            self.section_index = len(self.sections) - 1
+            return
+        self.sections[self.section_index] = self._current_state()
+
+    @property
+    def section_count(self):
+        return len(self.sections) if self.sections else 1
+
+    @property
+    def current_section(self):
+        return self.section_index
+
+    def goto_section(self, index):
+        if index < 0 or index >= len(self.sections):
+            return False
+        self._save_current_section()
+        self.section_index = index
+        self._apply_section(index)
+        return True
+
+    def next_section(self):
+        if self.section_index < len(self.sections) - 1:
+            return self.goto_section(self.section_index + 1)
+        return False
+
+    def prev_section(self):
+        if self.section_index > 0:
+            return self.goto_section(self.section_index - 1)
+        return False
+
+    def add_checkpoint(self):
+        self._save_current_section()
+        prev_target = tuple(self.sections[self.section_index]["target"]) if self.sections else tuple(self.target)
+        new_state = {
+            "start": (-7.0, 0.0),
+            "target": (7.0, 0.0),
+            "target_center": (7.0, 0.0),
+            "target_radius": 1.0,
+            "obstacles": [],
+            "pickups": [],
+            "holes": [],
+            "time_limit": 10.0,
+        }
+        # Insert after current section.
+        insert_at = self.section_index + 1
+        if insert_at > len(self.sections):
+            insert_at = len(self.sections)
+        self.sections.insert(insert_at, new_state)
+        self.section_index = insert_at
+        self._apply_section(self.section_index)
+        return True
+
+    def add_section(self):
+        return self.add_checkpoint()
+
+    def delete_checkpoint(self):
+        # Delete a checkpoint boundary, merging sections to avoid data loss.
+        if len(self.sections) <= 1:
+            return False
+        self._save_current_section()
+        if self.section_index < len(self.sections) - 1:
+            # Merge next section into current.
+            cur = self.sections[self.section_index]
+            nxt = self.sections[self.section_index + 1]
+            cur["obstacles"] = list(cur.get("obstacles", [])) + list(nxt.get("obstacles", []))
+            cur["pickups"] = list(cur.get("pickups", [])) + list(nxt.get("pickups", []))
+            cur["holes"] = list(cur.get("holes", [])) + list(nxt.get("holes", []))
+            del self.sections[self.section_index + 1]
+            self._apply_section(self.section_index)
+            return True
+        # Current is last: merge into previous and move back.
+        if self.section_index > 0:
+            prev = self.sections[self.section_index - 1]
+            cur = self.sections[self.section_index]
+            prev["obstacles"] = list(prev.get("obstacles", [])) + list(cur.get("obstacles", []))
+            prev["pickups"] = list(prev.get("pickups", [])) + list(cur.get("pickups", []))
+            prev["holes"] = list(prev.get("holes", [])) + list(cur.get("holes", []))
+            del self.sections[self.section_index]
+            self.section_index -= 1
+            self._apply_section(self.section_index)
+            return True
+        return False
+
+    def delete_section(self):
+        return self.delete_checkpoint()
+
+    def remove_checkpoint(self):
+        return self.delete_checkpoint()
+
+    def remove_section(self):
+        return self.delete_checkpoint()
 
     def _object_refs(self):
         refs = [("start", None), ("target", None)]
@@ -310,6 +527,22 @@ class LevelEditorScene(Scene):
             if not self.name_buffer:
                 self.name_buffer = "Custom"
             return
+        if self.add_checkpoint_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.add_checkpoint()
+            return
+        if self.delete_checkpoint_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.delete_checkpoint()
+            return
+        if self.prev_section_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.prev_section()
+            return
+        if self.next_section_button.handle_event(event) == "click":
+            self.audio.play("click")
+            self.next_section()
+            return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for i, kind in enumerate(self.palette):
                 r = pygame.Rect(px(10), px(60 + i * 46), px(150), px(40))
@@ -372,21 +605,52 @@ class LevelEditorScene(Scene):
                for ref in self._object_refs()):
             self.message = "Objects cannot overlap"
             return None
+        self._save_current_section()
         level_id = self.level.id if self.level is not None else None
         if level_id is None:
             existing_ids = {lv.id for lv in data.LEVELS} | self.session.custom_level_ids
             level_id = max(existing_ids or {0}) + 1
             level_id = max(level_id, 1000)
-        return LevelSpec(
+
+        from vector_drift.data import HoleSpec, SectionSpec, multi_section_level
+
+        def _convert_state(state):
+            obs = tuple(ObstacleSpec(center=tuple(o["center"]), radius=o["radius"]) for o in state.get("obstacles", []))
+            picks = tuple(PickupSpec(center=tuple(p["center"]), radius=p["radius"], kind=p["kind"]) for p in state.get("pickups", []))
+            hs = tuple(HoleSpec(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=h["radius"]) for h in state.get("holes", []))
+            return SectionSpec(
+                start=tuple(state.get("start", (-7.0, 0.0))),
+                target_center=tuple(state.get("target", state.get("target_center", (7.0, 0.0)))),
+                target_radius=float(state.get("target_radius", 1.0)),
+                time_limit=float(state.get("time_limit", 10.0)),
+                obstacles=obs,
+                pickups=picks,
+                holes=hs,
+            )
+
+        sections_states = self.sections or [self._current_state()]
+        if len(sections_states) <= 1:
+            st = sections_states[0]
+            return LevelSpec(
+                id=level_id,
+                name=name,
+                start=tuple(st.get("start", (-7.0, 0.0))),
+                target_center=tuple(st.get("target", st.get("target_center", (7.0, 0.0)))),
+                target_radius=float(st.get("target_radius", 1.0)),
+                ship_id="ship01",
+                time_limit=float(st.get("time_limit", 10.0)),
+                obstacles=tuple(ObstacleSpec(center=tuple(o["center"]), radius=o["radius"]) for o in st.get("obstacles", [])),
+                pickups=tuple(PickupSpec(center=tuple(p["center"]), radius=p["radius"], kind=p["kind"]) for p in st.get("pickups", [])),
+                holes=tuple(HoleSpec(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=h["radius"]) for h in st.get("holes", [])),
+                sections=(),
+            )
+        section_specs = tuple(_convert_state(s) for s in sections_states)
+        return multi_section_level(
             id=level_id,
             name=name,
-            start=tuple(self.start),
-            target_center=tuple(self.target),
-            target_radius=float(self.target_radius),
             ship_id="ship01",
-            obstacles=tuple(ObstacleSpec(center=tuple(o["center"]), radius=o["radius"]) for o in self.obstacles),
-            pickups=tuple(PickupSpec(center=tuple(p["center"]), radius=p["radius"], kind=p["kind"]) for p in self.pickups),
-            holes=tuple(__import__("vector_drift.data", fromlist=["HoleSpec"]).HoleSpec(black_center=tuple(h["black_center"]), white_center=tuple(h["white_center"]), radius=h["radius"]) for h in self.holes),
+            sections=section_specs,
+            lives=5,
         )
 
     def _save(self, name="Custom"):
@@ -490,12 +754,20 @@ class LevelEditorScene(Scene):
         self.back_button.draw(surface)
         self.save_button.draw(surface)
         self.upload_button.draw(surface)
+        self.add_checkpoint_button.draw(surface)
+        self.delete_checkpoint_button.draw(surface)
+        self.prev_section_button.draw(surface)
+        self.next_section_button.draw(surface)
+        draw_text(surface, f"Section {self.section_index + 1} / {self.section_count}", (config.WINDOW_W // 2, px(58)), 16, config.TEXT, kind="bold", anchor="center")
         draw_text(surface, "Level Editor", (config.WINDOW_W // 2, px(30)), 24, config.TEXT, kind="bold", anchor="center")
         # Use viewport for world-to-screen conversion (same as gameplay)
         sx, sy = self.viewport.to_screen(*self.start)
         sprites.draw_start_marker(surface, (sx, sy), self.START_RADIUS * self.viewport.scale, 0.0)
         tx, ty = self.viewport.to_screen(*self.target)
-        sprites.draw_target(surface, (tx, ty), self.target_radius * self.viewport.scale, 0.0)
+        if self.section_count > 1 and self.section_index < self.section_count - 1:
+            sprites.draw_checkpoint(surface, (tx, ty), self.target_radius * self.viewport.scale, 0.0)
+        else:
+            sprites.draw_target(surface, (tx, ty), self.target_radius * self.viewport.scale, 0.0)
         for i, o in enumerate(self.obstacles):
             ox, oy = self.viewport.to_screen(*o["center"])
             sprites.draw_obstacle(surface, (ox, oy), o["radius"] * self.viewport.scale, 0.0)
