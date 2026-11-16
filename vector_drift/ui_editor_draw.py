@@ -85,6 +85,9 @@ class CodeEditorDrawMixin:
                 img = self.font.render(chunk, True, fade(color))
                 surface.blit(img, img.get_rect(midleft=(cx, lr.centery)))
                 cx += img.get_width()
+        elif self.placeholder(i) is not None:
+            img = self.font.render(self.placeholder(i), True, config.TEXT_FAINT)
+            surface.blit(img, img.get_rect(midleft=(area.x, lr.centery)))
         elif not is_cur:
             img = self.font.render("0", True, config.EDITOR_GUTTER)
             surface.blit(img, img.get_rect(midleft=(area.x, lr.centery)))

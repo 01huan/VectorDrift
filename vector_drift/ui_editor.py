@@ -57,7 +57,8 @@ class CodeEditor(CodeEditorHistoryMixin, CodeEditTextMixin,
     deleting a selection and set_lines() are steps of their own."""
 
     def __init__(self, pos, width, prefixes=("Fx", "Fy"), title="Vector_field",
-                 footer_title=None, footer_rows_h=0, max_len=config.MAX_EXPR_LEN, on_change=None):
+                 footer_title=None, footer_rows_h=0, max_len=config.MAX_EXPR_LEN, on_change=None,
+                 placeholders=()):
         self.TAB_H, self.LINE_H, self.GUTTER_W = px(28), px(28), px(30)
         self.PROB_HEADER_H, self.PROB_ROW_H, self.TEXT_PAD = px(22), px(18), px(8)
         self.prefixes = prefixes
@@ -71,6 +72,9 @@ class CodeEditor(CodeEditorHistoryMixin, CodeEditTextMixin,
         self.max_len = max_len
         self.on_change = on_change
         self.lines = [""] * self.n
+        # Grey hint per line, drawn only while that line is empty and never
+        # typed in for the player. Only the tutorial sets them.
+        self.placeholders = tuple(placeholders or ())
         self.errors = [None] * self.n        # (message, pos) per line
         self.line = 0
         self.col = 0
@@ -85,6 +89,12 @@ class CodeEditor(CodeEditorHistoryMixin, CodeEditTextMixin,
         self.font = get_font(16, "mono")
         self.small_mono = get_font(13, "mono")
         self.prefix_w = self.font.size(f"{prefixes[0]} = ")[0]
+
+    def placeholder(self, i):
+        """Line i's grey hint while the line is empty, else None."""
+        if self.lines[i] or i >= len(self.placeholders) or not self.placeholders[i]:
+            return None
+        return self.placeholders[i]
 
     # -- geometry --------------------------------------------------------------
     @property
