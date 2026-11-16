@@ -7,6 +7,10 @@ take), gives it a name and saves it in the player's library.  A saved function
 can be imported: the imported one is what the normal levels start with, and
 the game screen's "Lab" button can load any of them into the editor.
 
+The point where the probe is released is the player's choice: it is written in
+the two coordinate fields (or picked with a click on the preview), so a field
+can be watched from any place on the map.
+
 Nothing here touches the game's flight or level code: the lab only reads and
 writes the player's own library.
 """
@@ -37,8 +41,17 @@ NAME_LABEL_Y = 240                  # "NAME" above the name field
 NAME_Y = 258                         # the name field and the Save button
 NAME_W = 246
 NEW_Y = 302                          # the New button
-STATUS_Y = 344                       # the message under the buttons
-HINT_Y = 440                         # the longer explanation
+START_LABEL_Y = 340                 # "PROBE START" above the coordinate fields
+START_Y = 358                        # the coordinate fields and the Reset button
+START_FIELD_W = 118                  # one coordinate field
+START_X_LABEL_X = LEFT_X             # the "x" and "y" labels
+START_X_FIELD_X = LEFT_X + 14
+START_Y_LABEL_X = LEFT_X + 138
+START_Y_FIELD_X = LEFT_X + 152
+START_RESET_X = LEFT_X + 276
+START_RESET_W = 84
+STATUS_Y = 402                       # the message under the buttons
+HINT_Y = 462                         # the longer explanation
 PLOT_X, PLOT_Y = 404, 80            # the field preview
 PLOT_W, PLOT_H = 852, 330
 LEGEND_TEXT_Y = 420                  # under the preview
@@ -61,6 +74,41 @@ PROBE_MASS = 1.0
 PROBE_START = (-6.0, 0.0)              # where the ship usually starts
 PROBE_STEPS = 900                      # 7.5 s at the game's 1/120 s step
 PROBE_LIMIT_M = 30.0                   # stop when it is this far out
+START_MARGIN_M = 0.25                  # the start marker stays inside the preview
+MAX_COORD_LEN = 12                     # characters in a coordinate field
+
+
+def _parse_coordinate(text):
+    """The number written in a coordinate field, or None when it is not one.
+
+    Plain decimal numbers only (an optional minus sign, digits, a dot).  A
+    unicode minus (some keyboards type one) is understood.
+    """
+    if not isinstance(text, str):
+        return None
+    cleaned = text.strip().replace("\u2212", "-")
+    if not cleaned:
+        return None
+    try:
+        value = float(cleaned)
+    except ValueError:
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _format_coordinate(value):
+    """A coordinate as short text: "-6", "0", "1.5"."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return "0"
+    if not math.isfinite(value):
+        return "0"
+    if value == int(value):
+        return str(int(value))
+    return f"{value:g}"
 
 
 class FunctionLabScene(Scene):
@@ -82,6 +130,20 @@ class FunctionLabScene(Scene):
                                   "Save", style="primary", font_size=16)
         self.new_button = Button((px(LEFT_X), px(NEW_Y), px(110), px(30)), "New",
                                  style="plain", font_size=15)
+        # Where the probe is released: the player's choice, in metres.
+        self.start_x_input = TextInput((px(START_X_FIELD_X), px(START_Y),
+                                        px(START_FIELD_W), px(34)),
+                                       "x (m)", font_size=15,
+                                       max_length=MAX_COORD_LEN,
+                                       on_change=self._on_start_change)
+        self.start_y_input = TextInput((px(START_Y_FIELD_X), px(START_Y),
+                                        px(START_FIELD_W), px(34)),
+                                       "y (m)", font_size=15,
+                                       max_length=MAX_COORD_LEN,
+                                       on_change=self._on_start_change)
+        self.start_reset_button = Button((px(START_RESET_X), px(START_Y + 2),
+                                          px(START_RESET_W), px(30)),
+                                         "Reset", style="plain", font_size=14)
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Levels",
                                   style="plain", font_size=17)
         self.prev_button = Button((px(PREV_X), px(LIST_HEADER_Y - 8), px(PREV_W), px(26)), "‹",
@@ -108,8 +170,15 @@ class FunctionLabScene(Scene):
         self.page = 0
         self.page_count = 1
         self.rows = []
+        # The probe's start point: the fields are the truth, these are the
+        # last values that were read from them.
+        self.start_x, self.start_y = PROBE_START
+        self.start_error = {}          # the fields that hold no usable number
+        self.start_message = None      # the last complaint about the start
         self._validate()
         self._rebuild()
+        self.start_x_input.set_text(_format_coordinate(self.start_x))
+        self.start_y_input.set_text(_format_coordinate(self.start_y))
 
     # ------------------------------------------------------------------ library
     def _library(self):
@@ -145,6 +214,90 @@ class FunctionLabScene(Scene):
     def _on_text_change(self, editor):
         self._validate()
 
+    def _start_limits(self):
+        """The largest start point the preview can show (metres)."""
+        return (max(0.0, self.viewport.half_w - START_MARGIN_M),
+                max(0.0, self.viewport.half_h - START_MARGIN_M))
+
+    def _on_start_change(self, _text=None):
+        """A coordinate field changed: read both and trace the probe again.
+
+        A field that holds no number (or one outside the preview) keeps its
+        last good value: the probe stays where it was until the entry is
+        fixed, and the offending field is marked.
+        """
+        limit_x, limit_y = self._start_limits()
+        values = {"x": _parse_coordinate(self.start_x_input.text),
+                  "y": _parse_coordinate(self.start_y_input.text)}
+        limits = {"x": limit_x, "y": limit_y}
+        problems = {}
+        for name, value in values.items():
+            if value is None:
+                problems[name] = "number"
+            elif abs(value) > limits[name]:
+                problems[name] = "range"
+        if problems:
+            self.start_error = problems
+            kinds = {kind for kind in problems.values()}
+            if kinds == {"number"}:
+                text = "The start point must be a number (metres)."
+            elif kinds == {"range"}:
+                text = (f"The start point must stay inside the preview "
+                        f"(x within ±{limit_x:.1f} m, y within ±{limit_y:.1f} m).")
+            else:
+                text = "The start point must be a number inside the preview."
+            self.start_message = text
+            self._say(text, config.WARNING)
+            return
+        self.start_error = {}
+        if self.message == self.start_message:
+            # The complaint about the start point is over.
+            self.message = ""
+            self.message_timer = 0.0
+        x, y = values["x"], values["y"]
+        if (x, y) != (self.start_x, self.start_y):
+            self.start_x, self.start_y = x, y
+            self._retrace()
+
+    def _retrace(self):
+        """Trace the probe again from the current start point."""
+        self.probe = self._trace_probe(self.field) if self.field is not None else []
+
+    def _no_probe_reason(self):
+        """Why the probe is not on the map (the start point is unusable)."""
+        if self.field is None:
+            return "  It does not move."
+        try:
+            fx, fy = self.field.at(self.start_x, self.start_y)
+        except (ArithmeticError, ValueError, TypeError, OverflowError,
+                RecursionError, MemoryError):
+            return "  The force cannot be used at that point."
+        if not (math.isfinite(fx) and math.isfinite(fy)):
+            return "  The force cannot be used at that point."
+        return "  It does not move."
+
+    def _reset_start(self):
+        """Put the probe back to the default start point."""
+        self.start_message = None
+        self.start_x_input.set_text(_format_coordinate(PROBE_START[0]))
+        self.start_y_input.set_text(_format_coordinate(PROBE_START[1]))
+        self.start_error = {}
+        self._retrace()
+        self._say(f"Start point back at ({_format_coordinate(PROBE_START[0])}, "
+                  f"{_format_coordinate(PROBE_START[1])}) m.", config.TEXT_DIM)
+
+    def _set_start_from_preview(self, pos):
+        """Release the probe where the player clicked in the preview."""
+        if not self.plot_rect.collidepoint(pos):
+            return
+        x, y = self.viewport.to_world(*pos)
+        limit_x, limit_y = self._start_limits()
+        x = max(-limit_x, min(limit_x, x))
+        y = max(-limit_y, min(limit_y, y))
+        self.start_x_input.set_text(_format_coordinate(x))
+        self.start_y_input.set_text(_format_coordinate(y))
+        self._retrace()
+
     def _validate(self):
         """Check the formulas and redraw the preview."""
         fx_text, fy_text = self.editor.lines
@@ -176,7 +329,7 @@ class FunctionLabScene(Scene):
 
     def _trace_probe(self, field):
         """Trace a probe particle through the field (semi-implicit Euler)."""
-        x, y = PROBE_START
+        x, y = self.start_x, self.start_y
         vx = vy = 0.0
         dt = config.DT
         points = []
@@ -280,14 +433,21 @@ class FunctionLabScene(Scene):
         self.manager.switch(LevelSelectScene(self.manager))
 
     # ------------------------------------------------------------------ input
+    def _text_field_active(self):
+        """True when one of the lab's text fields has the keyboard."""
+        return (self.name_input.active or self.start_x_input.active
+                or self.start_y_input.active)
+
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self._to_levels()
             return
-        # The name field and the code editor share the keyboard: only the
-        # focused one gets the text.
+        # The name field, the two coordinate fields and the code editor share
+        # the keyboard: only the focused one gets the text.
         self.name_input.handle_event(event)
-        if self.name_input.active:
+        self.start_x_input.handle_event(event)
+        self.start_y_input.handle_event(event)
+        if self._text_field_active():
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
                               pygame.MOUSEMOTION):
                 self.editor.handle_event(event)
@@ -299,6 +459,9 @@ class FunctionLabScene(Scene):
         if self.new_button.handle_event(event) == "click":
             self._new()
             return
+        if self.start_reset_button.handle_event(event) == "click":
+            self._reset_start()
+            return
         if self.back_button.handle_event(event) == "click":
             self._to_levels()
             return
@@ -309,6 +472,11 @@ class FunctionLabScene(Scene):
         if self.next_button.handle_event(event) == "click":
             self.page += 1
             self._rebuild()
+            return
+        if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                and self.plot_rect.collidepoint(event.pos)):
+            # A click on the preview releases the probe there.
+            self._set_start_from_preview(event.pos)
             return
         for function, _rect, buttons in self.rows:
             if buttons["load"].handle_event(event) == "click":
@@ -413,6 +581,23 @@ class FunctionLabScene(Scene):
             draw_text(surface, f"Page {self.page + 1} / {self.page_count}",
                       (px(PAGE_TEXT_X), px(LIST_HEADER_Y - 8)), 12, config.TEXT_DIM)
 
+    def _draw_start_fields(self, surface):
+        """The probe's start point: the two coordinate fields and the Reset."""
+        draw_text(surface, "PROBE START", (px(LEFT_X), px(START_LABEL_Y)), 12,
+                  config.TEXT_DIM, kind="bold")
+        draw_text(surface, "x", (px(START_X_LABEL_X), px(START_Y + 17)), 13,
+                  config.TEXT_DIM, anchor="midleft")
+        draw_text(surface, "y", (px(START_Y_LABEL_X), px(START_Y + 17)), 13,
+                  config.TEXT_DIM, anchor="midleft")
+        self.start_x_input.draw(surface)
+        self.start_y_input.draw(surface)
+        self.start_reset_button.draw(surface)
+        # A field that holds no usable number is marked.
+        for name, field in (("x", self.start_x_input), ("y", self.start_y_input)):
+            if name in self.start_error:
+                pygame.draw.rect(surface, config.DANGER, field.rect,
+                                 width=max(1, px(1)), border_radius=px(4))
+
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
         draw_text(surface, "FUNCTION LAB", (px(LEFT_X), px(24)), 26, config.TEXT, kind="bold")
@@ -425,15 +610,18 @@ class FunctionLabScene(Scene):
         self.save_button.label = "Update" if self.editing_id else "Save"
         self.save_button.draw(surface)
         self.new_button.draw(surface)
+        self._draw_start_fields(surface)
         self.back_button.draw(surface)
         self._draw_plot(surface)
 
-        probe_text = "Probe: a 1 kg particle released at (-6, 0) m."
+        probe_text = (f"Probe: a 1 kg particle released at "
+                      f"({_format_coordinate(self.start_x)}, "
+                      f"{_format_coordinate(self.start_y)}) m.")
         if self.probe:
             end = self.probe[-1]
             probe_text += f"  It ended at ({end[0]:.2f}, {end[1]:.2f}) m."
         elif self.valid:
-            probe_text += "  It does not move (no force)."
+            probe_text += self._no_probe_reason()
         draw_text(surface, probe_text, (px(PLOT_X), px(LEGEND_TEXT_Y)), 13, config.TEXT_DIM)
         self._draw_library(surface)
 
@@ -441,7 +629,9 @@ class FunctionLabScene(Scene):
             for i, line in enumerate(wrap_text(self.message, 13, px(LEFT_W))[:3]):
                 draw_text(surface, line, (px(LEFT_X), px(STATUS_Y + i * 18)), 13,
                           self.message_color)
-        hint = ("Import a function to use it in the normal levels: the editor "
+        hint = ("The probe's start point is yours to choose: write it in the two "
+                "coordinate fields or click the preview. "
+                "Import a function to use it in the normal levels: the editor "
                 "starts with it, and the game screen's Lab button loads any "
                 "saved function.")
         for i, line in enumerate(wrap_text(hint, 13, px(LEFT_W))[:6]):

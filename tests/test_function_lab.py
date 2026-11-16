@@ -15,7 +15,7 @@ from vector_drift.function_library import (
     make_function,
 )
 from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.function_lab import FunctionLabScene
+from vector_drift.scenes.function_lab import FunctionLabScene, PROBE_START
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.levels import LevelSelectScene
 
@@ -36,6 +36,14 @@ def _click(scene, rect):
 def _type(scene, text):
     for char in text:
         scene.editor.handle_event(pygame.event.Event(pygame.TEXTINPUT, text=char))
+
+
+def _type_in(scene, field, text):
+    """Type `text` into one of the lab's text fields (replacing what is there)."""
+    _click(scene, field.rect)
+    field.set_text("")
+    for char in text:
+        scene.handle_event(pygame.event.Event(pygame.TEXTINPUT, text=char))
 
 
 # --- the data model -------------------------------------------------------------
@@ -227,6 +235,107 @@ def test_the_lab_previews_the_field():
     assert scene.field_layer is not None
     assert scene.max_force > 0
     assert scene.probe                       # the probe moved
+
+
+# --- the probe's start point ----------------------------------------------------
+
+def test_the_start_point_is_the_default_one():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    assert (scene.start_x, scene.start_y) == PROBE_START
+    assert scene.start_x_input.text == "-6"
+    assert scene.start_y_input.text == "0"
+    assert scene.start_error == {}
+
+
+def test_the_start_point_can_be_written_in():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    scene.editor.set_lines(["0", "0"])       # a field without force
+    _type_in(scene, scene.start_x_input, "3")
+    _type_in(scene, scene.start_y_input, "2.5")
+    assert (scene.start_x, scene.start_y) == (3.0, 2.5)
+    assert scene.start_error == {}
+    assert scene.probe[0] == (3.0, 2.5)      # the probe starts there
+
+
+def test_a_start_point_that_is_not_a_number_is_refused():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    _type_in(scene, scene.start_x_input, "abc")
+    assert scene.start_x == PROBE_START[0]    # the last good value is kept
+    assert "x" in scene.start_error
+    assert "number" in scene.message.lower()
+    scene.start_x_input.set_text("-6")
+    assert scene.start_error == {}
+    assert scene.start_x == -6.0
+
+
+def test_a_start_point_outside_the_preview_is_refused():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    _type_in(scene, scene.start_y_input, "999")
+    assert scene.start_y == PROBE_START[1]
+    assert "y" in scene.start_error
+    assert "inside the preview" in scene.message.lower()
+
+
+def test_the_reset_button_puts_the_default_start_back():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    _type_in(scene, scene.start_x_input, "3")
+    _type_in(scene, scene.start_y_input, "2")
+    _click(scene, scene.start_reset_button.rect)
+    assert (scene.start_x, scene.start_y) == PROBE_START
+    assert scene.start_x_input.text == "-6"
+    assert scene.start_y_input.text == "0"
+    assert scene.start_error == {}
+
+
+def test_clicking_the_preview_moves_the_probe_start():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    scene.editor.set_lines(["0", "0"])
+    _click(scene, scene.plot_rect)
+    assert scene.start_x == pytest.approx(0.0, abs=0.05)
+    assert scene.start_y == pytest.approx(0.0, abs=0.05)
+    assert scene.start_error == {}
+
+
+def test_typing_in_a_coordinate_field_stays_out_of_the_editor():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    scene.editor.set_lines(["x", "y"])
+    _type_in(scene, scene.start_x_input, "5")
+    assert scene.editor.lines == ["x", "y"]
+    assert scene.name_input.text == ""
+
+
+def test_the_lab_draws_with_a_start_point():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.editor.set_lines(["-y", "x"])
+    _type_in(scene, scene.start_x_input, "1")
+    scene.draw(surface)
+
+
+def test_a_start_point_where_the_force_cannot_be_used_is_reported():
+    manager = _manager()
+    scene = FunctionLabScene(manager)
+    manager.switch(scene)
+    scene.editor.set_lines(["1/x", "0"])      # a pole at the origin
+    _type_in(scene, scene.start_x_input, "0")
+    assert scene.probe == []
+    assert "cannot be used" in scene._no_probe_reason()
 
 
 # --- using the function in a normal level ----------------------------------------

@@ -15,7 +15,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 ## Features
 
 - **Mathematical force-field editor** — write general expressions in `x` and `y`, with syntax highlighting, validation, error locations, and independent undo/redo histories for `Fx` and `Fy`.
-- **Function Lab** — write a force function of your own, watch the field it produces, give it a name, save it in your library and import it into the normal levels.
+- **Function Lab** — write a force function of your own, watch the field it produces, choose where the probe starts, give it a name, save it in your library and import it into the normal levels.
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
 - **Procedural level generation** — Level 8 builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
@@ -248,7 +248,8 @@ Open **Function Lab** from the level selector to write a force function of your 
 The lab is a place of its own:
 
 - **Write** the two components of the field (`Fx` and `Fy`) in the code editor. The editor works like the one in a level: syntax highlighting, error marks under the offending line, and separate undo histories per line.
-- **Watch** the function: the preview shows the force field it produces on the usual map, with the longest arrow's force in newtons. A probe particle (1 kg, released at `(-6, 0) m`) traces the path the ship would take, so a swirling field is easy to recognise.
+- **Watch** the function: the preview shows the force field it produces on the usual map, with the longest arrow's force in newtons. A probe particle (1 kg, released at `(-6, 0) m` by default) traces the path the ship would take, so a swirling field is easy to recognise.
+- **Choose** where the probe starts: write the point in the two `PROBE START` coordinate fields (metres) or click the preview. The probe is then released there and the preview shows the path it would take from that point. The point must be a number inside the preview; an entry that is not one keeps the last good start point and marks the field. The **Reset** button puts the default `(-6, 0) m` back.
 - **Name** the function and **Save** it. Saving stores the name and both formulas in your library; saving again after a **Load** updates the same entry. The library holds up to 60 functions.
 - **Import** a function when it is ready. The imported function is marked *in use* and is what the normal levels start with: open any level and the editor already holds its formulas. They stay editable like any other formulas.
 
@@ -451,6 +452,18 @@ The formula editor detaches from the operating-system input method while the gam
 | `Ctrl+Shift+Z` or `Ctrl+Y` | Redo in the active formula line. |
 
 The formula editor also supports paired-parenthesis editing: typing `(` around a selection wraps it; typing `(` at the end of an expression (or before a space) inserts a matching `)` and places the cursor inside; typing `)` before an existing matching close parenthesis moves past it; Backspace inside an empty `()` removes the pair. `Fx` and `Fy` maintain separate edit histories.
+
+### In the Function Lab
+
+| Input | Action |
+|---|---|
+| Click a text field and type | Write in the function's name, or in the probe's start coordinates (`x` and `y`, in metres). |
+| Click the preview | Release the probe at that place instead. |
+| **Reset** button | Put the probe's start point back to the default `(-6, 0) m`. |
+| **New** button | Start a new function: an empty editor and an empty name. |
+| **Save** / **Update** button | Store the formulas in the library (or update the loaded entry). |
+| **Load** / **Import** / **×** on a library row | Put a saved function into the editor, make it the one the levels use, or delete it. |
+| `Esc` | Back to the level selector. |
 
 ### Public Levels page
 
