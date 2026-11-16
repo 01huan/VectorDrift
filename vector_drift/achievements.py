@@ -166,9 +166,16 @@ def formula_uses_trig(*formulas):
 
 
 # --- what the game reports ---------------------------------------------------------
+def _in_tutorial(manager):
+    """Tutorial screens (counts_for_progress = False) report nothing."""
+    return getattr(getattr(manager, "scene", None), "counts_for_progress", True) is False
+
+
 def clear(manager, *, level_id, kind, attempts, lives_left, total_time, fx, fy,
           solution_used=False, solver_used=False, resumed=False):
     """A level was cleared. ``kind``: "campaign", "random" or "community" (or "custom")."""
+    if _in_tutorial(manager):
+        return
     if kind == "campaign":
         if level_id == 1:
             unlock(manager, "we_have_liftoff")
@@ -195,6 +202,8 @@ def clear(manager, *, level_id, kind, attempts, lives_left, total_time, fx, fy,
 
 def flight_ended(manager, outcome_name, lives_left):
     """A flight ended without a clear (``outcome_name``: an Outcome's name)."""
+    if _in_tutorial(manager):
+        return
     if outcome_name == "OUT_OF_BOUNDS":
         data = progress(manager.session)
         data[OUT_OF_BOUNDS] = int(data.get(OUT_OF_BOUNDS, 0)) + 1
@@ -206,6 +215,8 @@ def flight_ended(manager, outcome_name, lives_left):
 
 def in_flight(manager, flight, off_map=False):
     """Checked every frame of a flight: bounces, holes, flings, the map edge."""
+    if _in_tutorial(manager):
+        return
     if getattr(flight, "bounces", 0) >= BOUNCES_IN_ONE_FLIGHT:
         unlock(manager, "bounce_house")
     if getattr(flight, "teleports", 0) > 0:
@@ -217,6 +228,8 @@ def in_flight(manager, flight, off_map=False):
 
 
 def pickup_event(manager, event):
+    if _in_tutorial(manager):
+        return
     kind = event.get("kind")
     if kind == "shockwave" and event.get("destroyed"):
         unlock(manager, "kaboom")
@@ -227,6 +240,8 @@ def pickup_event(manager, event):
 
 
 def ability_used(manager, ability_id):
+    if _in_tutorial(manager):
+        return
     used = _add_to_list(manager.session, ABILITIES_USED, ability_id)
     if set(ABILITIES) <= used:
         unlock(manager, "power_trip")

@@ -27,6 +27,7 @@ class GameHudRenderMixin:
     # Tutorial scenes hide these (lives row; Hint / AI Solver and Lab buttons).
     show_lives = True
     show_assists = True
+    show_level_row = True
 
     # ------------------------------------------------------------------ left panel
     def _draw_panel(self, surface):
@@ -39,9 +40,10 @@ class GameHudRenderMixin:
             draw_text(surface, "VECTOR DRIFT", (cx, px(LOGO_Y)), 26, config.TEXT, kind="bold", anchor="center")
 
         # Level row: "LV1" + level-select button
-        draw_text(surface, f"LV{self.level.id}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
-                  kind="bold", anchor="center")
-        self.level_button.draw(surface)
+        if self.show_level_row:
+            draw_text(surface, f"LV{self.level.id}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
+                      kind="bold", anchor="center")
+            self.level_button.draw(surface)
 
         # Current ship
         draw_text(surface, "Current ship", (cx, px(SHIP_LABEL_Y)), 15, config.TEXT_DIM, anchor="center")
