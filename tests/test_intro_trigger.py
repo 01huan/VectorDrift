@@ -1,4 +1,4 @@
-"""When the intro story plays: the first Start, and the Tutorial button on level select.
+"""When the intro story plays: the first Start (then Basics), and the Tutorial menu on level select.
 
 seen_intro is saved with the coins and progress (guest save and cloud
 profile, inside stats) the moment the story starts.
@@ -99,11 +99,14 @@ def test_the_cloud_profile_is_saved_too_when_signed_in():
     assert sent and sent[-1].stats[SEEN_INTRO_KEY] is True
 
 
-def test_skipping_the_first_story_ends_at_level_select_and_start_skips_it_next_time():
+def test_skipping_the_first_story_goes_to_basics_and_start_skips_both_next_time():
+    from vector_drift.scenes.tutorial_basics import BasicsScene
     menu = _menu(seen_intro=False)
     manager = menu.manager
     _click(menu, menu.start_button)
     _escape(manager.scene)
+    assert isinstance(manager.scene, BasicsScene)
+    _escape(manager.scene)                      # leaving Basics: level select
     assert isinstance(manager.scene, LevelSelectScene)
     again = MenuScene(manager)
     manager.switch(again)
@@ -121,17 +124,26 @@ def _level_select(seen_intro=True):
     return scene
 
 
-def test_tutorial_button_plays_the_story_and_returns_to_level_select():
+def test_tutorial_button_opens_the_tutorial_menu():
     scene = _level_select()
     assert scene.tutorial_button.label == levels_module.TUTORIAL_LABEL == "Tutorial"
     _click(scene, scene.tutorial_button)
+    assert scene.manager.scene is scene and scene.tutorial_menu
+    assert [b.label for b in scene.tutorial_items] == ["Story", "Basics", "Field guide"]
+
+
+def test_story_from_the_tutorial_menu_returns_to_the_menu():
+    scene = _level_select()
+    _click(scene, scene.tutorial_button)
+    _click(scene, scene.tutorial_items[0])
     story = scene.manager.scene
     assert isinstance(story, StoryScene)
     for _ in range(len(story.panels)):          # play it through
         story.update(1.0)
         story.update(1.0)
         story.next()
-    assert isinstance(story.manager.scene, LevelSelectScene)
+    back = story.manager.scene
+    assert isinstance(back, LevelSelectScene) and back.tutorial_menu
 
 
 def test_tutorial_button_sits_with_shop_and_level_editor_without_overlap():

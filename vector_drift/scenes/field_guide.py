@@ -38,10 +38,7 @@ ICON_R = 28
 def back_to_tutorial_menu(manager):
     """Leaving the Field guide: level select with the Tutorial menu open."""
     from .levels import LevelSelectScene
-    try:
-        return LevelSelectScene(manager, tutorial_menu=True)
-    except TypeError:                   # (before the Tutorial menu exists)
-        return LevelSelectScene(manager)
+    return LevelSelectScene(manager, tutorial_menu=True)
 
 
 # --- the clip ------------------------------------------------------------------------------

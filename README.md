@@ -321,7 +321,17 @@ Replay controls:
 
 ## Story, Music, and Art
 
-The first time you press **Start**, the game plays a short opening story: six panels in which a stranded rocket calls for help and meets the Cosmic Architect. After that, **Start** goes straight to the level selector, and you can watch the story again with the **Tutorial** button on the level selector. The story counts as seen as soon as it starts, so quitting halfway does not replay it next time; deleting local data resets it. Its panels and lines are in `vector_drift/intro_story.toml`. The panel pictures are not made yet, so each panel shows its scene description as placeholder text. There is no tutorial mode yet: the story always ends at the level selector. Levels themselves still have no dialogue. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
+The first time you press **Start**, the game plays a short opening story: six panels in which a stranded rocket calls for help and meets the Cosmic Architect. Right after it (played through or skipped) comes **Basics**, a four-step walkthrough of flying a level. After that, **Start** goes straight to the level selector. The story counts as seen as soon as it starts, so quitting halfway does not replay it next time; deleting local data resets it. Its panels and lines are in `vector_drift/intro_story.toml`. The panel pictures are not made yet, so each panel shows its scene description as placeholder text. Levels themselves still have no dialogue. Older saves may still contain a `story_seen` entry in their stats; it is ignored on load and no longer written.
+
+### Tutorial
+
+The **Tutorial** button on the level selector opens a small menu (`Esc` closes it):
+
+* **Story** plays the opening story again and returns to this menu.
+* **Basics** walks through flying a level on the real game screen: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc` or Exit leaves to the level selector.
+* **Field guide** shows what every rock, portal and pickup does: open a card to watch a short looping clip of it, and press `Esc` or Back to return.
+
+Nothing done in the tutorial pays coins, changes level progress or best times, saves replays, or counts toward achievements; only watching the opening story through unlocks its achievement as usual. All tutorial text and maps are in `vector_drift/tutorial.toml`.
 
 Every level's target uses the same planet artwork, `assets/images/targets/planet.png`; if that image cannot be read, the game draws its built-in planet instead.
 
@@ -422,16 +432,16 @@ The formula editor detaches from the operating-system input method while the gam
 
 | Input | Action |
 |---|---|
-| `Enter` or Start | Open the level selector (the first time, play the opening story first). |
+| `Enter` or Start | Open the level selector (the first time, play the opening story and Basics first). |
 | Click, `Space` or `→` / `←` in the story | Next panel / previous panel. |
-| `Esc` or Skip in the story | End the story and open the level selector. |
+| `Esc` or Skip in the story | End the story (the first time it goes on to Basics). |
 | `L` | Open Login or Account. |
 | `Ctrl+M` | Toggle global mute. |
 | `Esc` in the level selector | Return to the main menu. |
 | `<` / `>` arrows, `←` / `→` or the mouse wheel in the level selector | Previous / next page of nine levels (wheel down is the next page; the dots below the grid show the current page). |
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
 | Function Lab button | Open the Function Lab. |
-| Tutorial button | Watch the opening story again. |
+| Tutorial button | Open the Tutorial menu: Story, Basics, Field guide. |
 | Replays button | Open saved launch replays. |
 
 ### In a level
@@ -595,6 +605,7 @@ VectorDrift/
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
     ├── intro_story.py / .toml      # Opening story panels (played by scenes/story.py)
+    ├── tutorial.py / .toml         # Tutorial text and maps (Basics, Field guide)
     ├── replay.py                   # Replay records and playback data
     ├── render.py                   # World, grid, and force-field rendering
     ├── sprites.py                  # Ships, planets, obstacles, pickups, effects
@@ -609,6 +620,8 @@ VectorDrift/
     ├── solver/                     # Solver API, PSO, templates, evaluation, data
     └── scenes/                     # Menu, gameplay, editor, account, replay, etc.
         ├── function_lab.py         # The Function Lab screen
+        ├── tutorial_basics.py      # Basics walkthrough (on tutorial_play.py's game screen)
+        ├── field_guide.py          # Field guide cards and clips
         └── game_functions.py       # In-game picker for the saved functions
 ```
 

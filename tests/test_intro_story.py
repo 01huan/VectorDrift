@@ -12,6 +12,7 @@ from vector_drift.scenes import story as story_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.story import StoryScene
+from vector_drift.scenes.tutorial_basics import BasicsScene
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -166,26 +167,26 @@ def test_left_arrow_on_the_first_panel_does_nothing():
     assert scene.manager.scene is scene
 
 
-def test_next_on_the_last_panel_ends_the_story_at_level_select():
+def test_next_on_the_last_panel_ends_the_first_story_at_basics():
     scene = _story()
     for _ in range(5):
         _next(scene)
     assert scene.index == 5 and scene.counter_text == "6 / 6"
     _key(scene, pygame.K_SPACE)
-    assert isinstance(scene.manager.scene, LevelSelectScene)
+    assert isinstance(scene.manager.scene, BasicsScene)
 
 
-def test_skip_button_ends_the_story_at_level_select():
+def test_skip_button_ends_the_first_story_at_basics():
     scene = _story()
     _next(scene)
     _click(scene, scene.skip_button.rect.center)
-    assert isinstance(scene.manager.scene, LevelSelectScene)
+    assert isinstance(scene.manager.scene, BasicsScene)
 
 
-def test_escape_ends_the_story_at_level_select():
+def test_escape_ends_the_first_story_at_basics():
     scene = _story()
     _key(scene, pygame.K_ESCAPE)
-    assert isinstance(scene.manager.scene, LevelSelectScene)
+    assert isinstance(scene.manager.scene, BasicsScene)
 
 
 def test_skip_click_does_not_also_count_as_next():
@@ -204,9 +205,18 @@ def test_where_the_story_ends_is_decided_in_one_place(monkeypatch):
     assert scene.manager.scene is marker
 
 
-def test_scene_after_story_is_level_select_for_now():
+def test_scene_after_the_first_story_is_basics():
     manager = SceneManager(Audio())
-    assert isinstance(story_module.scene_after_story(manager), LevelSelectScene)
+    assert isinstance(story_module.scene_after_story(manager), BasicsScene)
+
+
+def test_a_story_with_its_own_end_goes_there():
+    """A replay from the Tutorial menu passes where it ends (back to that menu)."""
+    manager = SceneManager(Audio())
+    scene = StoryScene(manager, after=lambda m: LevelSelectScene(m, tutorial_menu=True))
+    manager.switch(scene)
+    _key(scene, pygame.K_ESCAPE)
+    assert isinstance(manager.scene, LevelSelectScene) and manager.scene.tutorial_menu
 
 
 # --- fades ---------------------------------------------------------------------------

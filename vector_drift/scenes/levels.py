@@ -18,7 +18,9 @@ CARDS_PER_PAGE = PER_PAGE    # 3x3 grid, every slot a level card
 COLS = 3
 CARD_W, CARD_H, GAP = 220, 150, 30
 GRID_TOP = 180               # base px; leaves room for the page dots below the grid
-TUTORIAL_LABEL = "Tutorial"  # replays the intro story (scenes/story.py)
+TUTORIAL_LABEL = "Tutorial"  # opens the Tutorial menu (Story, Basics, Field guide)
+TUTORIAL_ITEMS = ("Story", "Basics", "Field guide")
+TUTORIAL_CARD = (300, 300)   # the Tutorial menu card (base px)
 
 # Page arrows (base px). Each "<" / ">" is a drawn chevron at a screen side,
 # vertically centred on the grid; the click area is a tall strip around it.
@@ -103,7 +105,7 @@ class PageArrow:
 class LevelSelectScene(InventoryMixin, Scene):
     music = "menu"
 
-    def __init__(self, manager):
+    def __init__(self, manager, tutorial_menu=False):
         super().__init__(manager)
         self.background = render.make_space_background((config.WINDOW_W, config.WINDOW_H), seed=5,
                                                        star_count=260)
@@ -138,7 +140,20 @@ class LevelSelectScene(InventoryMixin, Scene):
                                  style="plain", font_size=17)
         self.tutorial_button = Button((config.WINDOW_W - px(720), px(20), px(160), px(40)), TUTORIAL_LABEL,
                                      style="plain", font_size=17)
+        # The Tutorial menu: a small card over the page (Esc closes it).
+        self.tutorial_menu = bool(tutorial_menu)
+        card = self.tutorial_card()
+        self.tutorial_items = [
+            Button((card.x + px(40), card.y + px(78 + 62 * k), card.w - px(80), px(48)), label,
+                   style="primary" if k == 1 else "plain", font_size=18)
+            for k, label in enumerate(TUTORIAL_ITEMS)]
         self._rebuild_cards()
+
+    @staticmethod
+    def tutorial_card():
+        card = pygame.Rect(0, 0, px(TUTORIAL_CARD[0]), px(TUTORIAL_CARD[1]))
+        card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
+        return card
 
     def _start(self, level_id):
         self.audio.play("click")
@@ -174,9 +189,37 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.manager.switch(ShopScene(self.manager))
 
     def _open_tutorial(self):
+        """The Tutorial button: open the Tutorial menu."""
         self.audio.play("click")
-        from .story import StoryScene
-        self.manager.switch(StoryScene(self.manager))
+        self.tutorial_menu = True
+
+    def _choose_tutorial(self, label):
+        self.audio.play("click")
+        if label == "Story":
+            # Replayed from here, the story ends back in this menu.
+            from .story import StoryScene
+            self.manager.switch(StoryScene(
+                self.manager, after=lambda manager: LevelSelectScene(manager, tutorial_menu=True)))
+        elif label == "Basics":
+            from .tutorial_basics import BasicsScene
+            self.manager.switch(BasicsScene(self.manager))
+        else:
+            from .field_guide import FieldGuideScene
+            self.manager.switch(FieldGuideScene(self.manager))
+
+    def _handle_tutorial_menu(self, event):
+        """Input while the Tutorial menu is open (it takes all of it)."""
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.audio.play("click")
+            self.tutorial_menu = False
+            return
+        for button in self.tutorial_items:
+            if button.handle_event(event) == "click":
+                self._choose_tutorial(button.label)
+                return
+        if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                and not self.tutorial_card().collidepoint(event.pos)):
+            self.tutorial_menu = False          # a click outside the card closes it
 
     def _open_lab(self):
         self.audio.play("click")
@@ -184,6 +227,9 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.manager.switch(FunctionLabScene(self.manager))
 
     def handle_event(self, event):
+        if self.tutorial_menu:
+            self._handle_tutorial_menu(event)
+            return
         if self._handle_inventory_event(event):
             return
         if event.type == pygame.MOUSEMOTION:
@@ -263,6 +309,22 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.menu_button.draw(surface)
         self._draw_inventory_button(surface)
         self._draw_inventory_popup(surface)
+        if self.tutorial_menu:
+            self._draw_tutorial_menu(surface)
+
+    def _draw_tutorial_menu(self, surface):
+        shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        shade.fill((5, 8, 18, 200))
+        surface.blit(shade, (0, 0))
+        card = self.tutorial_card()
+        pygame.draw.rect(surface, config.PANEL_BG, card, border_radius=px(6))
+        pygame.draw.rect(surface, config.ACCENT, card, width=max(1, px(1)), border_radius=px(6))
+        draw_text(surface, "Tutorial", (card.centerx, card.y + px(38)), 26, config.TEXT, kind="bold",
+                  anchor="center")
+        for button in self.tutorial_items:
+            button.draw(surface)
+        draw_text(surface, "Esc to close", (card.centerx, card.bottom - px(18)), 13, config.TEXT_FAINT,
+                  anchor="center")
 
     @property
     def page_count(self):

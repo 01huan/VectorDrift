@@ -42,19 +42,21 @@ def start_first_intro(manager):
 
 
 def scene_after_story(manager):
-    """Where the intro story ends (played through or skipped): the one place to change it.
+    """Where the first intro story ends (played through or skipped): the one place to change it.
 
-    For now always level select; a tutorial mode would go here.
+    The Basics walkthrough; it ends at level select. (A replay from the
+    Tutorial menu passes its own ``after`` and goes back to that menu.)
     """
-    from .levels import LevelSelectScene
-    return LevelSelectScene(manager)
+    from .tutorial_basics import BasicsScene
+    return BasicsScene(manager)
 
 
 class StoryScene(Scene):
     music = None            # set to "opening" when that track exists, else the music stays
 
-    def __init__(self, manager):
+    def __init__(self, manager, after=None):
         super().__init__(manager)
+        self.after = after          # manager -> the scene the story ends at (None: scene_after_story)
         if "opening" in (getattr(self.audio, "music_paths", None) or {}):
             self.music = "opening"
         self.panels = story_panels()
@@ -120,7 +122,8 @@ class StoryScene(Scene):
 
     def finish(self):
         """End the story (last panel, Skip or Esc)."""
-        self.manager.switch(scene_after_story(self.manager))
+        after = self.after or scene_after_story
+        self.manager.switch(after(self.manager))
 
     # --- scene ------------------------------------------------------------------
     def handle_event(self, event):
