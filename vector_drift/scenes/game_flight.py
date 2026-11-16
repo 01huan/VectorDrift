@@ -269,7 +269,7 @@ class GameFlightMixin:
         self.total_time += self.flight.time
         if outcome is Outcome.REACHED and not self.on_last_section:
             self._reach_checkpoint()
-            achievements.unlock(self.manager, "halfway_there")
+            achievements.checkpoint_reached(self.manager)
             return
         if outcome is Outcome.REACHED:
             self.state = ARRIVED

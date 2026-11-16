@@ -330,3 +330,20 @@ def test_section_pan_progress_eases_from_zero_to_one():
     assert pan.progress < 0.1                   # slow start
     pan.t = config.CHECKPOINT_PAN_DURATION * 5
     assert pan.progress == 1.0
+
+
+# --- achievements ------------------------------------------------------------------
+def test_reaching_a_checkpoint_unlocks_halfway_there():
+    scene = _scene()
+    _fly(scene)
+    assert scene.state == PANNING
+    assert "halfway_there" in scene.manager.session.achievements
+
+
+def test_a_checkpoint_in_a_tutorial_screen_unlocks_nothing(monkeypatch):
+    """Tutorial screens (counts_for_progress False) never earn halfway_there."""
+    scene = _scene()
+    monkeypatch.setattr(type(scene), "counts_for_progress", False, raising=False)
+    _fly(scene)
+    assert scene.state == PANNING
+    assert "halfway_there" not in scene.manager.session.achievements

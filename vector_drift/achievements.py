@@ -213,6 +213,13 @@ def flight_ended(manager, outcome_name, lives_left):
         unlock(manager, "houston")
 
 
+def checkpoint_reached(manager):
+    """A checkpoint of a multi-section level was reached."""
+    if _in_tutorial(manager):
+        return
+    unlock(manager, "halfway_there")
+
+
 def in_flight(manager, flight, off_map=False):
     """Checked every frame of a flight: bounces, holes, flings, the map edge."""
     if _in_tutorial(manager):
