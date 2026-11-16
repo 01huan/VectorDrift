@@ -45,6 +45,8 @@ class Session:
     level_select_page: tuple | None = None  # (page, level_id) level select last showed; this launch only
     seen_intro: bool = False        # the intro story has started once (saved; first Start plays it)
     player_key: str | None = None   # local id of this player (community statistics); saved
+    achievements: dict = field(default_factory=dict)          # achievement id -> ISO time unlocked (saved)
+    achievement_progress: dict = field(default_factory=dict)  # counters toward achievements (saved)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None
@@ -293,6 +295,9 @@ class Scene:
         pass
 
 
+ACHIEVEMENT_CHECK_S = 1.0       # how often SceneManager re-checks saved progress
+
+
 class SceneManager:
     def __init__(self, audio, account_manager=None):
         self.audio = audio
@@ -302,6 +307,9 @@ class SceneManager:
         self.running = True
         self.time = 0.0
         self.screen = None          # the surface the game draws on (set by main)
+        from .achievement_ui import ToastStack
+        self.toasts = ToastStack()  # achievement popups, drawn over every scene
+        self._achievement_check_in = 0.0
 
     def switch(self, scene):
         if self.scene is not scene:
@@ -352,9 +360,18 @@ class SceneManager:
             except Exception:
                 pass
         self.scene.update(dt)
+        self.toasts.update(dt)
+        self._achievement_check_in -= dt
+        if self._achievement_check_in <= 0.0:
+            # Unlocks that saved progress already proves: purchases, old
+            # saves loaded from disk or the cloud, ...
+            self._achievement_check_in = ACHIEVEMENT_CHECK_S
+            from ..achievements import check_state
+            check_state(self)
 
     def draw(self, surface):
         self.scene.draw(surface)
+        self.toasts.draw(surface)
 
 
 def draw_overlay_card(surface, background, title, title_color, lines, card_h=320):

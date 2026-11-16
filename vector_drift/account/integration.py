@@ -42,6 +42,11 @@ SEEN_INTRO_KEY = "seen_intro"
 # it to count the different players who cleared a level.  It rides along in
 # the profile's stats, so no extra column is needed.
 PLAYER_KEY_KEY = "player_key"
+# Achievements (Session.achievements, Session.achievement_progress), saved the
+# same way. Applying a save merges them with the session (an unlock is never
+# lost by signing in), so profiles_equal ignores them like seen_intro.
+ACHIEVEMENTS_KEY = "achievements"
+ACHIEVEMENT_PROGRESS_KEY = "achievement_progress"
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -109,6 +114,8 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
             session.player_key = str(saved_player_key)
         except Exception:
             pass
+    _merge_achievements(session, stats.pop(ACHIEVEMENTS_KEY, None),
+                        stats.pop(ACHIEVEMENT_PROGRESS_KEY, None))
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     _restore_function_library(session, stats.pop(FUNCTION_LIBRARY_KEY, None))
     imported_id = stats.pop(IMPORTED_FUNCTION_KEY, None)
@@ -147,6 +154,27 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         pass
     if stats:
         session.stats = stats
+
+
+def _merge_achievements(session: Any, saved: Any, saved_progress: Any) -> None:
+    """Union of the session's and the save's unlocks; counters keep the larger value."""
+    mine = getattr(session, "achievements", None)
+    merged = dict(mine) if isinstance(mine, dict) else {}
+    if isinstance(saved, dict):
+        for aid, when in saved.items():
+            if isinstance(aid, str) and (aid not in merged or str(when) < str(merged[aid])):
+                merged[aid] = str(when)
+    session.achievements = merged
+
+    mine = getattr(session, "achievement_progress", None)
+    progress = dict(mine) if isinstance(mine, dict) else {}
+    if isinstance(saved_progress, dict):
+        for key, value in saved_progress.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                progress[key] = max(int(value), int(progress.get(key, 0) or 0))
+            elif isinstance(value, list):
+                progress[key] = sorted(set(progress.get(key) or ()) | set(value), key=str)
+    session.achievement_progress = progress
 
 
 def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str, email: str | None = None) -> None:
@@ -192,7 +220,8 @@ def profiles_equal(a: Any, b: Any) -> bool:
     def _stats(profile):
         # seen_intro is merged (either side True), so it never needs a choice.
         stats = dict(getattr(profile, "stats", {}) or {})
-        stats.pop(SEEN_INTRO_KEY, None)
+        for key in (SEEN_INTRO_KEY, ACHIEVEMENTS_KEY, ACHIEVEMENT_PROGRESS_KEY):
+            stats.pop(key, None)
         # The player id is an installation detail, not game progress: two
         # devices signed into the same account each generate their own id and
         # must not be treated as a local/cloud conflict.
@@ -242,6 +271,8 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
     stats = {**(session.stats or {}),
              CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
              SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
+             ACHIEVEMENTS_KEY: dict(getattr(session, "achievements", None) or {}),
+             ACHIEVEMENT_PROGRESS_KEY: dict(getattr(session, "achievement_progress", None) or {}),
              CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
              FUNCTION_LIBRARY_KEY: library_to_rows(getattr(session, "function_library", ())),
              IMPORTED_FUNCTION_KEY: getattr(session, "imported_function_id", None),
@@ -279,6 +310,8 @@ def reset_session_to_guest(session: Any) -> None:
     session.clear_rewarded_levels = set()
     session.ability_charges = {}
     session.seen_intro = False          # the next Start plays the intro again
+    session.achievements = {}
+    session.achievement_progress = {}
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the
     # data registry (the guest profile file is already cleared by the caller).

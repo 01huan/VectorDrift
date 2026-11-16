@@ -30,6 +30,8 @@ class MenuScene(InventoryMixin, Scene):
         self.quit_button = Button((cx - px(110), px(470), px(220), px(54)), "Quit", style="plain", font_size=22)
         self.login_menu_button = Button((cx - px(110), px(540), px(220), px(46)), "Login", style="primary", font_size=18)
         self.replay_button = Button((cx - px(110), px(600), px(220), px(46)), "Replays", style="plain", font_size=18)
+        self.achievements_button = Button((px(20), px(20), px(160), px(40)), "Achievements", style="plain",
+                                          font_size=16)
         self._init_inventory()
         self.t = 0.0
 
@@ -70,6 +72,10 @@ class MenuScene(InventoryMixin, Scene):
             self.audio.play("click")
             from .replay import ReplayScene
             self.manager.switch(ReplayScene(self.manager))
+        elif self.achievements_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .achievements_page import AchievementsScene
+            self.manager.switch(AchievementsScene(self.manager))
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_l:
             self.audio.play("click")
             account = self.manager.account
@@ -113,6 +119,7 @@ class MenuScene(InventoryMixin, Scene):
             self.login_menu_button.enabled = not account.is_busy
         self.login_menu_button.draw(surface)
         self.replay_button.draw(surface)
+        self.achievements_button.draw(surface)
         self._draw_inventory_button(surface)
         self._draw_inventory_popup(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:

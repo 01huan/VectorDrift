@@ -103,6 +103,8 @@ class StoryScene(Scene):
             self.revealed = True                # first press: show it all
             return
         if self.index + 1 >= len(self.panels):
+            from ..achievements import unlock
+            unlock(self.manager, "is_anyone_out_there")     # played through, not skipped
             self.finish()
             return
         self._leave_to(self.index + 1)

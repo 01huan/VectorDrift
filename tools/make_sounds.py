@@ -236,6 +236,16 @@ def s_purchase(rng):
     return mix(*coins, ding), -6
 
 
+def s_achievement(rng):
+    """Unlock chime: a soft swell, two bell notes a fifth apart, a sparkle on top."""
+    d = 1.3
+    swell = tone(sweep(330, 660, 0.25), 0.25) * adsr(0.25, 0.12, 0.12)
+    low = at(0.08, bell(midi(76), 1.2, 0.35))                       # E5
+    high = at(0.20, bell(midi(83), 1.1, 0.45))                      # B5
+    sparkle = [at(0.26 + 0.05 * i, 0.18 * bell(midi(95 + 2 * i), 0.5, 0.12)) for i in range(3)]
+    return mix(0.3 * swell, 0.8 * low, high, *sparkle)[:int(RATE * d)], -7
+
+
 SOUNDS = {name[2:]: fn for name, fn in globals().items() if name.startswith("s_")}
 
 

@@ -154,6 +154,7 @@ class Flight:
         self.shield_remaining = 0.0  # seconds of shield left (next bumper passed / edge bounced)
         self.hole_teleported = False  # True if this step's hole teleport moved the ship
         self.teleports = 0            # black-hole passes so far (the scene plays "warp" per pass)
+        self.flings = 0               # times a point of infinite force flung the ship
         # Indices into trail where a new stroke starts (the ship came out of a
         # white hole): the trail is not joined across a teleport.
         self.trail_breaks = []
@@ -483,6 +484,7 @@ class Flight:
             self.x, self.y = pole
             self.outcome = Outcome.REACHED
             return
+        self.flings += 1
         if self.unbound:
             self.x, self.y = pole
             self.outcome = Outcome.DIVERGED

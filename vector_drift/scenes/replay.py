@@ -400,4 +400,6 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         if self._frame_times and self._playback_time >= self._frame_times[-1]:
             self.player.pause()
             self.paused = True
+            from ..achievements import unlock
+            unlock(self.manager, "instant_replay")
         self._update_camera(dt)

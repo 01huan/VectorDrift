@@ -60,6 +60,7 @@ class LevelEditorScene(Scene):
         self.name_buffer = ""
         self.message = ""
         self.busy = False             # set while a community upload is in flight
+        self.uploaded = False         # an upload finished; reported to achievements on the main thread
         if level is not None:
             self.start = getattr(level, "start", self.start)
             self.target = getattr(level, "target_center", self.target)
@@ -589,6 +590,10 @@ class LevelEditorScene(Scene):
                 self._resize_selected(-0.1)
 
     def update(self, dt):
+        if self.uploaded:
+            self.uploaded = False
+            from ..achievements import unlock
+            unlock(self.manager, "signal_sent")
         account = self.manager.account
         authenticated = bool(
             account is not None
@@ -662,6 +667,8 @@ class LevelEditorScene(Scene):
         self.session.custom_levels.append(spec)
         self.session.custom_level_ids.add(spec.id)
         save_progress(self.manager.account, self.session)
+        from ..achievements import unlock
+        unlock(self.manager, "built_different")
         # 若該關卡曾上傳到社區，同步更新名稱與內容，讓公開卡片保持一致。
         account = self.manager.account
         if account is not None and account.is_authenticated():
@@ -696,6 +703,7 @@ class LevelEditorScene(Scene):
         def on_ok(_resp):
             self.busy = False
             self.message = "Uploaded to the community."
+            self.uploaded = True        # worker thread: update() unlocks Signal Sent
 
         def on_err(exc):
             self.busy = False

@@ -14,6 +14,7 @@ from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
                     is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
 from ..expr_parser import diagnose_expression
+from .. import achievements
 from ..hints import get_hint
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
@@ -164,6 +165,9 @@ class GameFlightMixin:
         when = float(getattr(flight, "time", 0.0))
         if not use_ability(self.session, ability.id, flight):
             return False
+        manager = getattr(self, "manager", None)     # mixin tests use a bare scene
+        if manager is not None:
+            achievements.ability_used(manager, ability.id)
         # The flash and the replay entry are presentation only: a scene
         # without them still uses the ability.
         show = getattr(self, "_show_ability_effect", None)
@@ -265,6 +269,7 @@ class GameFlightMixin:
         self.total_time += self.flight.time
         if outcome is Outcome.REACHED and not self.on_last_section:
             self._reach_checkpoint()
+            achievements.unlock(self.manager, "halfway_there")
             return
         if outcome is Outcome.REACHED:
             self.state = ARRIVED
@@ -277,6 +282,7 @@ class GameFlightMixin:
 
         self._spend_life()
         reason = OUTCOME_TEXT[outcome]
+        achievements.flight_ended(self.manager, outcome.name, self.lives)
         if self.lives <= 0:
             self.audio.play("game_over")
             self.session.stats = {"reason": reason, "attempts": self.attempts}
@@ -295,6 +301,7 @@ class GameFlightMixin:
                 hb = self.history_bounds
                 self.history_bounds = hb.union(leg) if hb.w and hb.h else leg.copy()
             self._history_legs.append((list(self.flight.trail), list(self.flight.trail_breaks)))
+            self.resumed = True
             where = f"resume from ({self.launch_pos[0]:.2f}, {self.launch_pos[1]:.2f})"
         else:
             self.launch_pos = self.level.start
@@ -335,6 +342,7 @@ class GameFlightMixin:
         from vector_drift.account.integration import save_progress
 
         save_progress(self.manager.account, self.session)
+        self._report_clear()
 
     def _store_replay(self, outcome):
         """Keep this launch in the session's replays."""
@@ -367,6 +375,25 @@ class GameFlightMixin:
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
         except Exception:
             pass
+
+    def _report_clear(self):
+        """Tell the achievements about this clear (the flight that just reached the planet)."""
+        from ..data import is_custom_level
+        level_id = self.level.id
+        if is_dynamic_level(level_id):
+            kind = "random"
+        elif is_custom_level(level_id) or level_id in getattr(self.session, "custom_level_ids", set()):
+            kind = "community" if "community" in str(self.session.level_source or "").lower() else "custom"
+        else:
+            kind = "campaign"
+        lines = list(self.editor.lines) + ["", ""]
+        achievements.clear(
+            self.manager, level_id=level_id, kind=kind, attempts=self.attempts,
+            lives_left=self.lives, total_time=self.total_time,
+            fx=lines[0].strip() or "0", fy=lines[1].strip() or "0",
+            solution_used=self.solution_used,
+            solver_used=kind == "random" and self._ai_revealed(),
+            resumed=self.resumed)
 
     def _clear_history(self):
         """Drop the dimmed earlier legs (pixels and world points)."""

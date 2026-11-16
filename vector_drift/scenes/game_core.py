@@ -107,6 +107,7 @@ class GameCoreMixin:
         self.lives = self.level.lives
         self.attempts = 0
         self.total_time = 0.0
+        self.resumed = False            # a time-up leg was continued this run (Fashionably Late)
         self._replay_frames = []
         self.state = SETUP
         self.flight = None
