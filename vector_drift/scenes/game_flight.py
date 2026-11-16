@@ -258,6 +258,86 @@ class GameFlightMixin:
             self._end_flight(self.flight.outcome)
 
     def _end_flight(self, outcome):
+        self._store_replay(outcome)
+        self._persist()
+        self.audio.stop_loop("thruster_loop")
+        self._sync_trail()
+        self.total_time += self.flight.time
+        if outcome is Outcome.REACHED and not self.on_last_section:
+            self._reach_checkpoint()
+            return
+        if outcome is Outcome.REACHED:
+            self.state = ARRIVED
+            self.arrive_timer = config.WIN_DELAY
+            self.hint_popup = None
+            self._record_clear()
+            self.audio.play("win")
+            self._refresh_buttons()
+            return
+
+        self._spend_life()
+        reason = OUTCOME_TEXT[outcome]
+        if self.lives <= 0:
+            self.audio.play("game_over")
+            self.session.stats = {"reason": reason, "attempts": self.attempts}
+            from .fail import FailScene
+            self.manager.switch(FailScene(self.manager, self._snapshot()))
+            return
+
+        self.audio.play("life_lost")
+        self._respawn_every_life_pickups()
+        if outcome in RESUME_OUTCOMES and not self._off_map(self.flight):
+            # Keep this leg visible (dimmed) and continue from where the ship stopped.
+            self.launch_pos = (self.flight.x, self.flight.y)
+            leg = self.trail.bounds
+            if leg.w and leg.h:
+                self.trail.draw(self.history, (0, 0), HISTORY_ALPHA)
+                hb = self.history_bounds
+                self.history_bounds = hb.union(leg) if hb.w and hb.h else leg.copy()
+            self._history_legs.append((list(self.flight.trail), list(self.flight.trail_breaks)))
+            where = f"resume from ({self.launch_pos[0]:.2f}, {self.launch_pos[1]:.2f})"
+        else:
+            self.launch_pos = self.level.start
+            self._clear_history()
+            where = "back to start"
+        self.trail.clear()
+        self.banner = self._miss_banner(reason, where)
+        self.flight = None
+        self.heading = self._heading_to_target()
+        self.state = SETUP
+        self._validate()                # launch point moved: re-check the formulas there
+
+    # --- what a launch leaves behind (tutorial scenes turn these off) -------
+    def _spend_life(self):
+        """A missed launch costs one life."""
+        self.lives -= 1
+
+    def _miss_banner(self, reason, where):
+        """The banner after a missed launch: (title, subtitle, seconds shown)."""
+        noun = "life" if self.lives == 1 else "lives"
+        return (reason, f"{self.lives} {noun} left · {where}", config.BANNER_DURATION)
+
+    def _persist(self):
+        """Save the session after a launch."""
+        try:
+            from vector_drift.account.integration import save_progress
+            save_progress(self.manager.account, self.session)
+        except Exception:
+            pass
+
+    def _record_clear(self):
+        """The level is cleared: clear reward, community stat, best time, save."""
+        self._pay_clear_reward()
+        self._record_community_stat("clear")
+        best = self.session.records.get(self.level.id)
+        if best is None or self.total_time < best:
+            self.session.records[self.level.id] = self.total_time
+        from vector_drift.account.integration import save_progress
+
+        save_progress(self.manager.account, self.session)
+
+    def _store_replay(self, outcome):
+        """Keep this launch in the session's replays."""
         try:
             from vector_drift.replay import normalize_records
             from vector_drift.account.integration import session_to_profile
@@ -287,65 +367,6 @@ class GameFlightMixin:
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
         except Exception:
             pass
-        try:
-            from vector_drift.account.integration import save_progress
-            save_progress(self.manager.account, self.session)
-        except Exception:
-            pass
-        self.audio.stop_loop("thruster_loop")
-        self._sync_trail()
-        self.total_time += self.flight.time
-        if outcome is Outcome.REACHED and not self.on_last_section:
-            self._reach_checkpoint()
-            return
-        if outcome is Outcome.REACHED:
-            self.state = ARRIVED
-            self.arrive_timer = config.WIN_DELAY
-            self.hint_popup = None
-            self._pay_clear_reward()
-            self._record_community_stat("clear")
-            best = self.session.records.get(self.level.id)
-            if best is None or self.total_time < best:
-                self.session.records[self.level.id] = self.total_time
-            from vector_drift.account.integration import save_progress
-
-            save_progress(self.manager.account, self.session)
-            self.audio.play("win")
-            self._refresh_buttons()
-            return
-
-        self.lives -= 1
-        reason = OUTCOME_TEXT[outcome]
-        if self.lives <= 0:
-            self.audio.play("game_over")
-            self.session.stats = {"reason": reason, "attempts": self.attempts}
-            from .fail import FailScene
-            self.manager.switch(FailScene(self.manager, self._snapshot()))
-            return
-
-        self.audio.play("life_lost")
-        noun = "life" if self.lives == 1 else "lives"
-        self._respawn_every_life_pickups()
-        if outcome in RESUME_OUTCOMES and not self._off_map(self.flight):
-            # Keep this leg visible (dimmed) and continue from where the ship stopped.
-            self.launch_pos = (self.flight.x, self.flight.y)
-            leg = self.trail.bounds
-            if leg.w and leg.h:
-                self.trail.draw(self.history, (0, 0), HISTORY_ALPHA)
-                hb = self.history_bounds
-                self.history_bounds = hb.union(leg) if hb.w and hb.h else leg.copy()
-            self._history_legs.append((list(self.flight.trail), list(self.flight.trail_breaks)))
-            where = f"resume from ({self.launch_pos[0]:.2f}, {self.launch_pos[1]:.2f})"
-        else:
-            self.launch_pos = self.level.start
-            self._clear_history()
-            where = "back to start"
-        self.trail.clear()
-        self.banner = (reason, f"{self.lives} {noun} left · {where}", config.BANNER_DURATION)
-        self.flight = None
-        self.heading = self._heading_to_target()
-        self.state = SETUP
-        self._validate()                # launch point moved: re-check the formulas there
 
     def _clear_history(self):
         """Drop the dimmed earlier legs (pixels and world points)."""

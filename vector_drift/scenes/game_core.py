@@ -60,19 +60,7 @@ class GameCoreMixin:
             self.level_source = _src
             self.session.level_source = _src
         self.pause_menu = None          # Esc menu; while open the level is paused
-        if is_dynamic_level(self.session.level_id) or is_custom_map(self.session.level_id, self.session):
-            # Same seed for the whole run: random layout (random maps) and the
-            # offline AI solver both key off it, so it stays stable across
-            # retry/replay even for custom maps.
-            if self.session.random_seed is None:
-                import random as _random
-                self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
-            if is_dynamic_level(self.session.level_id):
-                self.full_level = get_level(self.session.level_id, seed=self.session.random_seed)
-            else:
-                self.full_level = get_level(self.session.level_id)
-        else:
-            self.full_level = get_level(self.session.level_id)
+        self.full_level = self._load_level()
         # Multi-section levels: self.level is always the CURRENT section as an
         # ordinary one-screen LevelSpec (section_level), so physics, hints,
         # pickups and drawing work unchanged. One-screen levels: the level itself.
@@ -217,6 +205,20 @@ class GameCoreMixin:
         self._last_state_key = None
         if not self.hint_mode:
             self._kick_ai_for_state()
+
+    def _load_level(self):
+        """The level this scene plays (the session's level; tutorial scenes override it)."""
+        if is_dynamic_level(self.session.level_id) or is_custom_map(self.session.level_id, self.session):
+            # Same seed for the whole run: random layout (random maps) and the
+            # offline AI solver both key off it, so it stays stable across
+            # retry/replay even for custom maps.
+            if self.session.random_seed is None:
+                import random as _random
+                self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
+            if is_dynamic_level(self.session.level_id):
+                return get_level(self.session.level_id, seed=self.session.random_seed)
+            return get_level(self.session.level_id)
+        return get_level(self.session.level_id)
 
     def _load_section_props(self):
         """Pickups and black/white holes of the current section (self.level).

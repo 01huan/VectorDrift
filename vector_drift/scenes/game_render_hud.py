@@ -24,6 +24,9 @@ def draw_text(*a, **k):
 
 
 class GameHudRenderMixin:
+    # Tutorial scenes hide these (lives row; Hint / AI Solver and Lab buttons).
+    show_lives = True
+    show_assists = True
 
     # ------------------------------------------------------------------ left panel
     def _draw_panel(self, surface):
@@ -63,7 +66,7 @@ class GameHudRenderMixin:
         # Lives + clock (the lives show the ship that would fly, not a locked one on display)
         icon_step = px(18)
         first = px(CX - 52) - icon_step * (self.level.lives - 1) // 2
-        for i in range(self.level.lives):
+        for i in range(self.level.lives if self.show_lives else 0):
             # A life pickup's newly lit icon jumps.
             size = round(px(18) * self.pickup_fx.pop_scale(pfx.LIFE, i))
             sprites.draw_ship_icon(surface, (first + i * icon_step, px(STATUS_Y)), size,
@@ -85,6 +88,8 @@ class GameHudRenderMixin:
         draw_text(surface, "Longest arrow", (cx, px(LEGEND_LABEL_Y)), 14, config.TEXT_DIM, anchor="center")
         render.draw_legend(surface, (cx, px(LEGEND_Y)), self.max_force)
 
+        if not self.show_assists:
+            return
         if self.hint_mode:
             # Hint button (fixed levels): usable any time before the win.
             self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
