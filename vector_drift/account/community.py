@@ -436,3 +436,15 @@ def update_community_level_by_local_id(
         )
 
     _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+# --- Community functions (re-exported) ---
+try:
+    from . import community_functions as _community_functions
+    upload_community_function = _community_functions.upload_community_function
+    delete_community_function = _community_functions.delete_community_function
+    fetch_community_functions = _community_functions.fetch_community_functions
+    delete_user_community_functions = _community_functions.delete_user_community_functions
+    update_community_functions_uploader_name = _community_functions.update_community_functions_uploader_name
+except Exception:  # noqa: BLE001
+    pass

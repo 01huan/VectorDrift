@@ -128,7 +128,9 @@ class FunctionLabScene(Scene):
         self.save_button = Button((px(LEFT_X + NAME_W + 8), px(NAME_Y),
                                    px(LEFT_W - NAME_W - 8), px(34)),
                                   "Save", style="primary", font_size=16)
-        self.new_button = Button((px(LEFT_X), px(NEW_Y), px(110), px(30)), "New",
+        self.upload_button = Button((px(LEFT_X + 250), px(NEW_Y), px(110), px(30)),
+                                    "Upload", style="primary", font_size=14)
+        self.new_button = Button((px(LEFT_X), px(NEW_Y), px(70), px(30)), "New",
                                  style="plain", font_size=15)
         # Where the probe is released: the player's choice, in metres.
         self.start_x_input = TextInput((px(START_X_FIELD_X), px(START_Y),
@@ -146,6 +148,10 @@ class FunctionLabScene(Scene):
                                          "Reset", style="plain", font_size=14)
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Levels",
                                   style="plain", font_size=17)
+        self.community_button = Button((px(LEFT_X + 80), px(NEW_Y), px(160), px(30)), "Public Functions",
+                                       style="plain", font_size=14)
+        self.public_button = self.community_button
+        self.public_functions_button = self.community_button
         self.prev_button = Button((px(PREV_X), px(LIST_HEADER_Y - 8), px(PREV_W), px(26)), "‹",
                                   style="plain", font_size=15)
         self.next_button = Button((px(NEXT_X), px(LIST_HEADER_Y - 8), px(NEXT_W), px(26)), "›",
@@ -167,6 +173,7 @@ class FunctionLabScene(Scene):
         self.message = ""
         self.message_color = config.TEXT
         self.message_timer = 0.0
+        self.busy = False
         self.page = 0
         self.page_count = 1
         self.rows = []
@@ -389,6 +396,38 @@ class FunctionLabScene(Scene):
         self._persist()
         self._rebuild()
 
+    def _try_upload(self):
+        """Upload the current function to the public community table."""
+        account = self.manager.account
+        if account is None or not getattr(account, "is_configured", lambda: True)():
+            self._say("Supabase is not configured.", config.WARNING)
+            return
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            self._say("Please log in to upload.", config.WARNING)
+            return
+        if self.busy:
+            return
+        if not self.valid:
+            self._say("Fix the formulas before uploading.", config.WARNING)
+            self.audio.play("error")
+            return
+        fx, fy = self.editor.lines
+        name = clean_name(self.name_input.text)
+        self.busy = True
+        self._say("Uploading to community...", config.TEXT_DIM)
+
+        def on_ok(_resp=None):
+            self.busy = False
+            self._say("Uploaded to the community.", config.SUCCESS)
+
+        def on_err(exc):
+            self.busy = False
+            self._say(f"Upload failed: {exc}", config.WARNING)
+
+        from ..account import community
+        community.upload_community_function(
+            account, name, fx, fy, on_success=on_ok, on_error=on_err)
+
     def _new(self):
         """Start a new function: an empty editor and an empty name."""
         self.editor.set_lines(["", ""])
@@ -456,8 +495,16 @@ class FunctionLabScene(Scene):
         if self.save_button.handle_event(event) == "click":
             self._save()
             return
+        if self.upload_button.handle_event(event) == "click":
+            self._try_upload()
+            return
         if self.new_button.handle_event(event) == "click":
             self._new()
+            return
+        if self.community_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .community_functions import CommunityFunctionsScene
+            self.manager.switch(CommunityFunctionsScene(self.manager))
             return
         if self.start_reset_button.handle_event(event) == "click":
             self._reset_start()
@@ -610,6 +657,8 @@ class FunctionLabScene(Scene):
         self.save_button.label = "Update" if self.editing_id else "Save"
         self.save_button.draw(surface)
         self.new_button.draw(surface)
+        self.community_button.draw(surface)
+        self.upload_button.draw(surface)
         self._draw_start_fields(surface)
         self.back_button.draw(surface)
         self._draw_plot(surface)

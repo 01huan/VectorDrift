@@ -138,6 +138,32 @@ $$;
 grant execute on function public.community_level_record_play(uuid) to anon, authenticated;
 grant execute on function public.community_level_record_clear(uuid, text) to anon, authenticated;
 
+-- Community force functions: anybody can read, only signed-in users can upload.
+create table if not exists public.community_functions (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id) on delete cascade,
+    uploader_name text not null default '',
+    function_name text not null,
+    fx text not null default '',
+    fy text not null default '',
+    created_at timestamptz not null default now()
+);
+
+alter table public.community_functions enable row level security;
+
+drop policy if exists "community_functions_select_public" on public.community_functions;
+create policy "community_functions_select_public" on public.community_functions
+    for select using (true);
+drop policy if exists "community_functions_insert_authenticated" on public.community_functions;
+create policy "community_functions_insert_authenticated" on public.community_functions
+    for insert with check (auth.uid() = user_id);
+drop policy if exists "community_functions_delete_own" on public.community_functions;
+create policy "community_functions_delete_own" on public.community_functions
+    for delete using (auth.uid() = user_id);
+drop policy if exists "community_functions_update_own" on public.community_functions;
+create policy "community_functions_update_own" on public.community_functions
+    for update using (auth.uid() = user_id);
+
 -- 舊版函式曾把原始玩家代號寫進 clear_players；改成只留每關的雜湊。
 -- 'v1:' 前綴讓這段可以重複執行，已轉換的項目不會被再次雜湊。
 update public.community_levels as cl
