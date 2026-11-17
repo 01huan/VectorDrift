@@ -161,6 +161,7 @@ class AccountScene(InventoryMixin, Scene):
                 community.delete_user_community_levels(account)
                 community.delete_user_community_functions(account)
                 community.delete_user_function_engagement(account)
+                community.delete_user_level_engagement(account)
             except Exception:  # noqa: BLE001 - 本機資料清除不應被社區刪除阻擋
                 self.status = "Community uploads could not be removed."
         if account is not None:

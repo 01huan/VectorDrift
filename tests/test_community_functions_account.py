@@ -234,8 +234,10 @@ def test_upload_with_own_community_id_updates_the_row_in_place(fake_client, sync
 def test_upload_duplicate_formulas_match_existing_row(fake_client, sync_async):
     class _MatchTable(_FakeTable):
         def execute(self):
-            if self._op == "select" and self._select_cols == "id":
-                return SimpleNamespace(data=[{"id": "existing-row"}])
+            if self._op == "select" and "fx" in str(self._select_cols):
+                return SimpleNamespace(data=[{"id": "existing-row",
+                                              "function_name": "Name",
+                                              "fx": "fx", "fy": "fy"}])
             return super().execute()
 
     fake_client.table = lambda name: _MatchTable(fake_client, name)
@@ -249,8 +251,7 @@ def test_upload_duplicate_formulas_match_existing_row(fake_client, sync_async):
 def test_update_only_writes_content_columns(fake_client, sync_async):
     cf.update_community_function("row-9", _account(), function_name="New",
                                  fx="1", fy="2", description="d", tags=["t"])
-    call = fake_client.calls[0]
-    assert call["op"] == "update"
+    call = next(c for c in fake_client.calls if c["op"] == "update")
     assert set(call["payload"]) == {"function_name", "fx", "fy", "description", "tags"}
     assert ("eq", "id", "row-9") in call["filters"]
     assert ("eq", "user_id", "u1") in call["filters"]
@@ -319,3 +320,65 @@ def test_facade_reexports_the_function_operations():
                  "record_community_function_usage", "set_function_favorite",
                  "set_function_rating", "fetch_function_engagement"):
         assert callable(getattr(community_module, name, None)), name
+
+
+# --- _own_function_rows fail-closed behaviour -------------------------------
+
+def test_upload_rejects_when_own_rows_query_fails(fake_client, sync_async):
+    class _FailingTable(_FakeTable):
+        def execute(self):
+            if self._op == "select":
+                raise RuntimeError("connection lost")
+            return super().execute()
+
+    fake_client.table = lambda name: _FailingTable(fake_client, name)
+    errors = []
+    cf.upload_community_function(_account(), "My Field", "-y", "x",
+                                 on_error=errors.append)
+    assert errors, "expected upload to be rejected when own-rows query fails"
+    inserts = [c for c in fake_client.calls if c["op"] == "insert"]
+    assert not inserts, "no insert should happen when the query fails"
+
+
+def test_upload_allows_when_own_rows_returns_empty(fake_client, sync_async):
+    class _EmptyTable(_FakeTable):
+        def execute(self):
+            if self._op == "select" and "fx" in str(self._select_cols):
+                return SimpleNamespace(data=[])
+            return super().execute()
+
+    fake_client.table = lambda name: _EmptyTable(fake_client, name)
+    cf.upload_community_function(_account(), "My Field", "-y", "x")
+    inserts = [c for c in fake_client.calls if c["op"] == "insert"]
+    assert inserts, "expected insert when no existing rows"
+
+
+def test_upload_rejects_when_same_name_exists(fake_client, sync_async):
+    class _SameNameTable(_FakeTable):
+        def execute(self):
+            if self._op == "select" and "fx" in str(self._select_cols):
+                # Same name, different formulas -> conflict, must reject.
+                return SimpleNamespace(data=[{
+                    "id": "r1", "function_name": "My Field", "fx": "a", "fy": "b"}])
+            return super().execute()
+
+    fake_client.table = lambda name: _SameNameTable(fake_client, name)
+    errors = []
+    cf.upload_community_function(_account(), "My Field", "-y", "x", on_error=errors.append)
+    assert errors, "expected upload to be rejected when same name exists"
+    inserts = [c for c in fake_client.calls if c["op"] == "insert"]
+    assert not inserts, "no insert should happen when name is taken"
+
+
+def test_upload_allows_when_no_same_name(fake_client, sync_async):
+    class _NoConflictTable(_FakeTable):
+        def execute(self):
+            if self._op == "select" and "fx" in str(self._select_cols):
+                return SimpleNamespace(data=[{
+                    "id": "r1", "function_name": "Other Name", "fx": "a", "fy": "b"}])
+            return super().execute()
+
+    fake_client.table = lambda name: _NoConflictTable(fake_client, name)
+    cf.upload_community_function(_account(), "My Field", "-y", "x")
+    inserts = [c for c in fake_client.calls if c["op"] == "insert"]
+    assert inserts, "expected insert when no name conflict"

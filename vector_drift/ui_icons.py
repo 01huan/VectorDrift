@@ -56,6 +56,15 @@ def icon_surface(name, size, color):
             pts.append(P(center[0] + radius * math.cos(angle),
                          center[1] + radius * math.sin(angle)))
         pygame.draw.polygon(big, color, pts)
+    elif name == "heart":
+        # Two lobes + a point: a simple filled heart, anti-aliased by the
+        # supersampling like every other icon.
+        lobe_left = (0.335, 0.36)
+        lobe_right = (0.665, 0.36)
+        lobe_r = 0.20
+        pygame.draw.circle(big, color, P(*lobe_left), int(lobe_r * S))
+        pygame.draw.circle(big, color, P(*lobe_right), int(lobe_r * S))
+        pygame.draw.polygon(big, color, [P(0.155, 0.44), P(0.845, 0.44), P(0.5, 0.90)])
     elif name == "pencil":
         # Body: a thick diagonal stroke; the tip is a small triangle.
         thick_polyline([(0.34, 0.66), (0.72, 0.28)], 0.17)

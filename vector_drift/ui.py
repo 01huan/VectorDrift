@@ -46,16 +46,16 @@ from .ui_icons import (
     _icon_cache,
     icon_surface,
 )
-from .ui_input import TextInput
+from .ui_input import Dropdown, TextInput
 
 
 __all__ = [
     "Button", "COIN_GOLD", "coin_price_parts", "draw_coins", "draw_icon_row",
     "draw_panel_box", "draw_text", "fit_text", "get_font", "wrap_text",
     "CodeEditor", "HISTORY_LIMIT", "LineHistory", "STEP_BREAKERS",
-    "clipboard_get", "clipboard_put", "draw_squiggle", "error_span",
-    "highlight",
+    "clipboard_get", "clipboard_put", "draw_squiggle",
+    "highlight", "error_span",
     "IconButton", "icon_surface",
-    "TextInput",
+    "TextInput", "Dropdown",
     "config", "px", "pygame", "re",
 ]

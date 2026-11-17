@@ -146,6 +146,23 @@ def find_function(functions: Iterable[SavedFunction], fid: Any) -> Optional[Save
     return None
 
 
+def name_taken(name: Any, functions: Iterable[SavedFunction], exclude_id: Any = None) -> bool:
+    """True when another function in ``functions`` already uses ``name``.
+
+    Comparison ignores case and repeated whitespace.  ``exclude_id`` skips
+    the function being edited, whose own name is never a conflict with
+    itself.
+    """
+    key = clean_name(name).casefold()
+    wanted = str(exclude_id) if exclude_id is not None else None
+    for function in functions or ():
+        if wanted is not None and str(getattr(function, "id", "")) == wanted:
+            continue
+        if clean_name(getattr(function, "name", "")).casefold() == key:
+            return True
+    return False
+
+
 def unique_name(name: Any, functions: Iterable[SavedFunction]) -> str:
     """A name that does not collide with another function in the library.
 
@@ -196,6 +213,6 @@ __all__ = [
     "SavedFunction", "MAX_NAME_LEN", "MAX_FUNCTIONS", "DEFAULT_NAME",
     "MAX_TAGS", "MAX_TAG_LEN",
     "new_id", "clean_name", "clean_description", "clean_tags",
-    "make_function", "find_function", "unique_name",
+    "make_function", "find_function", "name_taken", "unique_name",
     "library_to_rows", "library_from_rows",
 ]

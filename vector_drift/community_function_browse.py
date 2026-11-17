@@ -26,12 +26,14 @@ from .community_core import (
     FuzzyMatcher,
     SortOption,
     SortTable,
+    average_rating,
     cached_matcher,
     filter_items,
     float_of,
     fuzzy_score,
     int_of,
     normalize_text,
+    round_half_up,
     text_of,
     timestamp_of,
 )
@@ -43,7 +45,7 @@ __all__ = [
     "MAX_TAGS", "MAX_TAG_LEN", "MAX_DESCRIPTION_LEN",
     "CommunityFunctionInfo", "function_info", "filter_functions",
     "normalize_tags", "parse_tags", "tags_to_text", "tag_matches",
-    "average_rating", "sort_label", "FuzzyMatcher", "fuzzy_score", "normalize_text",
+    "average_rating", "round_half_up", "sort_label", "FuzzyMatcher", "fuzzy_score", "normalize_text",
 ]
 
 # --- limits ------------------------------------------------------------------
@@ -80,15 +82,6 @@ _int = int_of
 _float = float_of
 _timestamp = timestamp_of
 _cached_matcher = cached_matcher
-
-
-def average_rating(rating_total: Any, rating_count: Any) -> float:
-    """The mean rating (0.0 .. 5.0), or 0.0 when nobody has rated yet."""
-    total = float_of(rating_total)
-    count = int_of(rating_count)
-    if count <= 0:
-        return 0.0
-    return max(0.0, min(5.0, total / count))
 
 
 # --- tags ---------------------------------------------------------------------

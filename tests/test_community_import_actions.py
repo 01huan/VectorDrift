@@ -66,7 +66,7 @@ def _scene(monkeypatch, rows=None):
 
 def test_import_saves_a_private_copy(monkeypatch):
     scene = _scene(monkeypatch)
-    scene._toggle_favorite(scene.levels[0])          # the ↓ button imports
+    scene._import_action(scene.levels[0])          # the ↓ button imports
     session = scene.manager.session
     assert len(session.custom_levels) == 1
     copy = session.custom_levels[0]
@@ -82,8 +82,8 @@ def test_import_never_overwrites_the_original(monkeypatch):
     scene = _scene(monkeypatch)
     session = scene.manager.session
     before = len(data.CUSTOM_LEVELS)
-    scene._toggle_favorite(scene.levels[0])
-    scene._toggle_favorite(scene.levels[0])
+    scene._import_action(scene.levels[0])
+    scene._import_action(scene.levels[0])
     assert len(session.custom_levels) == 2
     assert len(data.CUSTOM_LEVELS) == before + 2
     ids = [spec.id for spec in session.custom_levels]
@@ -99,6 +99,6 @@ def test_import_button_rects_exist_for_every_card(monkeypatch):
 def test_import_of_a_broken_row_does_not_touch_custom_levels(monkeypatch):
     scene = _scene(monkeypatch)
     session = scene.manager.session
-    scene._toggle_favorite({"id": "broken", "level_data": {"id": "bad"}})
+    scene._import_action({"id": "broken", "level_data": {"id": "bad"}})
     assert session.custom_levels == []
     assert "Invalid level data" in scene.status

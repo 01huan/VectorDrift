@@ -18,15 +18,17 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
-from .community_common import run_async, uploader_name
+from .community_common import run_async, uploader_name, norm_name
 
 TABLE = "community_levels"
+FAVORITES_TABLE = "community_level_favorites"
+RATINGS_TABLE = "community_level_ratings"
 
 # Columns the browser needs.  The statistics columns were added after the
 # first release of the table, so an older database does not have them yet:
 # the fetch falls back to the plain column list when the extended one fails.
 BASE_COLUMNS = "id, user_id, uploader_name, level_name, level_data, created_at"
-STAT_COLUMNS = "play_count, clear_count, clear_players"
+STAT_COLUMNS = "play_count, clear_count, clear_players, favorite_count, rating_count, rating_total"
 
 _run_async = run_async
 _uploader_name = uploader_name
@@ -64,22 +66,26 @@ def upload_community_level(
         target_id = str(level_data.get("id")) if level_data.get("id") is not None else ""
         resp = (
             client.table(TABLE)
-            .select("id, level_data")
+            .select("id, level_name, level_data")
             .eq("user_id", account.current_user.id)
             .execute()
         )
-        existing_row_id = None
-        for existing in getattr(resp, "data", None) or []:
+        own_rows = getattr(resp, "data", None) or []
+        target = norm_name(level_name)
+        paired_row_id = None
+        for existing in own_rows:
             existing_ld = existing.get("level_data") or {}
-            if str(existing_ld.get("id")) == target_id:
-                existing_row_id = existing.get("id")
-                break
-        if existing_row_id is not None:
+            if target_id and str(existing_ld.get("id")) == target_id:
+                paired_row_id = existing.get("id")
+                continue
+            if norm_name(existing.get("level_name")) == target:
+                raise ValueError(f'You already have a community level called "{level_name}".')
+        if paired_row_id is not None:
             # 同一個本機關卡 id 曾經上傳過：更新既有列，避免重複。
             return (
                 client.table(TABLE)
                 .update(row)
-                .eq("id", existing_row_id)
+                .eq("id", paired_row_id)
                 .eq("user_id", account.current_user.id)
                 .execute()
             )
@@ -199,6 +205,174 @@ def record_community_clear(
             "community_level_record_clear",
             {"p_level_id": str(level_id), "p_player_key": player_key or ""},
         ).execute()
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+# --- favorites and ratings ---------------------------------------------------
+
+def set_level_favorite(
+    level_id: str,
+    favorite: bool,
+    account: Any,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Favorite (``favorite=True``) or unfavorite a community level.
+
+    One row per (user, level) is enforced by the primary key of the
+    favorites table; the ``favorite_count`` on the level row is maintained
+    by a database trigger, so duplicate toggles can never inflate it.
+    """
+    if not level_id:
+        if on_error is not None:
+            on_error(ValueError("no community level id"))
+        return
+
+    def _fn() -> Any:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        if favorite:
+            return (
+                client.table(FAVORITES_TABLE)
+                .upsert({
+                    "user_id": account.current_user.id,
+                    "level_id": str(level_id),
+                }, on_conflict="user_id,level_id")
+                .execute()
+            )
+        return (
+            client.table(FAVORITES_TABLE)
+            .delete()
+            .eq("level_id", str(level_id))
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def set_level_rating(
+    level_id: str,
+    rating: Any,
+    account: Any,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Rate a community level from 1 to 5 stars.
+
+    One rating per (user, level) is enforced by the primary key of the
+    ratings table: submitting again *changes* the rating instead of adding a
+    new one.  The average and the count on the level row are maintained by a
+    database trigger.
+    """
+    if not level_id:
+        if on_error is not None:
+            on_error(ValueError("no community level id"))
+        return
+    try:
+        stars = int(rating)
+    except (TypeError, ValueError):
+        if on_error is not None:
+            on_error(ValueError("The rating must be a whole number of stars."))
+        return
+    if isinstance(rating, bool) or stars < 1 or stars > 5:
+        if on_error is not None:
+            on_error(ValueError("The rating must be between 1 and 5 stars."))
+        return
+
+    def _fn() -> Any:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        return (
+            client.table(RATINGS_TABLE)
+            .upsert({
+                "user_id": account.current_user.id,
+                "level_id": str(level_id),
+                "rating": stars,
+            }, on_conflict="user_id,level_id")
+            .execute()
+        )
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def fetch_level_engagement(
+    account: Any,
+    on_success: Optional[Callable[[dict], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Fetch the signed-in user's own favorites and ratings.
+
+    Returns ``{"favorites": [level_id, ...], "ratings": {level_id: rating}}``.
+    Guests (or a missing account) get empty containers: the public page
+    works without an account, only the per-user state is missing.
+    """
+
+    def _fn() -> dict:
+        empty = {"favorites": [], "ratings": {}}
+        if (
+            account is None
+            or not account.is_authenticated()
+            or account.current_user is None
+        ):
+            return empty
+        client = get_client()
+        user_id = account.current_user.id
+        favorites: list[str] = []
+        ratings: dict = {}
+        try:
+            resp = (
+                client.table(FAVORITES_TABLE)
+                .select("level_id")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            for row in getattr(resp, "data", None) or []:
+                fid = row.get("level_id")
+                if fid:
+                    favorites.append(str(fid))
+        except Exception:
+            pass
+        try:
+            resp = (
+                client.table(RATINGS_TABLE)
+                .select("level_id, rating")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            for row in getattr(resp, "data", None) or []:
+                fid = row.get("level_id")
+                if fid:
+                    try:
+                        ratings[str(fid)] = int(row.get("rating"))
+                    except (TypeError, ValueError):
+                        continue
+        except Exception:
+            pass
+        return {"favorites": favorites, "ratings": ratings}
+
+    _run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def delete_user_level_engagement(
+    account: Any,
+    on_success: Optional[Callable[[bool], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Delete every favorite and rating the current user left on community
+    levels.  Called when the account data is cleared / the player returns to
+    guest, so rows pointing at the player do not stay behind."""
+
+    def _fn() -> bool:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        client.table(RATINGS_TABLE).delete().eq("user_id", account.current_user.id).execute()
+        client.table(FAVORITES_TABLE).delete().eq("user_id", account.current_user.id).execute()
+        return True
 
     _run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -393,13 +567,32 @@ def update_community_level_by_local_id(
     """Update the community upload whose serialized ``level_data.id`` matches a
     local level that the player just modified, so the public card shows the new
     name/content.  Only the owner's row is touched.
+
+    A name that another of the player's community levels already uses is
+    rejected (one player, one name), so a local edit can never split the
+    public list into duplicates either.
     """
 
     def _fn() -> None:
         if account is None or not account.is_authenticated() or account.current_user is None:
             raise RuntimeError("Not logged in.")
         client = get_client()
-        row_id = _community_row_id_for_local_level(client, account, local_level_id)
+        own_rows = (
+            client.table(TABLE)
+            .select("id, level_name, level_data")
+            .eq("user_id", account.current_user.id)
+            .execute()
+        ).data or []
+        target = norm_name(level_name)
+        row_id = None
+        for entry in own_rows:
+            entry_data = entry.get("level_data") or {}
+            if str(entry_data.get("id")) == str(local_level_id):
+                # This row is the sync target, never a conflict.
+                row_id = entry.get("id")
+                continue
+            if norm_name(entry.get("level_name")) == target:
+                raise ValueError(f'You already have a community level called "{level_name}".')
         if row_id is None:
             return
         (
@@ -429,3 +622,25 @@ try:
     delete_user_function_engagement = _community_functions.delete_user_function_engagement
 except Exception:  # noqa: BLE001
     pass
+
+__all__ = [
+    "TABLE",
+    "FAVORITES_TABLE",
+    "RATINGS_TABLE",
+    "BASE_COLUMNS",
+    "STAT_COLUMNS",
+    "upload_community_level",
+    "delete_community_level",
+    "fetch_community_levels",
+    "record_community_play",
+    "record_community_clear",
+    "set_level_favorite",
+    "set_level_rating",
+    "fetch_level_engagement",
+    "delete_user_level_engagement",
+    "serialize_level",
+    "delete_user_community_levels",
+    "update_community_levels_uploader_name",
+    "delete_community_level_by_local_id",
+    "update_community_level_by_local_id",
+]

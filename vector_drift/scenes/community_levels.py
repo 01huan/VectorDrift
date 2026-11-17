@@ -29,6 +29,7 @@ from ..community_browse import (
     filter_levels,
     level_info,
 )
+from ..community_core import round_half_up
 from ..config import px
 from ..data import LevelSpec
 from ..image_assets import load_image
@@ -41,6 +42,9 @@ from .community_browser import (
     _MIN_INPUT_GAP,
     _MIN_INPUT_W,
     _MIN_INPUT_X,
+    _THUMB_H,
+    _THUMB_W,
+    _THUMB_Y,
     _TOOLBAR_Y,
     CommunityBrowserScene,
 )
@@ -201,21 +205,39 @@ class CommunityLevelsScene(CommunityBrowserScene):
     def _manage_rect(self, rect):
         return self._card_button_rect(rect, 52)
 
-    def _favorite_rect(self, rect, row=None):
-        """The ↓ (import) button: last on owned cards, first otherwise.
+    def _engagement_api(self):
+        from ..account import community
 
-        Occupies the engagement slot shared with the Functions tab's
-        favorite button.
-        """
+        return (community.fetch_level_engagement,
+                community.set_level_favorite,
+                community.set_level_rating)
+
+    def _favorite_rect(self, rect, row=None):
+        """The ♥ (favorite) button: first on owned cards, next to the import."""
         owner = self._is_owner(row) if row is not None else False
         return self._card_button_rect(rect, 78 if owner else 26)
 
-    def _toggle_favorite(self, row):
+    def _import_rect(self, rect, row=None):
+        """The ↓ (import) button: the slot before the favorite on owned cards."""
+        owner = self._is_owner(row) if row is not None else False
+        return self._card_button_rect(rect, 104 if owner else 52)
+
+    def _card_star_rects(self, rect):
+        """The five rating stars in the bottom-right corner of the card."""
+        size, pitch = px(12), px(15)
+        total = pitch * 4 + size
+        x = rect.right - px(10) - total
+        y = rect.y + px(148)
+        return [pygame.Rect(x + index * pitch, y, size, px(16)) for index in range(5)]
+
+    def _import_action(self, row):
         """The import action: save a private copy into your custom levels.
 
         The published level is never modified and the local copy always gets
         a fresh editor id, so importing never overwrites or shadows any
-        existing custom level — not even one of your own.
+        existing custom level — not even one of your own.  A name that is
+        already taken in the player's library is suffixed with (2), (3), ...
+        instead of creating a duplicate.
         """
         if not isinstance(row, dict):
             self.status = "Invalid level data: cannot import."
@@ -230,12 +252,15 @@ class CommunityLevelsScene(CommunityBrowserScene):
         except (ValueError, TypeError, OverflowError) as exc:
             self.status = f"Invalid level data: {exc}"
             return
+        custom = list(getattr(self.session, "custom_levels", ()) or [])
+        final_name = data.unique_level_name(spec.name, custom)
+        if final_name != spec.name:
+            spec = data.level_spec_from_public({**level_data, "name": final_name}, local_id)
         try:
             data.register_custom_level(spec)
         except ValueError as exc:
             self.status = f"Cannot import: {exc}"
             return
-        custom = list(getattr(self.session, "custom_levels", ()) or [])
         if all(getattr(item, "id", None) != spec.id for item in custom):
             custom.append(spec)
             self.session.custom_levels = custom
@@ -349,7 +374,8 @@ class CommunityLevelsScene(CommunityBrowserScene):
         The public ``level_data`` is validated first; an invalid row just
         leaves the empty preview instead of raising while the player browses.
         """
-        preview = pygame.Rect(rect.x + px(10), rect.y + px(46), px(220), px(66))
+        preview = pygame.Rect(rect.x + (rect.w - px(_THUMB_W)) // 2, rect.y + px(_THUMB_Y),
+                              px(_THUMB_W), px(_THUMB_H))
         pygame.draw.rect(surface, (26, 34, 60), preview, border_radius=px(3))
         pygame.draw.rect(surface, config.PANEL_EDGE, preview, width=1, border_radius=px(3))
         spec = self._preview_spec(lvl)
@@ -375,9 +401,11 @@ class CommunityLevelsScene(CommunityBrowserScene):
         world_w = maxx - minx or 1.0
         world_h = maxy - miny or 1.0
         scale = min(preview.w / world_w, preview.h / world_h)
+        off_x = (preview.w - world_w * scale) / 2.0
 
         def to_screen(wx, wy):
-            return (preview.x + (wx - minx) * scale, preview.bottom - (wy - miny) * scale)
+            return (preview.x + off_x + (wx - minx) * scale,
+                    preview.bottom - (wy - miny) * scale)
 
         # 缩略图内对象半径上限：按最短边的 1/3 计算，避免障碍物/道具超出预览
         max_r = max(8, min(preview.w, preview.h) // 4)
@@ -460,36 +488,71 @@ class CommunityLevelsScene(CommunityBrowserScene):
     # -------------------------------------------------------------------- draw
 
     def _draw_card(self, surface, lvl: dict, info: CommunityLevelInfo, rect: pygame.Rect,
-                   del_rect=None, manage_rect=None, fav_rect=None):
+                   del_rect=None, manage_rect=None, fav_rect=None, import_rect=None, stars=None):
         """One level card: name, uploader, preview, layout numbers and stats."""
         self._draw_card_frame(surface, rect)
+        row_id = str(lvl.get("id") or "") if isinstance(lvl, dict) else ""
         self._draw_preview(surface, lvl, rect)
 
-        name_w = rect.w - px(150) if self._is_owner(lvl) else rect.w - px(34)
-        name = fit_text(info.name or "Community", max(60, name_w), 15, kind="bold")
-        draw_text(surface, name, (rect.x + px(10), rect.y + px(8)), 15, config.TEXT, kind="bold")
-        uploader = fit_text(info.uploader or "—", rect.w - px(90), 12)
-        draw_text(surface, uploader, (rect.x + px(10), rect.y + px(28)), 12, config.TEXT_DIM)
+        owner = self._is_owner(lvl)
+        name_w = rect.w - px(160) if owner else rect.w - px(100)
+        name = fit_text(info.name or "Community", max(60, name_w), 14, kind="bold")
+        draw_text(surface, name, (rect.x + px(10), rect.y + px(7)), 14, config.TEXT, kind="bold")
+        uploader = fit_text(info.uploader or "—", rect.w - px(100), 11)
+        draw_text(surface, uploader, (rect.x + px(10), rect.y + px(26)), 11, config.TEXT_DIM)
         created = (info.created_at or "")[:10]
-        draw_text(surface, created, (rect.right - px(10), rect.y + px(28)), 11,
+        draw_text(surface, created, (rect.right - px(10), rect.y + px(27)), 11,
                   config.TEXT_FAINT, anchor="topright")
 
-        layout = f"{info.time_limit:g}s · {info.obstacle_count} obstacles · {info.pickup_count} pickups"
-        draw_text(surface, fit_text(layout, rect.w - px(20), 11), (rect.x + px(10), rect.y + px(114)),
-                  11, config.TEXT_DIM)
+        # Line A: the layout facts on the left, the engagement summary right.
+        layout = (f"{info.time_limit:g}s · {info.obstacle_count} obstacles"
+                  f" · {info.pickup_count} pickups")
+        draw_text(surface, fit_text(layout, rect.w - px(120), 10),
+                  (rect.x + px(10), rect.y + px(136)), 10, config.TEXT_DIM)
+        rating_count = info.rating_count
+        avg = info.average_rating
+        if rating_count:
+            rating_text = f"{avg:.1f} ({rating_count})"
+            summary_color = (255, 205, 80)
+        else:
+            rating_text = "—"
+            summary_color = config.TEXT_FAINT
+        fav_text = str(info.favorite_count)
+        from ..ui_fonts import get_font
+        from ..ui_icons import icon_surface
+        star_icon = icon_surface("star", px(10), summary_color)
+        heart_icon = icon_surface("heart", px(10),
+                                  (224, 90, 126) if info.favorite_count else config.TEXT_FAINT)
+        font10 = get_font(10)
+        rating_w = font10.size(rating_text)[0]
+        fav_w = font10.size(fav_text)[0]
+        total_w = rating_w + fav_w + px(10) * 2 + px(8) + px(8)
+        cursor_x = rect.right - px(10) - total_w
+        surface.blit(star_icon, star_icon.get_rect(midleft=(cursor_x, rect.y + px(136) + px(5))))
+        draw_text(surface, rating_text, (cursor_x + px(12), rect.y + px(136)), 10,
+                  summary_color)
+        heart_x = cursor_x + px(12) + rating_w + px(8)
+        surface.blit(heart_icon, heart_icon.get_rect(midleft=(heart_x, rect.y + px(136) + px(5))))
+        draw_text(surface, fav_text, (heart_x + px(12), rect.y + px(136)), 10,
+                  config.TEXT_FAINT if not info.favorite_count else config.TEXT_DIM)
+
+        # Line B: the counters on the left, the interactive rating stars right.
         stats = (f"plays {info.play_count} · clears {info.clear_count}"
                  f" · players {info.clear_player_count}")
-        draw_text(surface, fit_text(stats, rect.w - px(20), 11), (rect.x + px(10), rect.y + px(130)),
-                  11, config.TEXT_DIM)
+        draw_text(surface, fit_text(stats, rect.w - px(84), 10),
+                  (rect.x + px(10), rect.y + px(150)), 10, config.TEXT_DIM)
+        if stars:
+            filled = round_half_up(avg) if rating_count else 0
+            for index, star in enumerate(stars):
+                color = (255, 205, 80) if index < filled else (70, 80, 110)
+                icon = icon_surface("star", star.w, color)
+                surface.blit(icon, icon.get_rect(center=star.center))
 
-        # Management buttons (only for the uploader) + the import action.
+        # Management buttons (only for the uploader) + engagement buttons.
         self._draw_owner_buttons(surface, lvl, del_rect, manage_rect)
-        if fav_rect is not None:
-            hover = fav_rect.collidepoint(pygame.mouse.get_pos())
-            bg = (52, 155, 105) if hover else (40, 120, 80)
-            pygame.draw.rect(surface, bg, fav_rect, border_radius=px(3))
-            draw_text(surface, "↓", fav_rect.center, 15, (255, 255, 255),
-                      kind="bold", anchor="center")
+        self._draw_favorite_button(surface, fav_rect,
+                                   row_id in self._my_favorites if row_id else False)
+        self._draw_import_button(surface, import_rect)
 
 
 # Aliases (the scene is reachable under a few names in tests and scripts).

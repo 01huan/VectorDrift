@@ -15,6 +15,7 @@ get_level() instead of reading LEVELS directly.
 """
 
 import hashlib
+from typing import Any, Iterable
 
 from .accessors import owned_ship_ids as _owned_ship_ids
 from .data_models import (
@@ -169,6 +170,39 @@ def register_custom_level(spec):
     return spec
 
 
+def clean_level_name(name: Any) -> str:
+    """A usable level name: one line, never empty."""
+    if not isinstance(name, str):
+        name = ""
+    return " ".join(name.split())[:60] or "Custom"
+
+
+def unique_level_name(name: Any, levels: Iterable) -> str:
+    """A level name that does not collide with another level in the library.
+
+    ``"Maze"`` stays ``"Maze"`` when it is free; otherwise the first free
+    ``"Maze (2)"``, ``"Maze (3)"`` ... is returned.  Existing levels are
+    never renamed.  Comparison ignores case and repeated whitespace.
+    """
+    base = clean_level_name(name)
+    taken = {" ".join(str(getattr(level, "name", "") or "").split()).casefold()
+             for level in (levels or ())}
+    if base.casefold() not in taken:
+        return base
+    for suffix in range(2, 1000):
+        candidate = f"{base[:54].rstrip()} ({suffix})"
+        if candidate.casefold() not in taken:
+            return candidate
+    return f"{base[:54].rstrip()} ({new_id_suffix()})"
+
+
+def new_id_suffix() -> str:
+    """A short random suffix for the (very unlikely) exhaustion case."""
+    import uuid
+
+    return uuid.uuid4().hex[:6]
+
+
 def is_custom_level(level_id):
     return level_id in CUSTOM_LEVELS
 
@@ -240,6 +274,7 @@ __all__ = [
     "HoleSpec", "SHIPS", "LEVELS", "CUSTOM_LEVELS", "COMMUNITY_LEVELS",
     "all_levels", "get_level",
     "register_custom_level", "is_custom_level", "community_level_id",
+    "clean_level_name", "unique_level_name",
     "register_community_level", "is_community_level", "is_custom_map",
     "community_remote_id", "COMMUNITY_ID_SPACE", "COMMUNITY_REMOTE_IDS",
     "section_count", "section_level", "section_shift", "multi_section_level",

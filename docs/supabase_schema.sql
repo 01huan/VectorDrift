@@ -386,3 +386,135 @@ update public.community_levels as cl
        '[]'::jsonb)
  where jsonb_typeof(cl.clear_players) = 'array'
    and cl.clear_players <> '[]'::jsonb;
+
+-- ============================================================
+-- Community custom levels: favorites and ratings (like functions)
+-- Run this whole file on an existing project to upgrade it in place.
+-- ============================================================
+
+-- 1) the per-level counters live on the level row (never client-writable)
+alter table public.community_levels
+    add column if not exists favorite_count integer not null default 0,
+    add column if not exists rating_count integer not null default 0,
+    add column if not exists rating_total integer not null default 0;
+
+-- 2) one favorite per (player, level); the counter is trigger-maintained
+create table if not exists public.community_level_favorites (
+    user_id uuid not null references auth.users(id) on delete cascade,
+    level_id uuid not null references public.community_levels(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    primary key (user_id, level_id)
+);
+
+alter table public.community_level_favorites enable row level security;
+
+drop policy if exists "community_level_favorites_select_own" on public.community_level_favorites;
+create policy "community_level_favorites_select_own" on public.community_level_favorites
+    for select using (auth.uid() = user_id);
+drop policy if exists "community_level_favorites_insert_own" on public.community_level_favorites;
+create policy "community_level_favorites_insert_own" on public.community_level_favorites
+    for insert with check (auth.uid() = user_id);
+drop policy if exists "community_level_favorites_delete_own" on public.community_level_favorites;
+create policy "community_level_favorites_delete_own" on public.community_level_favorites
+    for delete using (auth.uid() = user_id);
+
+create or replace function public.community_level_favorites_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if tg_op = 'INSERT' then
+        update public.community_levels
+           set favorite_count = favorite_count + 1
+         where id = new.level_id;
+        return new;
+    elsif tg_op = 'DELETE' then
+        update public.community_levels
+           set favorite_count = greatest(favorite_count - 1, 0)
+         where id = old.level_id;
+        return old;
+    end if;
+    return null;
+end;
+$$;
+
+drop trigger if exists community_level_favorites_count on public.community_level_favorites;
+create trigger community_level_favorites_count
+    after insert or delete on public.community_level_favorites
+    for each row execute function public.community_level_favorites_touch();
+
+-- 3) one rating per (player, level), changeable; aggregates are trigger-maintained
+create table if not exists public.community_level_ratings (
+    user_id uuid not null references auth.users(id) on delete cascade,
+    level_id uuid not null references public.community_levels(id) on delete cascade,
+    rating smallint not null check (rating between 1 and 5),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    primary key (user_id, level_id)
+);
+
+alter table public.community_level_ratings enable row level security;
+
+drop policy if exists "community_level_ratings_select_own" on public.community_level_ratings;
+create policy "community_level_ratings_select_own" on public.community_level_ratings
+    for select using (auth.uid() = user_id);
+drop policy if exists "community_level_ratings_insert_own" on public.community_level_ratings;
+create policy "community_level_ratings_insert_own" on public.community_level_ratings
+    for insert with check (auth.uid() = user_id);
+drop policy if exists "community_level_ratings_update_own" on public.community_level_ratings;
+create policy "community_level_ratings_update_own" on public.community_level_ratings
+    for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "community_level_ratings_delete_own" on public.community_level_ratings;
+create policy "community_level_ratings_delete_own" on public.community_level_ratings
+    for delete using (auth.uid() = user_id);
+
+create or replace function public.community_level_ratings_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if tg_op = 'INSERT' then
+        update public.community_levels
+           set rating_count = rating_count + 1,
+               rating_total = rating_total + new.rating
+         where id = new.level_id;
+        return new;
+    elsif tg_op = 'UPDATE' then
+        if new.rating is distinct from old.rating then
+            update public.community_levels
+               set rating_total = greatest(rating_total - old.rating + new.rating, 0)
+             where id = new.level_id;
+        end if;
+        return new;
+    elsif tg_op = 'DELETE' then
+        update public.community_levels
+           set rating_count = greatest(rating_count - 1, 0),
+               rating_total = greatest(rating_total - old.rating, 0)
+         where id = old.level_id;
+        return old;
+    end if;
+    return null;
+end;
+$$;
+
+drop trigger if exists community_level_ratings_count on public.community_level_ratings;
+create trigger community_level_ratings_count
+    after insert or update or delete on public.community_level_ratings
+    for each row execute function public.community_level_ratings_touch();
+
+-- 4) players manage their own rows only (RLS enforces it)
+grant select, insert, delete on public.community_level_favorites to authenticated;
+grant select, insert, update, delete on public.community_level_ratings to authenticated;
+
+-- 5) the statistics columns are maintained by triggers/security-definer
+--    functions only; the client may not write them (the grants above
+--    already limit inserts/updates to the content columns).
+revoke insert, update on public.community_levels from anon, authenticated;
+grant insert (user_id, uploader_name, level_name, level_data)
+    on public.community_levels to authenticated;
+grant update (uploader_name, level_name, level_data)
+    on public.community_levels to authenticated;

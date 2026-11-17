@@ -23,7 +23,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
 - **Custom level editor** — create, edit, save, and play your own layouts.
-- **Community levels** — browse, search and sort public levels (fuzzy search by level name and uploader, sorting by time limit, obstacles, pickups and player statistics) and upload or delete your own levels through an optional Supabase backend.
+- **Community levels and functions** — browse, search and sort public content (fuzzy search by name and uploader; click the dropdown to pick a sort), favorite and rate it (five stars on the card), and publish or delete your own uploads through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
 - **Progression and persistence** — earn coins, buy ship skins, keep best times, and save progress locally or to an optional online account.
 - **Music and art** — music, sound effects, and replaceable image/audio assets.
@@ -264,7 +264,7 @@ The Community is one place with two content categories: **Levels** and **Functio
 - Public content is fetched from Supabase (`community_levels` for levels, `community_functions` for functions) and shown newest first.
 - Browsing and downloading public content require a configured Supabase backend but do not require the player to sign in, provided the public-read policies are enabled.
 - Publishing requires a configured backend and an authenticated account.
-- Uploading never touches the local content: your levels stay in your custom levels, your functions stay in your Function Lab library.
+- Publishing never destroys or overwrites your local content: it links your library copy to the community row, and later local saves or deletes update or remove the published copy too.
 - Owners can edit and delete their own uploads from the cards (an edit button for functions in the detail panel; an editor copy for levels). Row Level Security restricts these operations to the owning user.
 - Downloading into your own content is always an explicit action — nothing is silently overwritten.
 
@@ -276,7 +276,7 @@ The page has a search bar above the cards:
 |---|---|
 | **Name** | Fuzzy search over the item names. It does not need an exact match: a typo or a part of the name is enough. The closer an item matches, the earlier it is listed. |
 | **By** | Fuzzy search over the uploader names, with the same "closest match first" rule. |
-| **Sort** | Cycles through the sort orders. Levels: newest, oldest, time limit, number of obstacles, number of pickups, number of one pickup kind, plays, clears, players who cleared. Functions: newest, oldest, most used, most successful uses, favorites, highest rated. |
+| **Sort** | A dropdown menu: pick the order from the list. Levels: newest, oldest, time limit, number of obstacles, number of pickups, number of one pickup kind, plays, clears, players who cleared, favorites, highest rated. Functions: newest, oldest, most used, most successful uses, favorites, highest rated. |
 | **↑ / ↓** | Flips the direction of the chosen sort order. |
 | **Pickup** *(levels)* | Chooses which pickup kind the "pickup count" order uses (shockwave, extra time, shield, life, money, Unbound). |
 | **Tag** *(functions)* | Only lists functions carrying a tag that contains the query. |
@@ -286,27 +286,35 @@ The page has a search bar above the cards:
 
 Both text searches have to match: an item is listed when its name is close to the **Name** query *and* its uploader is close to the **By** query. When a search is used, the closeness decides the order and the chosen sort order breaks the ties.
 
-Every card shows the name, the uploader, the date, the statistics that matter, and an import/play action. Levels show a layout preview with play/clear statistics; functions show a vector-field preview (the `Fx`/`Fy` field, `FX`/`FY` values, tags, description, usage/unique-player counts, average rating and favorite count).
+Every card shows the name, the uploader, the date, the statistics that matter, and the actions it supports. Levels show a layout preview (4:3, the same shape as the map) with play/clear statistics and five stars you can tap to rate; functions show a vector-field preview of the same shape with usage/unique-player counts, the average rating and the favorite count.
 
 ### Community content statistics
 
 Every community item counts how often it was used and how many **different** players used it:
 
 - Levels: a **play** is counted when a community level is launched; a **clear** when the ship reaches the target; the **players** counter counts the different players who cleared it.
-- Functions: a **use** is counted when a flight launches with an imported community function in effect; a **successful use** when that flight is cleared; the **unique players** counter counts the different players who used it. Browsing and previewing never count.
+- Functions: a **use** is counted when a flight launches with a community function in effect — either the one you imported in the Function Lab or the one you picked from the game screen's function list (picking one counts as using it); a **successful use** when that flight is cleared; the **unique players** counter counts the different players who used it. Browsing and previewing never count.
 - A signed-in player is identified by the account id, a guest by a random id kept in the local profile. The database only stores a per-item hash of that id, so the public rows cannot be used to identify or track a player elsewhere.
 
 The counters live on the row in the database and are raised by the `community_level_record_play` / `community_level_record_clear` / `community_function_record_usage` database functions, so two players never overwrite each other's count. Favorites and ratings live in their own per-user tables; the aggregate `favorite_count` / `rating_count` / `rating_total` columns are maintained by database triggers. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; re-running it is safe and also replaces raw ids stored by an older version with per-item hashes. On an older database the items are still listed and searched, only without their counters.
 
-### Favorites and ratings (Functions)
+### Favorites and ratings
 
-Signed-in users can favorite a function (one per player, toggled with the ♥ button) and rate it from 1 to 5 stars (one rating per player per function, changeable at any time). The average rating and the rating count are shown on the card and in the detail view; the favorite count is shown next to the heart. Sorting by favorites and by highest rated is available from the **Sort** button.
+Signed-in users can favorite a level or a function (one per player, toggled with the ♥ button in the top-right corner of the card; it turns bright when favorited) and rate it from 1 to 5 stars (one rating per player per item, changeable at any time). Level cards carry five stars you can tap directly on the card; functions rate in the detail view. The stars always show the **average rating** (rounded half up), so the picture and the `{avg:.1f}` text never disagree — your own rating is shown next to them. The average and the count are shown on the card and in the detail view; the favorite count is shown next to the heart. Sorting by favorites and by highest rated is available from the **Sort** dropdown.
+
+### One name per player
+
+A player may not have two of their own items with the same name — not in the local library, not in the community: there is exactly one "Maze" and one "Vortex" per player, compared case- and whitespace-insensitively. This applies to custom levels, saved functions, and community uploads of both. Uploads whose name another of your uploads already uses are rejected; saving a local item under a taken name is rejected too (the name field stays open so you can pick another). Community items you imported keep their identity (they are linked by id), and importing a community item into a library that already has that name suggests a free name like "Vortex (2)" instead of colliding. Different players may use the same name freely — the check only ever looks at your own items.
+
+### Publishing and staying in sync
+
+Publishing saves a linked copy, exactly like the custom levels do: the local item and the community upload share one identity, so **saving a published function or level locally also refreshes the published copy**, and **deleting it locally removes the published copy too**. A published function keeps its community row across re-uploads and renames, and its community statistics survive updates. Uploads with the same name and the same formulas as one of your published items update that entry in place instead of duplicating it.
 
 ### Inspecting, importing and uploading functions
 
 Click any function card to inspect it without downloading: the detail panel shows the vector field with a probe trajectory, the `Fx`/`Fy` formulas, the description, the tags and all statistics, and validates nothing on your behalf — nothing is added to your library until you press **Import to Function Lab**. Importing creates a **new** local function in your library (it never overwrites an existing entry, it suggests an unused name, and it keeps a `community` source tag and the community row id so usage is attributed to the published function).
 
-Use the Function Lab (**Public Functions**, or **Upload** in the lab) to publish your own functions: the lab validates both formulas and the community page shows your uploads with edit/delete controls. Uploads with the same formulas update your existing entry instead of duplicating it.
+Use the Function Lab (**Public Functions**, or **Upload** in the lab) to publish your own functions: the lab validates both formulas and the community page shows your uploads with edit/delete controls. Uploads with the same formulas update your existing entry instead of duplicating it; uploading a name another of your published items already uses is rejected — one name per player.
 
 Community features use the built-in Supabase backend by default. Players do not need to provide their own credentials to browse public content or use online account features.
 
@@ -560,7 +568,7 @@ No additional configuration is required. Simply launch the game, and the built-i
 
 1. Create a Supabase project.
 2. In the project's Authentication settings, enable the Email provider and configure email confirmation/password recovery to match your project.
-3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles`, `community_levels` and `community_functions` tables, the `community_function_favorites` and `community_function_ratings` tables, their Row Level Security policies, the profile-creation trigger, and the database functions and triggers that count the [community content statistics](#community-content-statistics).
+3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles`, `community_levels` and `community_functions` tables, the `community_level_favorites` / `community_level_ratings` and `community_function_favorites` / `community_function_ratings` tables, their Row Level Security policies, the profile-creation trigger, and the database functions and triggers that count the [community content statistics](#community-content-statistics).
 4. Copy `.env.example` to `.env` and replace the placeholder values with your own project URL and public anon key:
 
    ```dotenv

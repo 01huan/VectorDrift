@@ -604,6 +604,22 @@ class LevelEditorScene(Scene):
         self.upload_button.enabled = authenticated
         self.upload_button.label = "Upload" if authenticated else "Upload (login)"
 
+    def _name_conflict(self, name):
+        """The player's other custom level carrying ``name``, or None.
+
+        Names are compared ignoring case and repeated whitespace.  The
+        level currently being edited is never a conflict with itself.
+        """
+        key = " ".join(str(name or "").split()).casefold()
+        exclude = self.level.id if self.level is not None else None
+        for lv in getattr(self.session, "custom_levels", ()) or ():
+            if exclude is not None and getattr(lv, "id", None) == exclude:
+                continue
+            other = " ".join(str(getattr(lv, "name", "") or "").split()).casefold()
+            if other == key:
+                return lv
+        return None
+
     def _build_spec(self, name="Custom"):
         """Validate the current layout and build a ``LevelSpec`` (or None)."""
         if any(self._overlaps(self._object_center(ref), self._object_radius(ref), ignore=ref)
@@ -659,6 +675,11 @@ class LevelEditorScene(Scene):
         )
 
     def _save(self, name="Custom"):
+        conflict = self._name_conflict(name)
+        if conflict is not None:
+            self.message = f'A level named "{" ".join(str(name).split())}" already exists in your library.'
+            self.audio.play("error")
+            return False
         spec = self._build_spec(name)
         if spec is None:
             return False
@@ -670,11 +691,13 @@ class LevelEditorScene(Scene):
         from ..achievements import unlock
         unlock(self.manager, "built_different")
         # 若該關卡曾上傳到社區，同步更新名稱與內容，讓公開卡片保持一致。
+        # 同步是盡力而為：失敗（例如離峰時段名稱衝突、斷線）會吞掉，
+        # 下次上傳前或下次存檔時還能再試。
         account = self.manager.account
         if account is not None and account.is_authenticated():
             try:
                 community.update_community_level_by_local_id(
-                    account, spec.id, name, community.serialize_level(spec)
+                    account, spec.id, name, community.serialize_level(spec),
                 )
             except Exception:  # noqa: BLE001 - 本機儲存已完成，社區同步失敗不應回滾
                 pass
@@ -691,12 +714,17 @@ class LevelEditorScene(Scene):
             return
         if self.busy:
             return
+        conflict = self._name_conflict(name)
+        if conflict is not None:
+            self.message = f'A level named "{" ".join(str(name).split())}" already exists in your library.'
+            return
         spec = self._build_spec(name)
         if spec is None:
             return  # _build_spec already showed the overlap message
         # 先把本機關卡儲存（登入狀態下會同步到雲端），這樣社區上傳才有
         # 正確的 id 與最新內容；若該關卡已上傳過，save 也會同步更新社區。
-        self._save(spec.name)
+        if not self._save(spec.name):
+            return  # the name is taken: nothing is uploaded
         self.busy = True
         self.message = "Uploading to community..."
 

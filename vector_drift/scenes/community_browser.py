@@ -34,7 +34,7 @@ import pygame
 from .. import config
 from ..config import px
 from ..level_pages import can_next, can_prev, clamp_page, levels_on_page, page_count, wheel_step
-from ..ui import Button, TextInput, draw_text, fit_text
+from ..ui import Button, Dropdown, TextInput, draw_text, fit_text
 from .base import Scene
 
 # Toolbar layout (logical pixels).
@@ -45,15 +45,15 @@ _UPLOADER_CAPTION_X = 258
 _UPLOADER_INPUT_X = 282
 _UPLOADER_INPUT_W = 150
 _SORT_BUTTON_X = 442
-_SORT_BUTTON_W = 186
-_DIR_BUTTON_X = 636
+_SORT_BUTTON_W = 200
+_DIR_BUTTON_X = 650
 _DIR_BUTTON_W = 34
-_EXTRA_X = 678
+_EXTRA_X = 692
 _EXTRA_W = 168
 _MIN_INPUT_X = 86
 _MIN_INPUT_W = 92
 _MIN_INPUT_GAP = 8
-_RESET_BUTTON_X = 854
+_RESET_BUTTON_X = 868
 _RESET_BUTTON_W = 84
 _FILTER_SUMMARY_X = 430
 
@@ -63,11 +63,14 @@ _TOOLBAR_Y = 80
 _FILTER_Y = 116
 _CARDS_Y = 150
 _CARD_W = 240
-_CARD_H = 152
+_CARD_H = 170
 _CARD_GAP_X = 20
 _CARD_GAP_Y = 14
 _CARDS_X = 60
 _COLUMNS = 4
+_THUMB_W = 120
+_THUMB_H = 90   # 4:3, exactly the aspect of the game map / vector field
+_THUMB_Y = 44
 
 _TAB_H = 32
 _TAB_W = 170
@@ -95,11 +98,15 @@ class CommunityBrowserScene(Scene):
         self.cards = []
         self.delete_rects = []           # parallel to self.cards
         self.manage_rects = []           # edit button per card (owned only)
-        self.favorite_rects = []         # favorite button per card (functions)
+        self.favorite_rects = []         # favorite (heart) button per card
+        self.import_rects = []           # import (↓) button per card (levels only)
+        self.star_rects = []             # 5 rating stars per card (levels only)
         self.deleting = None
         self.busy = False
         self.status = ""
         self.levels = []
+        self._my_favorites = set()       # row ids this player favorited
+        self._my_ratings = {}            # row id -> this player's rating (1..5)
 
         # --- search / sort / filter -------------------------------------
         self.sort_key = self._default_sort_key()
@@ -111,8 +118,13 @@ class CommunityBrowserScene(Scene):
             (px(_UPLOADER_INPUT_X), px(_TOOLBAR_Y), px(_UPLOADER_INPUT_W), px(30)),
             "uploader", font_size=14, on_change=self._on_filter_changed)
         self._build_extra_widgets()
-        self.sort_button = Button((px(_SORT_BUTTON_X), px(_TOOLBAR_Y), px(_SORT_BUTTON_W), px(30)),
-                                  "Sort", style="plain", font_size=14)
+        self.sort_menu = Dropdown(
+            (px(_SORT_BUTTON_X), px(_TOOLBAR_Y), px(_SORT_BUTTON_W), px(30)),
+            list(self._sort_table().labels.items()),
+            font_size=14, prefix="Sort: ", on_select=self._on_sort_picked)
+        # Kept as a public attribute: the button face of the sort dropdown
+        # (tests and tooltips refer to it as the sort button).
+        self.sort_button = self.sort_menu.button
         self.sort_dir_button = Button((px(_DIR_BUTTON_X), px(_TOOLBAR_Y), px(_DIR_BUTTON_W), px(30)),
                                       "↓", style="plain", font_size=15)
         self.reset_button = Button((px(_RESET_BUTTON_X), px(_TOOLBAR_Y), px(_RESET_BUTTON_W), px(30)),
@@ -192,6 +204,8 @@ class CommunityBrowserScene(Scene):
             self.uploader_input.set_text(state.get("uploader_query", ""))
             self.sort_key = state.get("sort_key", self.sort_key)
             self.descending = bool(state.get("descending", self.descending))
+            self.sort_key = self.sort_key if self.sort_key in self._sort_keys() else self._default_sort_key()
+            self.sort_menu.set_value(self.sort_key)
             self.page = max(0, int(state.get("page", 0)))
             self._restore_extra_state(state)
         except Exception:  # noqa: BLE001 - a corrupt saved state never breaks the page
@@ -213,11 +227,9 @@ class CommunityBrowserScene(Scene):
         if self.tab_functions.handle_event(event) == "click":
             self._switch_category("functions")
             return
-        # The toolbar buttons come first: clicking one keeps the focus in the
-        # search box, so the player can keep typing right afterwards.
-        if self.sort_button.handle_event(event) == "click":
-            self.audio.play("click")
-            self._cycle_sort()
+        # The sort dropdown comes before every other control: while its
+        # list is open the page underneath must not react.
+        if self.sort_menu.handle_event(event):
             return
         if self.sort_dir_button.handle_event(event) == "click":
             self.audio.play("click")
@@ -254,20 +266,31 @@ class CommunityBrowserScene(Scene):
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not self.busy:
             # Delete / manage own uploads first (small buttons in the
-            # top-right corner of a card).
+            # top-right corner of a card), then the engagement buttons.
             for index, (row, rect) in enumerate(self.cards):
                 del_rect = self.delete_rects[index] if index < len(self.delete_rects) else None
                 if del_rect is not None and del_rect.collidepoint(event.pos):
                     self._delete(row)
                     return
-                edit_rect = self.manage_rects[index] if hasattr(self, "manage_rects") and index < len(self.manage_rects) else None
+                edit_rect = self.manage_rects[index] if index < len(self.manage_rects) else None
                 if edit_rect is not None and edit_rect.collidepoint(event.pos):
                     self._edit(row)
                     return
-                fav_rect = self.favorite_rects[index] if hasattr(self, "favorite_rects") and index < len(self.favorite_rects) else None
+                fav_rect = self.favorite_rects[index] if index < len(self.favorite_rects) else None
                 if fav_rect is not None and fav_rect.collidepoint(event.pos):
                     self._toggle_favorite(row)
                     return
+                import_rect = self.import_rects[index] if index < len(self.import_rects) else None
+                if import_rect is not None and import_rect.collidepoint(event.pos):
+                    self._import_action(row)
+                    return
+                stars = self.star_rects[index] if index < len(self.star_rects) else None
+                if stars:
+                    for star_index, star_rect in enumerate(stars):
+                        if star_rect.collidepoint(event.pos):
+                            self.audio.play("click")
+                            self._rate(row, star_index + 1)
+                            return
             # Otherwise open the content.
             for row, rect in self.cards:
                 if rect.collidepoint(event.pos):
@@ -351,10 +374,15 @@ class CommunityBrowserScene(Scene):
         self.status = self._loading_text()
         self.cards = []
         self.delete_rects = []
+        self.manage_rects = []
+        self.favorite_rects = []
+        self.import_rects = []
+        self.star_rects = []
         self.levels = []
         self._filtered = []
         self._info_cache.clear()
         self._preview_cache.clear()
+        self.sort_menu.close()
         self._dirty = True
         self._fetch_rows(on_success=self._on_loaded, on_error=self._on_error)
 
@@ -367,6 +395,7 @@ class CommunityBrowserScene(Scene):
         self.status = self._found_text(len(self.levels))
         self.busy = False
         self._dirty = True
+        self._fetch_engagement()
 
     def _on_error(self, exc):
         self.status = f"Failed to load community {self.content_label}: {exc}"
@@ -409,8 +438,116 @@ class CommunityBrowserScene(Scene):
         """Hook: edit one of the user's own rows (hook)."""
         self.status = "Editing is not available here."
 
+    # ------------------------------------------------------------ engagement
+
+    def _engagement_api(self):
+        """The (fetch, set_favorite, set_rating) functions of this content type.
+
+        Each entry point is resolved lazily (at call time) so tests can
+        monkeypatch the account module's attributes.
+        """
+        raise NotImplementedError
+
+    def _fetch_engagement(self):
+        """Load the signed-in player's own favorites and ratings."""
+        account = getattr(self.manager, "account", None)
+
+        def on_ok(payload):
+            if not isinstance(payload, dict):
+                return
+            favorites = payload.get("favorites") or []
+            ratings = payload.get("ratings") or {}
+            self._my_favorites = {str(item) for item in favorites if item}
+            clean = {}
+            for key, value in ratings.items():
+                try:
+                    clean[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
+            self._my_ratings = clean
+            self._dirty = True
+
+        try:
+            self._engagement_api()[0](account, on_success=on_ok, on_error=lambda exc: None)
+        except Exception:  # noqa: BLE001 - a missing engagement service never breaks browsing
+            pass
+
+    def _is_logged_in(self) -> bool:
+        account = getattr(self.manager, "account", None)
+        return (account is not None and account.is_authenticated()
+                and account.current_user is not None)
+
     def _toggle_favorite(self, row):
-        """Hook: favorite/unfavorite one row (hook; functions only)."""
+        """Favorite (or unfavorite) one row; guests are asked to log in."""
+        account = getattr(self.manager, "account", None)
+        row_id = str((row or {}).get("id") or "") if isinstance(row, dict) else ""
+        if not row_id:
+            return
+        if not self._is_logged_in():
+            self.status = f"Please log in to favorite {self.content_label}."
+            return
+        wanted = row_id not in self._my_favorites
+
+        def on_ok(_result=None):
+            if wanted:
+                self._my_favorites.add(row_id)
+                row["favorite_count"] = int(row.get("favorite_count") or 0) + 1
+            else:
+                self._my_favorites.discard(row_id)
+                row["favorite_count"] = max(0, int(row.get("favorite_count") or 0) - 1)
+            self._info_cache.pop(row_id, None)
+            self._dirty = True
+            self._after_favorite(row)
+
+        def on_err(exc):
+            self.status = f"Could not update your favorite: {exc}"
+
+        try:
+            self._engagement_api()[1](row_id, wanted, account,
+                                      on_success=on_ok, on_error=on_err)
+        except Exception as exc:  # noqa: BLE001 - the button must never break the page
+            on_err(exc)
+
+    def _rate(self, row, stars: int):
+        """Rate one row 1..5 stars; guests are asked to log in."""
+        account = getattr(self.manager, "account", None)
+        row_id = str((row or {}).get("id") or "") if isinstance(row, dict) else ""
+        if not row_id:
+            return
+        if not self._is_logged_in():
+            self.status = f"Please log in to rate {self.content_label}."
+            return
+        old = self._my_ratings.get(row_id)
+
+        def on_ok(_result=None):
+            self._my_ratings[row_id] = stars
+            rating_count = int(row.get("rating_count") or 0)
+            rating_total = int(row.get("rating_total") or 0)
+            if old is None:
+                rating_count += 1
+                rating_total += stars
+            else:
+                rating_total = max(0, rating_total - old + stars)
+            row["rating_count"] = rating_count
+            row["rating_total"] = rating_total
+            self._info_cache.pop(row_id, None)
+            self._dirty = True
+            self._after_rate(row)
+
+        def on_err(exc):
+            self.status = f"Could not save your rating: {exc}"
+
+        try:
+            self._engagement_api()[2](row_id, stars, account,
+                                      on_success=on_ok, on_error=on_err)
+        except Exception as exc:  # noqa: BLE001 - the stars must never break the page
+            on_err(exc)
+
+    def _after_favorite(self, row) -> None:
+        """Hook: extra work after a favorite toggled (overlay rebuilds, ...)."""
+
+    def _after_rate(self, row) -> None:
+        """Hook: extra work after a rating was saved (overlay refresh, ...)."""
 
     # ---------------------------------------------------------------- filtering
 
@@ -422,14 +559,13 @@ class CommunityBrowserScene(Scene):
         self.page = 0
         self._store_state()
 
-    def _cycle_sort(self):
-        """Next sort order (the direction follows the new order)."""
-        try:
-            index = self._sort_keys().index(self.sort_key)
-        except ValueError:
-            index = 0
-        self.sort_key = self._sort_keys()[(index + 1) % len(self._sort_keys())]
-        self.descending = self._default_direction(self.sort_key)
+    def _on_sort_picked(self, value):
+        """A sort option was picked in the dropdown: apply its default direction."""
+        key = str(value)
+        if key not in self._sort_keys():
+            key = self._default_sort_key()
+        self.sort_key = key
+        self.descending = self._default_direction(key)
         self._on_filter_changed()
 
     def _reset_filters(self):
@@ -437,8 +573,10 @@ class CommunityBrowserScene(Scene):
         for widget in self._input_widgets():
             widget.clear()
         self._reset_extra_filters()
+        self.sort_menu.close()
         self.sort_key = self._default_sort_key()
         self.descending = self._default_direction(self.sort_key)
+        self.sort_menu.set_value(self.sort_key)
         self._on_filter_changed()
 
     def _reset_extra_filters(self) -> None:
@@ -508,6 +646,8 @@ class CommunityBrowserScene(Scene):
         self.delete_rects = []
         self.manage_rects = []
         self.favorite_rects = []
+        self.import_rects = []
+        self.star_rects = []
         page_entries = []
         x, y = px(_CARDS_X), px(_CARDS_Y)
         step_x = px(_CARD_W + _CARD_GAP_X)
@@ -521,6 +661,8 @@ class CommunityBrowserScene(Scene):
             self.delete_rects.append(self._delete_rect(rect))
             self.manage_rects.append(self._manage_rect(rect))
             self.favorite_rects.append(self._favorite_rect(rect, row))
+            self.import_rects.append(self._import_rect(rect, row))
+            self.star_rects.append(self._card_star_rects(rect))
             page_entries.append((row, _info))
         self._page_entries = page_entries
         self.prev_page_button.enabled = can_prev(self.page)
@@ -538,6 +680,17 @@ class CommunityBrowserScene(Scene):
 
     def _favorite_rect(self, rect: pygame.Rect, row=None):
         return None
+
+    def _import_rect(self, rect: pygame.Rect, row=None):
+        """Hook: the import (↓) button of a card (levels only)."""
+        return None
+
+    def _card_star_rects(self, rect: pygame.Rect):
+        """Hook: the five rating stars of a card (levels only)."""
+        return None
+
+    def _import_action(self, row) -> None:
+        """Hook: what the import button does (levels only)."""
 
     def _visible_count(self) -> int:
         """How many cards fit on the screen (the rest is not drawn)."""
@@ -566,8 +719,7 @@ class CommunityBrowserScene(Scene):
         draw_text(surface, "By", (px(_UPLOADER_CAPTION_X), px(_TOOLBAR_Y + 15)), 13,
                   label_color, anchor="midleft")
         self.uploader_input.draw(surface)
-        self.sort_button.label = f"Sort: {self._sort_table().labels.get(self.sort_key, self.sort_key)}"
-        self.sort_button.draw(surface)
+        self.sort_menu.draw(surface)
         self.sort_dir_button.label = "↓" if self.descending else "↑"
         self.sort_dir_button.draw(surface)
         self.reset_button.draw(surface)
@@ -619,13 +771,42 @@ class CommunityBrowserScene(Scene):
         draw_text(surface, text, (config.WINDOW_W // 2, px(_CARDS_Y + 150)), 16,
                   config.TEXT_DIM, anchor="center")
 
-    def _draw_card(self, surface, row, info, rect, del_rect=None, manage_rect=None, fav_rect=None):
+    def _draw_card(self, surface, row, info, rect, del_rect=None, manage_rect=None,
+                   fav_rect=None, import_rect=None, stars=None):
         """Hook: draw one card's contents."""
         raise NotImplementedError
 
     def _draw_card_frame(self, surface, rect):
         pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
         pygame.draw.rect(surface, config.PANEL_EDGE, rect, width=max(1, px(1)), border_radius=px(6))
+
+    @staticmethod
+    def _draw_favorite_button(surface, fav_rect, active) -> None:
+        """The heart toggle: filled and bright when this player favorited the row."""
+        if fav_rect is None:
+            return
+        hover = fav_rect.collidepoint(pygame.mouse.get_pos())
+        if active:
+            bg = (224, 90, 126) if hover else (206, 72, 110)
+            heart_color = (255, 255, 255)
+        else:
+            bg = config.BUTTON_PLAIN_HOVER if hover else config.BUTTON_PLAIN
+            heart_color = config.TEXT_FAINT if not hover else config.TEXT_DIM
+        pygame.draw.rect(surface, bg, fav_rect, border_radius=px(3))
+        from ..ui_icons import icon_surface
+        heart = icon_surface("heart", min(fav_rect.w, fav_rect.h) - px(3), heart_color)
+        surface.blit(heart, heart.get_rect(center=fav_rect.center))
+
+    @staticmethod
+    def _draw_import_button(surface, rect) -> None:
+        """The ↓ (import) button, shared by every content type that offers one."""
+        if rect is None:
+            return
+        hover = rect.collidepoint(pygame.mouse.get_pos())
+        bg = (44, 134, 156) if hover else (34, 110, 130)
+        pygame.draw.rect(surface, bg, rect, border_radius=px(3))
+        draw_text(surface, "↓", rect.center, 15, (255, 255, 255),
+                  kind="bold", anchor="center")
 
     def _draw_owner_buttons(self, surface, row, del_rect, manage_rect):
         """The delete / edit buttons shared by both kinds."""
@@ -668,13 +849,18 @@ class CommunityBrowserScene(Scene):
             del_rect = self.delete_rects[index] if index < len(self.delete_rects) else None
             manage_rect = self.manage_rects[index] if index < len(self.manage_rects) else None
             fav_rect = self.favorite_rects[index] if index < len(self.favorite_rects) else None
-            self._draw_card(surface, row, info, rect, del_rect, manage_rect, fav_rect)
+            import_rect = self.import_rects[index] if index < len(self.import_rects) else None
+            stars = self.star_rects[index] if index < len(self.star_rects) else None
+            self._draw_card(surface, row, info, rect, del_rect, manage_rect, fav_rect,
+                            import_rect=import_rect, stars=stars)
         if self.busy:
             draw_text(surface, self.status or "Loading...", (config.WINDOW_W // 2, config.WINDOW_H - px(60)),
                       15, config.WARNING, anchor="center")
         elif self.status:
             draw_text(surface, self.status, (config.WINDOW_W // 2, config.WINDOW_H - px(60)),
                       15, config.SUCCESS, anchor="center")
+        # The open sort menu sits above everything else.
+        self.sort_menu.draw_overlay(surface)
 
     def _tab_caption(self) -> str:
         return "one place, every player's creations"

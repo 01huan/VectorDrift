@@ -82,9 +82,21 @@ def layout(scene):
 
 
 def load(scene, function):
-    """Write a saved function into the Fx / Fy editor."""
+    """Write a saved function into the Fx / Fy editor.
+
+    The function is also marked as the one the player is using, so a launch
+    or a clear with it counts toward the community usage statistics when it
+    came from the community — picking it from this list is what "using" it
+    means.
+    """
     scene.editor.set_lines([function.fx, function.fy])
+    scene.session.imported_function_id = function.id
     scene._on_text_change(scene.editor)
+    try:
+        from ..account.integration import save_progress
+        save_progress(getattr(scene.manager, "account", None), scene.session)
+    except Exception:  # noqa: BLE001 - persisting the selection must not block the picker
+        pass
     close_popup(scene)
 
 

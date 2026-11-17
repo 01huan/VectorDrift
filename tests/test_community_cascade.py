@@ -217,3 +217,41 @@ def test_update_community_level_by_local_id_respects_ownership(monkeypatch):
     new_data = {"id": 7003, "name": "Hacked"}
     community_module.update_community_level_by_local_id(acc, 7003, "Hacked", new_data)
     assert rows[2]["level_name"] == "L3"
+
+
+def test_update_community_level_by_local_id_with_uuid_id(monkeypatch):
+    rows = _rows()
+    _install_fake_client(monkeypatch, rows)
+    _sync_run_async(monkeypatch)
+    acc = _account(authenticated=True, user_id="u1")
+    uuid_id = "550e8400-e29b-41d4-a716-446655440000"
+    rows.append({
+        "id": "r4",
+        "user_id": "u1",
+        "uploader_name": "Old",
+        "level_name": "L4",
+        "level_data": {"id": uuid_id, "name": "C4"},
+    })
+    new_data = {"id": uuid_id, "name": "UUID Level"}
+    community_module.update_community_level_by_local_id(acc, uuid_id, "UUID Level", new_data)
+    assert rows[3]["level_name"] == "UUID Level"
+    assert rows[3]["level_data"] == new_data
+
+
+def test_update_community_level_by_local_id_with_alphanumeric_id(monkeypatch):
+    rows = _rows()
+    _install_fake_client(monkeypatch, rows)
+    _sync_run_async(monkeypatch)
+    acc = _account(authenticated=True, user_id="u1")
+    alpha_id = "LVL-A1B2C3"
+    rows.append({
+        "id": "r5",
+        "user_id": "u1",
+        "uploader_name": "Old",
+        "level_name": "L5",
+        "level_data": {"id": alpha_id, "name": "C5"},
+    })
+    new_data = {"id": alpha_id, "name": "Alpha Level"}
+    community_module.update_community_level_by_local_id(acc, alpha_id, "Alpha Level", new_data)
+    assert rows[3]["level_name"] == "Alpha Level"
+    assert rows[3]["level_data"] == new_data

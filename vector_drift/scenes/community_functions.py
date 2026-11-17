@@ -29,6 +29,7 @@ from ..community_function_browse import (
     parse_tags,
     tags_to_text,
 )
+from ..community_core import round_half_up
 from ..config import px
 from ..function_library import (
     MAX_FUNCTIONS,
@@ -46,6 +47,9 @@ from .community_browser import (
     _EXTRA_W,
     _EXTRA_X,
     _FILTER_Y,
+    _THUMB_H,
+    _THUMB_W,
+    _THUMB_Y,
     _TOOLBAR_Y,
     _MIN_INPUT_X,
     CommunityBrowserScene,
@@ -88,8 +92,6 @@ class CommunityFunctionsScene(CommunityBrowserScene):
         self._import_input = None
         self._overlay_buttons = {}
         self._star_rects = []
-        self._my_favorites = set()
-        self._my_ratings = {}
         self._previews = {}            # (fx, fy, w, h) -> preview payload
         super().__init__(manager, back_to=back_to)
 
@@ -172,91 +174,20 @@ class CommunityFunctionsScene(CommunityBrowserScene):
 
     # ------------------------------------------------------------ engagement
 
-    def _fetch_engagement(self):
-        account = self.manager.account
+    def _engagement_api(self):
+        from ..account import community
 
-        def on_ok(payload):
-            if isinstance(payload, dict):
-                self._my_favorites = set(payload.get("favorites") or [])
-                ratings = payload.get("ratings") or {}
-                self._my_ratings = {str(k): int(v) for k, v in ratings.items()
-                                    if str(k) and isinstance(v, int)}
-                self._dirty = True
+        return (community.fetch_function_engagement,
+                community.set_function_favorite,
+                community.set_function_rating)
 
-        try:
-            community.fetch_function_engagement(account, on_success=on_ok, on_error=lambda exc: None)
-        except Exception:  # noqa: BLE001 - a missing engagement service never breaks browsing
-            pass
+    def _after_favorite(self, row):
+        self._previews.clear()
+        if self._detail_row is row:
+            self._build_detail_buttons()
 
-    def _on_loaded(self, rows):
-        super()._on_loaded(rows)
-        self._fetch_engagement()
-
-    def _toggle_favorite(self, row):
-        account = self.manager.account
-        row_id = str(row.get("id"))
-        if not row_id:
-            return
-        if (
-            account is None
-            or not account.is_authenticated()
-            or account.current_user is None
-        ):
-            self.status = "Please log in to favorite functions."
-            return
-        wanted = row_id not in self._my_favorites
-
-        def on_ok(_result=None):
-            if wanted:
-                self._my_favorites.add(row_id)
-                row["favorite_count"] = int(row.get("favorite_count") or 0) + 1
-            else:
-                self._my_favorites.discard(row_id)
-                row["favorite_count"] = max(0, int(row.get("favorite_count") or 0) - 1)
-            self._info_cache.pop(row_id, None)
-            self._previews.clear()
-            self._dirty = True
-            if self._detail_row is row:
-                self._build_detail_buttons()
-
-        def on_err(exc):
-            self.status = f"Could not update your favorite: {exc}"
-
-        community.set_function_favorite(row_id, wanted, account, on_success=on_ok, on_error=on_err)
-
-    def _rate(self, row, stars: int):
-        account = self.manager.account
-        row_id = str(row.get("id"))
-        if not row_id:
-            return
-        if (
-            account is None
-            or not account.is_authenticated()
-            or account.current_user is None
-        ):
-            self.status = "Please log in to rate functions."
-            return
-        old = self._my_ratings.get(row_id)
-
-        def on_ok(_result=None):
-            self._my_ratings[row_id] = stars
-            rating_count = int(row.get("rating_count") or 0)
-            rating_total = int(row.get("rating_total") or 0)
-            if old is None:
-                rating_count += 1
-                rating_total += stars
-            else:
-                rating_total = max(0, rating_total - old + stars)
-            row["rating_count"] = rating_count
-            row["rating_total"] = rating_total
-            self._info_cache.pop(row_id, None)
-            self._detail_info = None
-            self._dirty = True
-
-        def on_err(exc):
-            self.status = f"Could not save your rating: {exc}"
-
-        community.set_function_rating(row_id, stars, account, on_success=on_ok, on_error=on_err)
+    def _after_rate(self, row):
+        self._detail_info = None
 
     # ------------------------------------------------------------------ cards
 
@@ -290,54 +221,46 @@ class CommunityFunctionsScene(CommunityBrowserScene):
             surface.set_clip(clip_backup)
 
     def _draw_card(self, surface, fn: dict, info: CommunityFunctionInfo, rect: pygame.Rect,
-                   del_rect=None, manage_rect=None, fav_rect=None):
+                   del_rect=None, manage_rect=None, fav_rect=None, import_rect=None, stars=None):
         """One function card: name, uploader, preview, stats, engagement."""
         self._draw_card_frame(surface, rect)
-        row_id = str(fn.get("id"))
+        row_id = str(fn.get("id") or "") if isinstance(fn, dict) else ""
         owner = self._is_owner(fn)
         name_w = rect.w - px(150) if owner else rect.w - px(60)
         name = fit_text(info.name or "Untitled", max(60, name_w), 14, kind="bold")
         draw_text(surface, name, (rect.x + px(10), rect.y + px(7)), 14, config.TEXT, kind="bold")
-        uploader = fit_text(info.uploader or "—", rect.w - px(20), 11)
-        draw_text(surface, uploader, (rect.x + px(10), rect.y + px(25)), 11, config.TEXT_DIM)
+        uploader = fit_text(info.uploader or "—", rect.w - px(100), 11)
+        draw_text(surface, uploader, (rect.x + px(10), rect.y + px(26)), 11, config.TEXT_DIM)
+        date = info.detail_date()
+        draw_text(surface, date, (rect.right - px(10), rect.y + px(27)), 11,
+                  config.TEXT_FAINT, anchor="topright")
 
-        preview = pygame.Rect(rect.x + px(10), rect.y + px(42), rect.w - px(20), px(56))
+        preview = pygame.Rect(rect.x + (rect.w - px(_THUMB_W)) // 2, rect.y + px(_THUMB_Y),
+                              px(_THUMB_W), px(_THUMB_H))
         self._draw_field_preview(surface, fn, preview)
 
-        caption = info.description or info.fx or ""
-        draw_text(surface, fit_text(caption, rect.w - px(20), 10),
-                  (rect.x + px(10), rect.y + px(101)), 10, config.TEXT_DIM)
         avg = info.average_rating
         usage = f"uses {info.usage_count} · users {info.unique_user_count}"
-        draw_text(surface, fit_text(usage, rect.w - px(20) - px(64), 11),
-                  (rect.x + px(10), rect.y + px(114)), 11, config.TEXT_DIM)
+        draw_text(surface, fit_text(usage, rect.w - px(96), 11),
+                  (rect.x + px(10), rect.y + px(138)), 11, config.TEXT_DIM)
         rating_text = f"{avg:.1f} ({info.rating_count})" if info.rating_count else "—"
         from ..ui_icons import icon_surface
         star_icon = icon_surface("star", px(12),
                                  (255, 205, 80) if info.rating_count else config.TEXT_FAINT)
         text_w = int(get_text_width(rating_text, 11))
-        surface.blit(star_icon, star_icon.get_rect(topleft=(rect.right - px(10) - text_w - px(14), rect.y + px(113))))
-        draw_text(surface, rating_text, (rect.right - px(10), rect.y + px(114)), 11,
+        surface.blit(star_icon, star_icon.get_rect(topleft=(rect.right - px(10) - text_w - px(15), rect.y + px(137))))
+        draw_text(surface, rating_text, (rect.right - px(10), rect.y + px(138)), 11,
                   (255, 205, 80) if info.rating_count else config.TEXT_FAINT, anchor="topright")
         tags = ", ".join(info.tags) if info.tags else ""
-        date = info.detail_date()
-        left = fit_text(tags or "no tags", rect.w - px(20) - px(58), 10)
-        draw_text(surface, left, (rect.x + px(10), rect.y + px(128)), 10,
+        left = fit_text(tags or "no tags", rect.w - px(20) - px(52), 10)
+        draw_text(surface, left, (rect.x + px(10), rect.y + px(153)), 10,
                   config.TEXT_FAINT if tags else config.TEXT_DIM)
-        right = f"♥ {info.favorite_count}" + (f" · {date}" if date else "")
-        draw_text(surface, fit_text(right, px(96), 10),
-                  (rect.right - px(10), rect.y + px(128)), 10, config.TEXT_FAINT, anchor="topright")
+        right = f"♥ {info.favorite_count}"
+        draw_text(surface, right, (rect.right - px(10), rect.y + px(153)), 10,
+                  config.TEXT_FAINT, anchor="topright")
 
         # Engagement / management buttons.
-        fav_hover = fav_rect is not None and fav_rect.collidepoint(pygame.mouse.get_pos())
-        if fav_rect is not None:
-            fav_on = row_id in self._my_favorites
-            bg = (150, 60, 80) if fav_on else ((140, 60, 70) if not fav_hover else config.DANGER)
-            if fav_on and fav_hover:
-                bg = config.DANGER
-            pygame.draw.rect(surface, bg, fav_rect, border_radius=px(3))
-            draw_text(surface, "♥", fav_rect.center, 13, (255, 255, 255),
-                      kind="bold", anchor="center")
+        self._draw_favorite_button(surface, fav_rect, row_id in self._my_favorites)
         self._draw_owner_buttons(surface, fn, del_rect, manage_rect)
 
     # ------------------------------------------------------------------ events
@@ -729,22 +652,18 @@ class CommunityFunctionsScene(CommunityBrowserScene):
             y += px(30)
             avg = info.average_rating
             count = info.rating_count
-            draw_text(surface, "RATING", (col_x, y), 10, config.TEXT_FAINT, kind="bold")
+            draw_text(surface, "AVERAGE RATING", (col_x, y), 10, config.TEXT_FAINT, kind="bold")
             self._star_rects = self._star_rects_layout((col_x, y + px(14)))
             my_rating = self._my_ratings.get(str(row.get("id")))
+            filled = round_half_up(avg) if count else 0
             from ..ui_icons import icon_surface
             for index, star in enumerate(self._star_rects):
-                filled = my_rating is not None and index < my_rating
-                avg_fill = my_rating is None and index < int(round(avg))
-                if filled:
-                    color = (255, 205, 80)
-                elif avg_fill:
-                    color = (190, 160, 70)
-                else:
-                    color = (70, 80, 110)
+                color = (255, 205, 80) if index < filled else (70, 80, 110)
                 icon = icon_surface("star", star.w, color)
                 surface.blit(icon, icon.get_rect(center=star.center))
             caption = f"{avg:.1f} · {count} rating{'s' if count != 1 else ''}" if count else "no ratings yet"
+            if my_rating is not None:
+                caption += f" · you: {my_rating}"
             draw_text(surface, caption, (col_x + px(5 * _STAR_W), y + px(14 + (_STAR_W - 4) // 2)),
                       12, config.WARNING if count else config.TEXT_DIM, anchor="midleft")
             if self._overlay_message:

@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
-from .community_common import require_auth, run_async, uploader_name
+from .community_common import require_auth, run_async, uploader_name, norm_name
 
 TABLE = "community_functions"
 FAVORITES_TABLE = "community_function_favorites"
@@ -40,6 +40,24 @@ def _stat_columns_note() -> str:  # pragma: no cover - documentation helper
 _run_async = run_async
 _require_auth = require_auth
 _uploader_name = uploader_name
+
+
+def _own_function_rows(client: Any, user_id: str, columns: str = "id, fx, fy, function_name") -> list:
+    """The rows this player already owns.
+
+    Used to spot name conflicts: the comparison happens here, not in the
+    query, so it does not depend on how the database collates strings.
+
+    A failed query raises so callers can fail-closed instead of treating
+    a read error as "no rows" and accidentally creating duplicates.
+    """
+    resp = (
+        client.table(TABLE)
+        .select(columns)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return list(getattr(resp, "data", None) or [])
 
 
 def _extract_function(args, kwargs) -> tuple[str, str, str]:
@@ -174,8 +192,9 @@ def upload_community_function(
     def _fn() -> Any:
         require_auth(account)
         client = get_client()
+        user_id = account.current_user.id
         row = {
-            "user_id": account.current_user.id,
+            "user_id": user_id,
             "uploader_name": uploader_name(account),
             "function_name": parsed_name,
             "fx": parsed_fx,
@@ -183,46 +202,55 @@ def upload_community_function(
             "description": parsed_description,
             "tags": parsed_tags,
         }
+        update_payload = {k: v for k, v in row.items() if k != "user_id"}
+
+        # --- name conflicts ----------------------------------------------
+        # One player may not own two community functions with the same
+        # name (the comparison ignores case and repeated spaces).  Rows
+        # owned by other players are never considered, so two different
+        # players may use the same name.
+        own_rows = _own_function_rows(client, user_id)
+        same_name = [entry for entry in own_rows
+                     if norm_name(entry.get("function_name")) == norm_name(parsed_name)]
+        duplicate_note = f'You already have a community function called "{parsed_name}".'
+
         # An imported function keeps its community identity: when the signed
         # in user owns that row the upload updates it in place, otherwise it
         # becomes a brand-new row owned by the user.
         if parsed_community_id:
+            if any(str(entry.get("id") or "") != parsed_community_id for entry in same_name):
+                raise ValueError(duplicate_note)
             try:
                 resp = (
                     client.table(TABLE)
-                    .update({k: v for k, v in row.items() if k != "user_id"})
+                    .update(update_payload)
                     .eq("id", parsed_community_id)
-                    .eq("user_id", account.current_user.id)
+                    .eq("user_id", user_id)
                     .execute()
                 )
                 if getattr(resp, "data", None):
                     return resp
             except Exception:
-                # Fall through: the row is not ours or does not exist; a new
-                # row is created instead.
+                # The row is not ours or the update failed: fall through to
+                # the shared tail, which never creates an own-row duplicate
+                # under a name the player already uses.
                 pass
-        # Same formulas already published by this user: update that row
-        # (statistics survive an update) instead of duplicating it.
-        try:
-            resp = (
-                client.table(TABLE)
-                .select("id")
-                .eq("user_id", account.current_user.id)
-                .eq("function_name", parsed_name)
-                .eq("fx", parsed_fx)
-                .eq("fy", parsed_fy)
-                .execute()
-            )
-            rows = getattr(resp, "data", None) or []
-        except Exception:
-            rows = []
-        update_payload = {k: v for k, v in row.items() if k != "user_id"}
-        if rows:
+
+        formula_row = next(
+            (entry for entry in same_name
+             if str(entry.get("fx")) == parsed_fx and str(entry.get("fy")) == parsed_fy),
+            None,
+        )
+        if same_name:
+            if formula_row is None:
+                raise ValueError(duplicate_note)
+            # Same name, same formulas: update that row instead of
+            # duplicating it (statistics survive an update).
             return (
                 client.table(TABLE)
                 .update(update_payload)
-                .eq("id", rows[0].get("id"))
-                .eq("user_id", account.current_user.id)
+                .eq("id", str(formula_row.get("id") or ""))
+                .eq("user_id", user_id)
                 .execute()
             )
         return client.table(TABLE).insert(row).execute()
@@ -288,11 +316,25 @@ def update_community_function(
     def _fn() -> Any:
         require_auth(account)
         client = get_client()
+        user_id = account.current_user.id
+        # --- name conflicts ----------------------------------------------
+        # Renaming must not give this player a second row under a name they
+        # already use.  Other players' rows are never considered.
+        if "function_name" in payload:
+            own_rows = _own_function_rows(client, user_id, "id, function_name")
+            target = norm_name(payload["function_name"])
+            wanted_id = str(function_id)
+            for entry in own_rows:
+                if str(entry.get("id") or "") == wanted_id:
+                    continue
+                if norm_name(entry.get("function_name")) == target:
+                    raise ValueError(
+                        f'You already have a community function called "{payload["function_name"]}".')
         return (
             client.table(TABLE)
             .update(payload)
             .eq("id", str(function_id))
-            .eq("user_id", account.current_user.id)
+            .eq("user_id", user_id)
             .execute()
         )
 

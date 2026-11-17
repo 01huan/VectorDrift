@@ -16,8 +16,17 @@ import threading
 from typing import Any, Callable, Optional
 
 __all__ = [
-    "run_async", "require_auth", "uploader_name",
+    "run_async", "require_auth", "uploader_name", "norm_name",
 ]
+
+
+def norm_name(value: Any) -> str:
+    """How two names are compared for the "one player, one name" rule.
+
+    Names are compared ignoring case and repeated whitespace; display text
+    keeps the original spelling.
+    """
+    return " ".join(str(value or "").split()).casefold()
 
 
 def run_async(

@@ -28,6 +28,7 @@ from .community_core import (
     FuzzyMatcher,
     SortOption,
     SortTable,
+    average_rating,
     cached_matcher,
     filter_items,
     float_of,
@@ -43,7 +44,7 @@ __all__ = [
     "SORT_OPTIONS", "SORT_KEYS", "SORT_LABELS", "SORT_DEFAULT_DESCENDING",
     "SORT_NEWEST", "SORT_OLDEST", "SORT_TIME", "SORT_OBSTACLES",
     "SORT_PICKUPS", "SORT_PICKUP", "SORT_PLAYS", "SORT_CLEARS",
-    "SORT_CLEARERS",
+    "SORT_CLEARERS", "SORT_FAVORITES", "SORT_RATING",
     "CommunityLevelInfo", "level_info", "FuzzyMatcher", "fuzzy_score",
     "filter_levels", "sort_label", "normalize_text",
 ]
@@ -73,6 +74,8 @@ SORT_PICKUP = "pickup"
 SORT_PLAYS = "plays"
 SORT_CLEARS = "clears"
 SORT_CLEARERS = "clearers"
+SORT_FAVORITES = "favorites"
+SORT_RATING = "rating"
 
 # (key, label, default direction).  "newest" is the order the server sends,
 # so it is the default; the numeric ones default to the useful direction
@@ -87,6 +90,8 @@ SORT_OPTIONS = (
     (SORT_PLAYS, "Plays", True),
     (SORT_CLEARS, "Clears", True),
     (SORT_CLEARERS, "Clearers", True),
+    (SORT_FAVORITES, "Favorites", True),
+    (SORT_RATING, "Highest rated", True),
 )
 SORT_KEYS = tuple(key for key, _label, _desc in SORT_OPTIONS)
 SORT_LABELS = {key: label for key, label, _desc in SORT_OPTIONS}
@@ -118,7 +123,15 @@ class CommunityLevelInfo(CommunityItemInfo):
     play_count: int = 0
     clear_count: int = 0
     clear_player_count: int = 0
+    favorite_count: int = 0
+    rating_count: int = 0
+    rating_total: int = 0
     level_data: dict = field(default_factory=dict)
+
+    @property
+    def average_rating(self) -> float:
+        """The mean rating (0.0 when nobody has rated yet)."""
+        return average_rating(self.rating_total, self.rating_count)
 
     def count_of(self, kind: str) -> int:
         """How many pickups of ``kind`` the level holds (0 for unknown kinds)."""
@@ -196,6 +209,9 @@ def level_info(row: Any) -> CommunityLevelInfo:
         play_count=int_of(row.get("play_count")),
         clear_count=int_of(row.get("clear_count")),
         clear_player_count=clear_player_count,
+        favorite_count=int_of(row.get("favorite_count")),
+        rating_count=int_of(row.get("rating_count")),
+        rating_total=int_of(row.get("rating_total")),
         level_data=data,
     )
 
@@ -223,6 +239,10 @@ def _sort_value(info: CommunityLevelInfo, sort_key: str, pickup_kind: str) -> fl
         return float(info.clear_count)
     if sort_key == SORT_CLEARERS:
         return float(info.clear_player_count)
+    if sort_key == SORT_FAVORITES:
+        return float(info.favorite_count)
+    if sort_key == SORT_RATING:
+        return info.average_rating
     # newest / oldest: the upload time (0.0 when it cannot be parsed)
     return info.created_ts
 

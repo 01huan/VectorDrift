@@ -29,6 +29,7 @@ from typing import Any, Callable, Iterable, Optional, Sequence
 __all__ = [
     "MIN_MATCH_SCORE", "MIN_COVERAGE",
     "normalize_text", "text_of", "int_of", "float_of", "timestamp_of",
+    "average_rating", "round_half_up",
     "FuzzyMatcher", "fuzzy_score", "cached_matcher",
     "CommunityItemInfo",
     "SortOption", "SortTable",
@@ -103,6 +104,31 @@ def float_of(value: Any, default: float = 0.0) -> float:
     if number != number or number in (float("inf"), float("-inf")):
         return default
     return number
+
+
+def round_half_up(value: Any) -> int:
+    """Round to a whole number, halves away from zero (4.5 -> 5).
+
+    ``round()`` uses banker's rounding (4.5 -> 4), which makes a displayed
+    average look one star short when the stored total lands exactly on a
+    half.  Star widgets use this so the stars always agree with the text.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if number != number or number in (float("inf"), float("-inf")):
+        return 0
+    return int(number + 0.5) if number >= 0 else -int(-number + 0.5)
+
+
+def average_rating(rating_total: Any, rating_count: Any) -> float:
+    """The mean rating (0.0 .. 5.0), or 0.0 when nobody has rated yet."""
+    total = float_of(rating_total)
+    count = int_of(rating_count)
+    if count <= 0:
+        return 0.0
+    return max(0.0, min(5.0, total / count))
 
 
 def timestamp_of(text: str) -> float:

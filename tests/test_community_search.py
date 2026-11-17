@@ -132,22 +132,33 @@ def test_clearing_the_search_shows_every_level_again(monkeypatch):
 
 # --- sorting ---------------------------------------------------------------
 
-def test_the_sort_button_cycles_through_the_orders(monkeypatch):
+def test_the_sort_dropdown_opens_and_picks_an_order(monkeypatch):
     scene = _scene(monkeypatch)
     assert scene.sort_key == SORT_NEWEST
-    _click(scene, scene.sort_button)
-    assert scene.sort_key != SORT_NEWEST
+    # clicking the button face opens the list
+    ev = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=scene.sort_button.rect.center)
+    scene.handle_event(ev)
+    assert scene.sort_menu.open
+    # picking "Plays" applies that order
+    target = None
+    for rect, (value, _label) in zip(scene.sort_menu.item_rects(), scene.sort_menu.items):
+        if value == SORT_PLAYS:
+            target = rect
+            break
+    assert target is not None
+    ev = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=target.center)
+    scene.handle_event(ev)
+    assert scene.sort_key == SORT_PLAYS
+    assert scene.descending is True
+    assert not scene.sort_menu.open
 
 
-def test_the_sort_button_can_reach_every_order(monkeypatch):
+def test_the_sort_dropdown_offers_every_order(monkeypatch):
     scene = _scene(monkeypatch)
-    seen = {scene.sort_key}
-    for _ in range(len(seen) + 12):
-        _click(scene, scene.sort_button)
-        seen.add(scene.sort_key)
-    assert SORT_PLAYS in seen
-    assert SORT_CLEARS in seen
-    assert SORT_CLEARERS in seen
+    keys = {key for key, _label in scene.sort_menu.items}
+    assert SORT_PLAYS in keys
+    assert SORT_CLEARS in keys
+    assert SORT_CLEARERS in keys
 
 
 def test_the_direction_button_toggles(monkeypatch):

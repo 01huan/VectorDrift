@@ -31,6 +31,7 @@ from ..function_library import (
     clean_name,
     find_function,
     make_function,
+    name_taken,
 )
 from ..community_function_browse import (
     MAX_DESCRIPTION_LEN,
@@ -362,45 +363,83 @@ class FunctionLabScene(Scene):
 
     # ------------------------------------------------------------------ actions
     def _save(self):
-        """Store the editor's formulas in the library (or update the loaded one)."""
+        """Store the editor's formulas in the library (or update the loaded one).
+
+        Returns True when the function was saved, False otherwise.
+        """
         if not self.valid:
             self._say("Fix the formulas before saving.", config.WARNING)
             self.audio.play("error")
-            return
+            return False
         fx, fy = self.editor.lines
         name = clean_name(self.name_input.text)
         description = clean_description(self.desc_input.text)
         tags = parse_tags(self.tags_input.text)
         functions = self._library()
+        # --- name conflicts (one player, one name) --------------------------
+        # The player may never end up with two functions under the same
+        # name; the loaded function is not a conflict with itself.
+        if name_taken(name, functions, exclude_id=self.editing_id):
+            self._say(f"A function called “{name}” already exists in your library.",
+                      config.WARNING)
+            self.audio.play("error")
+            return False
+        saved = None
         if self.editing_id:
             updated, found = [], False
             for function in functions:
                 if function.id == self.editing_id:
-                    updated.append(SavedFunction(id=function.id, name=name, fx=fx, fy=fy,
-                                                 description=description, tags=tags,
-                                                 source=function.source,
-                                                 community_id=function.community_id))
+                    saved = SavedFunction(id=function.id, name=name, fx=fx, fy=fy,
+                                          description=description, tags=tags,
+                                          source=function.source,
+                                          community_id=function.community_id)
+                    updated.append(saved)
                     found = True
                 else:
                     updated.append(function)
             if found:
                 self.session.function_library = updated
                 self._say(f"Updated “{name}”.", config.SUCCESS)
-                self._persist()
-                self._rebuild()
-                return
-            self.editing_id = None
-        if len(functions) >= MAX_FUNCTIONS:
-            self._say(f"The library holds at most {MAX_FUNCTIONS} functions.",
-                      config.WARNING)
-            self.audio.play("error")
-            return
-        function = make_function(name, fx, fy, description=description, tags=tags)
-        self.session.function_library = functions + [function]
-        self.editing_id = function.id
-        self._say(f"Saved “{function.name}”.", config.SUCCESS)
+            else:
+                self.editing_id = None
+        if saved is None:
+            if len(functions) >= MAX_FUNCTIONS:
+                self._say(f"The library holds at most {MAX_FUNCTIONS} functions.",
+                          config.WARNING)
+                self.audio.play("error")
+                return False
+            saved = make_function(name, fx, fy, description=description, tags=tags)
+            self.session.function_library = functions + [saved]
+            self.editing_id = saved.id
+            self._say(f"Saved “{saved.name}”.", config.SUCCESS)
         self._persist()
         self._rebuild()
+        # Publishing is one thing, staying in sync is another: saving a
+        # local function that came from (or went to) the community also
+        # refreshes the published copy.
+        self._sync_community_copy(saved)
+        return True
+
+    def _sync_community_copy(self, function):
+        """Push a local save of a published function to its community copy."""
+        community_id = getattr(function, "community_id", None)
+        if not community_id:
+            return
+        account = self.manager.account
+        if account is None or not account.is_authenticated():
+            return
+        try:
+            from ..account import community
+            community.update_community_function(
+                str(community_id), account,
+                function_name=function.name, fx=function.fx, fy=function.fy,
+                description=function.description, tags=function.tags,
+                on_error=lambda exc: self._say(
+                    f"Saved locally; the community copy could not be updated: {exc}",
+                    config.WARNING),
+            )
+        except Exception:  # noqa: BLE001 - the local save must never block on the network
+            pass
 
     def _try_upload(self):
         """Upload the current function to the public community table."""
@@ -417,6 +456,10 @@ class FunctionLabScene(Scene):
             self._say("Fix the formulas before uploading.", config.WARNING)
             self.audio.play("error")
             return
+        # Store locally first (the levels work the same way): the library
+        # then carries the id the community copy is linked to.
+        if not self._save():
+            return  # the formulas are invalid or the name is taken
         fx, fy = self.editor.lines
         name = clean_name(self.name_input.text)
         description = clean_description(self.desc_input.text)
@@ -428,6 +471,7 @@ class FunctionLabScene(Scene):
         def on_ok(_resp=None):
             self.busy = False
             self._say("Uploaded to the community.", config.SUCCESS)
+            self._link_community_row(_resp)
 
         def on_err(exc):
             self.busy = False
@@ -440,6 +484,33 @@ class FunctionLabScene(Scene):
             description=description, tags=tags,
             community_id=(current.community_id if current else None),
             on_success=on_ok, on_error=on_err)
+
+    def _link_community_row(self, resp):
+        """Attach the id of the freshly uploaded community row to the local
+        function, so later local saves and deletes stay in sync with it."""
+        row_id = None
+        try:
+            data = getattr(resp, "data", None)
+            if isinstance(data, (list, tuple)) and data and isinstance(data[0], dict):
+                row_id = str(data[0].get("id") or "") or None
+        except Exception:  # noqa: BLE001 - a missing id only means no future sync
+            row_id = None
+        if not row_id or not self.editing_id:
+            return
+        functions = self._library()
+        updated = []
+        for function in functions:
+            if function.id == self.editing_id and function.community_id != row_id:
+                updated.append(SavedFunction(id=function.id, name=function.name,
+                                             fx=function.fx, fy=function.fy,
+                                             description=function.description,
+                                             tags=function.tags,
+                                             source=function.source,
+                                             community_id=row_id))
+            else:
+                updated.append(function)
+        self.session.function_library = updated
+        self._persist()
 
     def _new(self):
         """Start a new function: an empty editor and an empty name."""
@@ -475,7 +546,11 @@ class FunctionLabScene(Scene):
         self._rebuild()
 
     def _delete(self, function):
-        """Remove a function from the library."""
+        """Remove a function from the library (and from the community).
+
+        When the function was published, the community copy is removed with
+        it — the same behaviour the custom levels have.
+        """
         functions = [f for f in self._library() if f.id != function.id]
         self.session.function_library = functions
         if self._imported_id() == function.id:
@@ -485,6 +560,18 @@ class FunctionLabScene(Scene):
         self._say(f"Deleted “{function.name}”.", config.TEXT_DIM)
         self._persist()
         self._rebuild()
+        community_id = getattr(function, "community_id", None)
+        account = self.manager.account
+        if community_id and account is not None and account.is_authenticated():
+            try:
+                from ..account import community
+                community.delete_community_function(
+                    function_id=community_id, account=account,
+                    on_error=lambda exc: self._say(
+                        f"Deleted locally; the community copy could not be removed: {exc}",
+                        config.WARNING))
+            except Exception:  # noqa: BLE001 - the local delete must never block
+                pass
 
     def _to_levels(self):
         self.audio.play("click")
