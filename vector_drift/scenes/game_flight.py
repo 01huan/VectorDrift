@@ -251,6 +251,7 @@ class GameFlightMixin:
         self.state = FLIGHT
         self._record_replay_frame(self.flight)
         self._record_community_stat("play")
+        self._record_function_usage(False)
         self.banner = None
         self._refresh_buttons()
         self.audio.play("launch")
@@ -336,6 +337,7 @@ class GameFlightMixin:
         """The level is cleared: clear reward, community stat, best time, save."""
         self._pay_clear_reward()
         self._record_community_stat("clear")
+        self._record_function_usage(True)
         best = self.session.records.get(self.level.id)
         if best is None or self.total_time < best:
             self.session.records[self.level.id] = self.total_time
@@ -417,6 +419,31 @@ class GameFlightMixin:
         self._history_legs = []
 
     # ---------------------------------------------------------- community stats
+
+    def _record_function_usage(self, success: bool) -> None:
+        """Count a usage of a community function used for this flight.
+
+        Only a function the player imported from the Community carries a
+        ``community_id``; writing your own formulas or using a local
+        function is not a community usage.  Browsing and previewing are
+        never counted — the counter only moves here, when a flight actually
+        launches (or is cleared) with the function in effect.
+        """
+        try:
+            imported = getattr(self.session, "imported_function", None)
+            community_id = getattr(imported, "community_id", None) if imported is not None else None
+            if not community_id:
+                return
+            from ..account import community
+            account = getattr(self.manager, "account", None)
+            from ..account.player_identity import player_key
+            community.record_community_function_usage(
+                community_id,
+                success=bool(success),
+                player_key=player_key(self.session, account),
+            )
+        except Exception:  # pragma: no cover - a statistic must never break a flight
+            pass
 
     def _record_community_stat(self, kind: str) -> None:
         """Count a play or a clear of a community level.

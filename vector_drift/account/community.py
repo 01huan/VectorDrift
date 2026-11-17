@@ -15,10 +15,10 @@ need to switch scenes on the main thread do so from ``update()``.
 
 from __future__ import annotations
 
-import threading
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
+from .community_common import run_async, uploader_name
 
 TABLE = "community_levels"
 
@@ -28,25 +28,8 @@ TABLE = "community_levels"
 BASE_COLUMNS = "id, user_id, uploader_name, level_name, level_data, created_at"
 STAT_COLUMNS = "play_count, clear_count, clear_players"
 
-
-def _run_async(
-    fn: Callable[[], Any],
-    on_success: Optional[Callable[[Any], None]] = None,
-    on_error: Optional[Callable[[Exception], None]] = None,
-) -> None:
-    """Run ``fn`` on a daemon thread, then call back with the result."""
-
-    def _worker() -> None:
-        try:
-            result = fn()
-        except Exception as exc:  # noqa: BLE001 - report to the caller
-            if on_error is not None:
-                on_error(exc)
-            return
-        if on_success is not None:
-            on_success(result)
-
-    threading.Thread(target=_worker, daemon=True).start()
+_run_async = run_async
+_uploader_name = uploader_name
 
 
 def upload_community_level(
@@ -59,7 +42,8 @@ def upload_community_level(
     """Upload a player-created level to the public community table.
 
     Requires ``account`` to be authenticated.  ``level_data`` must be a
-    JSON-serializable dict (a serialized ``LevelSpec``).
+    JSON-serializable dict (a serialized ``LevelSpec``).  The player's local
+    custom level is never touched: publishing copies it.
     """
 
     def _require_auth() -> None:
@@ -70,16 +54,7 @@ def upload_community_level(
         _require_auth()
         client = get_client()
         # 社區卡片顯示上傳者的帳號名稱，而非信箱；current_user.name 來自註冊時輸入的帳號 ID。
-        # 永遠不以信箱作為顯示名稱：profile.display_name 在尚未設定顯示名稱時可能被寫入信箱，
-        # 因此必須排除含 "@" 的值，避免社區卡片顯示完整信箱帳號。
-        uploader_name = account.current_user.name or ""
-        if (
-            not uploader_name
-            and account.profile
-            and account.profile.display_name
-            and "@" not in account.profile.display_name
-        ):
-            uploader_name = account.profile.display_name
+        uploader_name = _uploader_name(account)
         row = {
             "user_id": account.current_user.id,
             "uploader_name": uploader_name,
@@ -442,9 +417,15 @@ def update_community_level_by_local_id(
 try:
     from . import community_functions as _community_functions
     upload_community_function = _community_functions.upload_community_function
+    update_community_function = _community_functions.update_community_function
     delete_community_function = _community_functions.delete_community_function
     fetch_community_functions = _community_functions.fetch_community_functions
     delete_user_community_functions = _community_functions.delete_user_community_functions
     update_community_functions_uploader_name = _community_functions.update_community_functions_uploader_name
+    record_community_function_usage = _community_functions.record_community_function_usage
+    set_function_favorite = _community_functions.set_function_favorite
+    set_function_rating = _community_functions.set_function_rating
+    fetch_function_engagement = _community_functions.fetch_function_engagement
+    delete_user_function_engagement = _community_functions.delete_user_function_engagement
 except Exception:  # noqa: BLE001
     pass

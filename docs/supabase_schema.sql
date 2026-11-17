@@ -149,6 +149,24 @@ create table if not exists public.community_functions (
     created_at timestamptz not null default now()
 );
 
+-- 新欄位先補上再建 policy：舊資料庫執行時不會報錯，已存在就不動。
+alter table public.community_functions
+    add column if not exists description text not null default '',
+    add column if not exists tags text[] not null default '{}'::text[],
+    add column if not exists updated_at timestamptz not null default now(),
+    add column if not exists usage_count integer not null default 0,
+    add column if not exists successful_usage_count integer not null default 0,
+    add column if not exists usage_users jsonb not null default '[]'::jsonb,
+    add column if not exists unique_user_count integer not null default 0,
+    add column if not exists favorite_count integer not null default 0,
+    add column if not exists rating_count integer not null default 0,
+    add column if not exists rating_total integer not null default 0;
+-- 舊資料把 usage_users 視為空陣列，unique_user_count 以 0 計。
+update public.community_functions
+   set unique_user_count = jsonb_array_length(usage_users)
+ where jsonb_typeof(usage_users) = 'array'
+   and unique_user_count <> jsonb_array_length(usage_users);
+
 alter table public.community_functions enable row level security;
 
 drop policy if exists "community_functions_select_public" on public.community_functions;
@@ -163,6 +181,198 @@ create policy "community_functions_delete_own" on public.community_functions
 drop policy if exists "community_functions_update_own" on public.community_functions;
 create policy "community_functions_update_own" on public.community_functions
     for update using (auth.uid() = user_id);
+
+-- updated_at 只在內容真的變更時更新（統計欄位的觸發器不應弄髒它）。
+create or replace function public.community_functions_set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+    if (new.function_name, new.fx, new.fy, new.description, new.tags, new.uploader_name)
+       is distinct from
+       (old.function_name, old.fx, old.fy, old.description, old.tags, old.uploader_name) then
+        new.updated_at := now();
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists community_functions_updated_at on public.community_functions;
+create trigger community_functions_updated_at
+    before update on public.community_functions
+    for each row execute function public.community_functions_set_updated_at();
+
+-- 使用統計用資料庫函式更新，避免兩位玩家同時加一而互相覆蓋。
+-- p_success = true 時 successful_usage_count 同步 + 1；
+-- 同一玩家（以 p_player_key 雜湊後比對）重複使用不會增加 unique_user_count；
+-- usage_users 只存「關卡/函式 id ＋玩家代號」的雜湊，無法反推出玩家身分。
+create or replace function public.community_function_record_usage(
+    p_function_id uuid,
+    p_success boolean,
+    p_player_key text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_key text;
+begin
+    if p_function_id is null then
+        return;
+    end if;
+    if p_player_key is not null and p_player_key <> '' then
+        v_key := 'v1:' || md5(p_function_id::text || ':' || p_player_key);
+        update public.community_functions
+           set usage_count = usage_count + 1,
+               successful_usage_count = successful_usage_count + (case when p_success then 1 else 0 end),
+               usage_users = case when usage_users ? v_key
+                                  then usage_users
+                                  else usage_users || jsonb_build_array(v_key) end,
+               unique_user_count = jsonb_array_length(
+                   case when usage_users ? v_key
+                        then usage_users
+                        else usage_users || jsonb_build_array(v_key) end)
+         where id = p_function_id;
+    else
+        update public.community_functions
+           set usage_count = usage_count + 1,
+               successful_usage_count = successful_usage_count + (case when p_success then 1 else 0 end)
+         where id = p_function_id;
+    end if;
+end;
+$$;
+
+grant execute on function public.community_function_record_usage(uuid, boolean, text) to anon, authenticated;
+
+-- 社區函式：收藏（每人每函式一列）。只允許操作自己的收藏。
+create table if not exists public.community_function_favorites (
+    user_id uuid not null references auth.users(id) on delete cascade,
+    function_id uuid not null references public.community_functions(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    primary key (user_id, function_id)
+);
+
+alter table public.community_function_favorites enable row level security;
+
+drop policy if exists "community_function_favorites_select_own" on public.community_function_favorites;
+create policy "community_function_favorites_select_own" on public.community_function_favorites
+    for select using (auth.uid() = user_id);
+drop policy if exists "community_function_favorites_insert_own" on public.community_function_favorites;
+create policy "community_function_favorites_insert_own" on public.community_function_favorites
+    for insert with check (auth.uid() = user_id);
+drop policy if exists "community_function_favorites_delete_own" on public.community_function_favorites;
+create policy "community_function_favorites_delete_own" on public.community_function_favorites
+    for delete using (auth.uid() = user_id);
+
+-- 收藏數由觸發器維護，客戶端不送數字。
+create or replace function public.community_function_favorites_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if tg_op = 'INSERT' then
+        update public.community_functions
+           set favorite_count = favorite_count + 1
+         where id = new.function_id;
+        return new;
+    elsif tg_op = 'DELETE' then
+        update public.community_functions
+           set favorite_count = greatest(favorite_count - 1, 0)
+         where id = old.function_id;
+        return old;
+    end if;
+    return null;
+end;
+$$;
+
+drop trigger if exists community_function_favorites_count on public.community_function_favorites;
+create trigger community_function_favorites_count
+    after insert or delete on public.community_function_favorites
+    for each row execute function public.community_function_favorites_touch();
+
+-- 社區函式：評分（每人每函式一筆，可修改；1..5 星）。只允許操作自己的評分。
+create table if not exists public.community_function_ratings (
+    user_id uuid not null references auth.users(id) on delete cascade,
+    function_id uuid not null references public.community_functions(id) on delete cascade,
+    rating smallint not null check (rating between 1 and 5),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    primary key (user_id, function_id)
+);
+
+alter table public.community_function_ratings enable row level security;
+
+drop policy if exists "community_function_ratings_select_own" on public.community_function_ratings;
+create policy "community_function_ratings_select_own" on public.community_function_ratings
+    for select using (auth.uid() = user_id);
+drop policy if exists "community_function_ratings_insert_own" on public.community_function_ratings;
+create policy "community_function_ratings_insert_own" on public.community_function_ratings
+    for insert with check (auth.uid() = user_id);
+drop policy if exists "community_function_ratings_update_own" on public.community_function_ratings;
+create policy "community_function_ratings_update_own" on public.community_function_ratings
+    for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "community_function_ratings_delete_own" on public.community_function_ratings;
+create policy "community_function_ratings_delete_own" on public.community_function_ratings
+    for delete using (auth.uid() = user_id);
+
+-- 評分彙總（平均、筆數）由觸發器維護，客戶端不送數字。
+create or replace function public.community_function_ratings_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if tg_op = 'INSERT' then
+        update public.community_functions
+           set rating_count = rating_count + 1,
+               rating_total = rating_total + new.rating
+         where id = new.function_id;
+        return new;
+    elsif tg_op = 'UPDATE' then
+        if new.rating is distinct from old.rating then
+            update public.community_functions
+               set rating_total = greatest(rating_total - old.rating + new.rating, 0)
+             where id = new.function_id;
+        end if;
+        return new;
+    elsif tg_op = 'DELETE' then
+        update public.community_functions
+           set rating_count = greatest(rating_count - 1, 0),
+               rating_total = greatest(rating_total - old.rating, 0)
+         where id = old.function_id;
+        return old;
+    end if;
+    return null;
+end;
+$$;
+
+drop trigger if exists community_function_ratings_count on public.community_function_ratings;
+create trigger community_function_ratings_count
+    after insert or update or delete on public.community_function_ratings
+    for each row execute function public.community_function_ratings_touch();
+
+-- 使用者操作自己的收藏/評分所需的表級權限（RLS 負責列級限制）。
+grant select, insert, delete on public.community_function_favorites to authenticated;
+grant select, insert, update, delete on public.community_function_ratings to authenticated;
+
+-- 統計欄位與擁有者絕不信任客戶端：撤掉整表的 insert/update 授權，只開放
+-- 內容欄位；統計欄位只由 security definer 的函式與觸發器更新。
+revoke insert, update on public.community_functions from anon, authenticated;
+grant insert (user_id, uploader_name, function_name, fx, fy, description, tags)
+    on public.community_functions to authenticated;
+grant update (uploader_name, function_name, fx, fy, description, tags, updated_at)
+    on public.community_functions to authenticated;
+revoke insert, update on public.community_levels from anon, authenticated;
+grant insert (user_id, uploader_name, level_name, level_data)
+    on public.community_levels to authenticated;
+grant update (uploader_name, level_name, level_data)
+    on public.community_levels to authenticated;
 
 -- 舊版函式曾把原始玩家代號寫進 clear_players；改成只留每關的雜湊。
 -- 'v1:' 前綴讓這段可以重複執行，已轉換的項目不會被再次雜湊。

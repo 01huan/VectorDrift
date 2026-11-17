@@ -75,6 +75,9 @@ class TutorialGameScene(GameScene):
     def _record_community_stat(self, kind):
         pass
 
+    def _record_function_usage(self, success):
+        pass
+
     def _use_ability_key(self, key):
         return False
 

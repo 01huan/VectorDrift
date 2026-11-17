@@ -257,50 +257,62 @@ Every library row has three actions: **Load** (put the function into the editor 
 
 The game screen has a **Lab** button that lists the same library, so a saved function can be loaded into the editor at any time before a launch. The library and the imported function are part of the player profile: they are saved locally and, when signed in, synchronized with the cloud profile like the rest of the progress. Deleting the local data removes them too.
 
-## Public Community Levels
+## Community
 
-The **Public Levels** page is part of the Level Editor menu.
+The Community is one place with two content categories: **Levels** and **Functions**. Open the **Levels** tab from the Level Editor menu (**Public Levels**) or the **Functions** tab from the Function Lab (**Public Functions**); the tab bar at the top of the page switches between the two without leaving the community page. Both tabs share the same search, sort, pagination, upload, ownership and statistics machinery.
 
-- Public levels are fetched from the Supabase `community_levels` table and shown newest first with a small layout preview, uploader name, and upload date.
-- Browsing and downloading public levels require a configured Supabase backend but do not require the player to sign in, provided the table's public-read policy is enabled.
-- Uploading requires a configured backend and an authenticated account.
-- A player can delete their own uploaded levels. Supabase Row Level Security also restricts deletion to the owning user.
-- Opening a community level downloads it and starts it right away. A community level belongs to the player who uploaded it: playing it never adds it to your own custom levels, and it is not saved with your progress.
+- Public content is fetched from Supabase (`community_levels` for levels, `community_functions` for functions) and shown newest first.
+- Browsing and downloading public content require a configured Supabase backend but do not require the player to sign in, provided the public-read policies are enabled.
+- Publishing requires a configured backend and an authenticated account.
+- Uploading never touches the local content: your levels stay in your custom levels, your functions stay in your Function Lab library.
+- Owners can edit and delete their own uploads from the cards (an edit button for functions in the detail panel; an editor copy for levels). Row Level Security restricts these operations to the owning user.
+- Downloading into your own content is always an explicit action — nothing is silently overwritten.
 
 ### Searching and sorting
 
-The page has a search bar above the level cards:
+The page has a search bar above the cards:
 
 | Control | What it does |
 |---|---|
-| **Name** | Fuzzy search over the level names. It does not need an exact match: a typo or a part of the name is enough. The closer a level matches, the earlier it is listed. |
+| **Name** | Fuzzy search over the item names. It does not need an exact match: a typo or a part of the name is enough. The closer an item matches, the earlier it is listed. |
 | **By** | Fuzzy search over the uploader names, with the same "closest match first" rule. |
-| **Sort** | Cycles through the sort orders: newest, oldest, time limit, number of obstacles, number of pickups, number of one pickup kind, plays, clears, and players who cleared. |
+| **Sort** | Cycles through the sort orders. Levels: newest, oldest, time limit, number of obstacles, number of pickups, number of one pickup kind, plays, clears, players who cleared. Functions: newest, oldest, most used, most successful uses, favorites, highest rated. |
 | **↑ / ↓** | Flips the direction of the chosen sort order. |
-| **Pickup** | Chooses which pickup kind the "pickup count" order uses (shockwave, extra time, shield, life, money, Unbound). |
-| **At least plays / clears / players** | Only lists levels with at least that many plays, clears, or players who cleared them. |
+| **Pickup** *(levels)* | Chooses which pickup kind the "pickup count" order uses (shockwave, extra time, shield, life, money, Unbound). |
+| **Tag** *(functions)* | Only lists functions carrying a tag that contains the query. |
+| **At least** | Levels: only items with at least that many plays, clears, or players who cleared. Functions: only items used at least that many times. |
 | **Reset** | Clears every search box and filter and goes back to the default order. |
-| **Prev / Next**, mouse wheel | Turn the page when the search result has more levels than fit on the screen. |
+| **Prev / Next**, mouse wheel | Turn the page when the search result has more items than fit on the screen. |
 
-Both text searches have to match: a level is listed when its name is close to the **Name** query *and* its uploader is close to the **By** query. When a search is used, the closeness decides the order and the chosen sort order breaks the ties.
+Both text searches have to match: an item is listed when its name is close to the **Name** query *and* its uploader is close to the **By** query. When a search is used, the closeness decides the order and the chosen sort order breaks the ties.
 
-Every card also shows the level's time limit, its number of obstacles and pickups, and its statistics.
+Every card shows the name, the uploader, the date, the statistics that matter, and an import/play action. Levels show a layout preview with play/clear statistics; functions show a vector-field preview (the `Fx`/`Fy` field, `FX`/`FY` values, tags, description, usage/unique-player counts, average rating and favorite count).
 
-### Community level statistics
+### Community content statistics
 
-Every community level counts how often it was played, how often it was cleared and how many **different** players cleared it:
+Every community item counts how often it was used and how many **different** players used it:
 
-- a **play** is counted when a community level is launched;
-- a **clear** is counted when the ship reaches the target;
-- the **players** counter counts the different players who cleared the level. A signed-in player is identified by the account id, a guest by a random id that is kept in the local profile. The database only stores a per-level hash of that id, so the public level data cannot be used to identify or track a player across levels.
+- Levels: a **play** is counted when a community level is launched; a **clear** when the ship reaches the target; the **players** counter counts the different players who cleared it.
+- Functions: a **use** is counted when a flight launches with an imported community function in effect; a **successful use** when that flight is cleared; the **unique players** counter counts the different players who used it. Browsing and previewing never count.
+- A signed-in player is identified by the account id, a guest by a random id kept in the local profile. The database only stores a per-item hash of that id, so the public rows cannot be used to identify or track a player elsewhere.
 
-The counters live on the level row in the database and are raised by the `community_level_record_play` and `community_level_record_clear` database functions, so two players never overwrite each other's count. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; re-running it is safe and also replaces any raw player ids stored by an older version with the per-level hashes. On an older database the levels are still listed and searched, only without their counters.
+The counters live on the row in the database and are raised by the `community_level_record_play` / `community_level_record_clear` / `community_function_record_usage` database functions, so two players never overwrite each other's count. Favorites and ratings live in their own per-user tables; the aggregate `favorite_count` / `rating_count` / `rating_total` columns are maintained by database triggers. Run the updated [`docs/supabase_schema.sql`](docs/supabase_schema.sql) to add them; re-running it is safe and also replaces raw ids stored by an older version with per-item hashes. On an older database the items are still listed and searched, only without their counters.
 
-Community features use the built-in Supabase backend by default. Players do not need to provide their own credentials to browse public levels or use online account features.
+### Favorites and ratings (Functions)
+
+Signed-in users can favorite a function (one per player, toggled with the ♥ button) and rate it from 1 to 5 stars (one rating per player per function, changeable at any time). The average rating and the rating count are shown on the card and in the detail view; the favorite count is shown next to the heart. Sorting by favorites and by highest rated is available from the **Sort** button.
+
+### Inspecting, importing and uploading functions
+
+Click any function card to inspect it without downloading: the detail panel shows the vector field with a probe trajectory, the `Fx`/`Fy` formulas, the description, the tags and all statistics, and validates nothing on your behalf — nothing is added to your library until you press **Import to Function Lab**. Importing creates a **new** local function in your library (it never overwrites an existing entry, it suggests an unused name, and it keeps a `community` source tag and the community row id so usage is attributed to the published function).
+
+Use the Function Lab (**Public Functions**, or **Upload** in the lab) to publish your own functions: the lab validates both formulas and the community page shows your uploads with edit/delete controls. Uploads with the same formulas update your existing entry instead of duplicating it.
+
+Community features use the built-in Supabase backend by default. Players do not need to provide their own credentials to browse public content or use online account features.
 
 Players can optionally configure their own Supabase project through a .env file. When custom credentials are provided, they override the built-in configuration.
 
-If neither a built-in configuration nor a valid custom configuration is available, local gameplay and locally saved custom levels remain available, but online account and community operations cannot connect.
+If neither a built-in configuration nor a valid custom configuration is available, local gameplay and locally saved content remain available, but online account and community operations cannot connect.
 
 ## Replays
 
@@ -548,7 +560,7 @@ No additional configuration is required. Simply launch the game, and the built-i
 
 1. Create a Supabase project.
 2. In the project's Authentication settings, enable the Email provider and configure email confirmation/password recovery to match your project.
-3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles` and `community_levels` tables, their Row Level Security policies, the profile-creation trigger, and the database functions that count the [community level statistics](#community-level-statistics).
+3. Open the Supabase SQL Editor and run [`docs/supabase_schema.sql`](docs/supabase_schema.sql). It creates the `profiles`, `community_levels` and `community_functions` tables, the `community_function_favorites` and `community_function_ratings` tables, their Row Level Security policies, the profile-creation trigger, and the database functions and triggers that count the [community content statistics](#community-content-statistics).
 4. Copy `.env.example` to `.env` and replace the placeholder values with your own project URL and public anon key:
 
    ```dotenv
@@ -568,7 +580,7 @@ Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The 
 
 The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
-The SQL schema enables Row Level Security on both tables. A player can read/insert/update their own profile; community levels are publicly readable, authenticated users can upload, and only the uploader can delete their own row. The game code also checks ownership before showing a delete action.
+The SQL schema enables Row Level Security. A player can read/insert/update their own profile; community content is publicly readable, authenticated users can publish, and only the uploader can update or delete their own content. Usage, favorite and rating counters are maintained by security-definer database functions and triggers, and the client-submitted columns are restricted with column-level privileges, so ownership and statistics can never be written by the client. The game code also checks ownership before showing edit and delete actions.
 
 ## Project Structure
 
@@ -593,7 +605,9 @@ VectorDrift/
 └── vector_drift/
     ├── config.py                   # Display, gameplay, physics, and economy constants
     ├── data.py                     # Ship and level specifications
-    ├── community_browse.py         # Community browser rules: fuzzy search, filters, sorting
+    ├── community_core.py           # Shared community machinery: fuzzy search, filters, sorting
+    ├── community_browse.py         # Community level browser rules: fuzzy search, filters, sorting
+    ├── community_function_browse.py # Community function browser rules: tags, sorting, filtering
     ├── level_presets.py            # Procedural-level presets (templates + ValidationProfile)
     ├── random_level.py             # Seeded level generator (module dispatch + validated retry)
     ├── level_modules.py            # Generation modules: corridor, wormhole network, maze, extreme time
@@ -601,6 +615,7 @@ VectorDrift/
     ├── level_validator.py          # Procedural Level Validator (path analysis + AI Solver probe)
     ├── expr_parser.py              # Mathematical expression parser/evaluator
     ├── function_library.py         # The Function Lab's saved functions (data model)
+    ├── function_preview.py         # Shared vector-field preview and probe tracing (lab + community)
     ├── physics.py                  # Force fields and flight simulation
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
@@ -619,6 +634,10 @@ VectorDrift/
     ├── account/                    # Auth, local profiles, Supabase, community
     ├── solver/                     # Solver API, PSO, templates, evaluation, data
     └── scenes/                     # Menu, gameplay, editor, account, replay, etc.
+        ├── community_browser.py    # Shared Community browser: tabs, search, sort, filter, cards, pagination
+        ├── community_levels.py     # The Levels tab (cards, previews, stats, import/edit)
+        ├── community_functions.py  # The Functions tab (inspect, favorite, rate, edit, import)
+        ├── community.py            # The unified Community entry points
         ├── function_lab.py         # The Function Lab screen
         ├── tutorial_basics.py      # Basics walkthrough (on tutorial_play.py's game screen)
         ├── field_guide.py          # Field guide cards and clips

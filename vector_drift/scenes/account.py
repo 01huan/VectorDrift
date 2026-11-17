@@ -157,8 +157,10 @@ class AccountScene(InventoryMixin, Scene):
         account = self.manager.account
         if account is not None and account.is_authenticated():
             try:
-                # 帳號資料清除時，同時刪除該帳號上傳的所有社區關卡，避免孤立資料。
+                # 帳號資料清除時，同時刪除該帳號上傳的所有社區關卡與函式，以及它留下的收藏與評分，避免孤立資料。
                 community.delete_user_community_levels(account)
+                community.delete_user_community_functions(account)
+                community.delete_user_function_engagement(account)
             except Exception:  # noqa: BLE001 - 本機資料清除不應被社區刪除阻擋
                 self.status = "Community uploads could not be removed."
         if account is not None:
@@ -194,6 +196,7 @@ class AccountScene(InventoryMixin, Scene):
             # 同步將該帳號上傳的所有社區關卡卡片上的上傳者名稱更新為新名稱。
             try:
                 community.update_community_levels_uploader_name(account, result or "")
+                community.update_community_functions_uploader_name(account, result or "")
             except Exception:  # noqa: BLE001 - 本機改名完成後不應被社區同步阻擋
                 self.name_status += " (社區名稱同步失敗)"
 

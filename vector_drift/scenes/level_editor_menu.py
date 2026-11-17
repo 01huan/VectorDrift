@@ -76,8 +76,8 @@ class LevelEditorMenuScene(Scene):
             return
         if self.community_button.handle_event(event) == "click":
             self.audio.play("click")
-            from .community_levels import CommunityLevelsScene
-            self.manager.switch(CommunityLevelsScene(self.manager))
+            from .community import open_community
+            open_community(self.manager, "levels", back_to=LevelEditorMenuScene)
             return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             # Delete a locally created level (not uploaded to the community).

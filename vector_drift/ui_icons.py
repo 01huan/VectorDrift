@@ -44,6 +44,22 @@ def icon_surface(name, size, color):
         pygame.draw.rect(big, color, pygame.Rect(P(0.24, 0.44), P(0.52, 0.42)), border_radius=round(0.07 * S))
     elif name == "check":
         thick_polyline([(0.22, 0.52), (0.42, 0.72), (0.80, 0.30)], 0.12)
+    elif name == "star":
+        import math
+
+        center = (0.5, 0.5)
+        outer, inner = 0.46, 0.20
+        pts = []
+        for index in range(10):
+            angle = -math.pi / 2 + index * math.pi / 5
+            radius = outer if index % 2 == 0 else inner
+            pts.append(P(center[0] + radius * math.cos(angle),
+                         center[1] + radius * math.sin(angle)))
+        pygame.draw.polygon(big, color, pts)
+    elif name == "pencil":
+        # Body: a thick diagonal stroke; the tip is a small triangle.
+        thick_polyline([(0.34, 0.66), (0.72, 0.28)], 0.17)
+        pygame.draw.polygon(big, color, [P(0.15, 0.85), P(0.42, 0.78), P(0.23, 0.58)])
     elif name in ("inventory", "bag", "backpack"):
         # A small box/bag glyph: rounded body with a handle on top.
         pygame.draw.rect(big, color, pygame.Rect(P(0.22, 0.34), P(0.56, 0.50)), border_radius=round(0.08 * S))

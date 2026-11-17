@@ -27,8 +27,17 @@ from ..function_library import (
     MAX_FUNCTIONS,
     MAX_NAME_LEN,
     SavedFunction,
+    clean_description,
     clean_name,
+    find_function,
     make_function,
+)
+from ..community_function_browse import (
+    MAX_DESCRIPTION_LEN,
+    MAX_TAG_LEN,
+    parse_tags,
+    tags_to_text,
+    MAX_TAGS,
 )
 from ..physics import ForceField
 from ..ui import Button, CodeEditor, TextInput, draw_text, fit_text, wrap_text
@@ -50,8 +59,12 @@ START_Y_LABEL_X = LEFT_X + 138
 START_Y_FIELD_X = LEFT_X + 152
 START_RESET_X = LEFT_X + 276
 START_RESET_W = 84
-STATUS_Y = 402                       # the message under the buttons
-HINT_Y = 462                         # the longer explanation
+DESC_LABEL_Y = 398                   # "DESCRIPTION" above the description field
+DESC_Y = 414                         # the description field
+TAGS_LABEL_Y = 450                   # "TAGS" above the tags field
+TAGS_Y = 466                         # the tags field
+STATUS_Y = 504                       # the message under the buttons
+HINT_Y = 562                         # the longer explanation
 PLOT_X, PLOT_Y = 404, 80            # the field preview
 PLOT_W, PLOT_H = 852, 330
 LEGEND_TEXT_Y = 420                  # under the preview
@@ -146,6 +159,12 @@ class FunctionLabScene(Scene):
         self.start_reset_button = Button((px(START_RESET_X), px(START_Y + 2),
                                           px(START_RESET_W), px(30)),
                                          "Reset", style="plain", font_size=14)
+        self.desc_input = TextInput((px(LEFT_X), px(DESC_Y), px(LEFT_W), px(30)),
+                                    "Describe this function (shown in the community)",
+                                    font_size=13, max_length=MAX_DESCRIPTION_LEN)
+        self.tags_input = TextInput((px(LEFT_X), px(TAGS_Y), px(LEFT_W), px(30)),
+                                    "tags, comma separated", font_size=13,
+                                    max_length=MAX_TAG_LEN * (MAX_TAGS + 1))
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Levels",
                                   style="plain", font_size=17)
         self.community_button = Button((px(LEFT_X + 80), px(NEW_Y), px(160), px(30)), "Public Functions",
@@ -336,28 +355,10 @@ class FunctionLabScene(Scene):
 
     def _trace_probe(self, field):
         """Trace a probe particle through the field (semi-implicit Euler)."""
-        x, y = self.start_x, self.start_y
-        vx = vy = 0.0
-        dt = config.DT
-        points = []
-        for _ in range(PROBE_STEPS):
-            try:
-                fx, fy = field.at(x, y)
-            except (ArithmeticError, ValueError, TypeError, OverflowError,
-                    RecursionError, MemoryError):
-                break
-            if not (math.isfinite(fx) and math.isfinite(fy)):
-                break
-            vx += (fx / PROBE_MASS) * dt
-            vy += (fy / PROBE_MASS) * dt
-            x += vx * dt
-            y += vy * dt
-            if not (math.isfinite(x) and math.isfinite(y)):
-                break
-            points.append((x, y))
-            if abs(x) > PROBE_LIMIT_M or abs(y) > PROBE_LIMIT_M:
-                break
-        return points
+        from ..function_preview import trace_probe
+
+        return trace_probe(field, (self.start_x, self.start_y),
+                           steps=PROBE_STEPS, limit_m=PROBE_LIMIT_M)
 
     # ------------------------------------------------------------------ actions
     def _save(self):
@@ -368,12 +369,17 @@ class FunctionLabScene(Scene):
             return
         fx, fy = self.editor.lines
         name = clean_name(self.name_input.text)
+        description = clean_description(self.desc_input.text)
+        tags = parse_tags(self.tags_input.text)
         functions = self._library()
         if self.editing_id:
             updated, found = [], False
             for function in functions:
                 if function.id == self.editing_id:
-                    updated.append(SavedFunction(id=function.id, name=name, fx=fx, fy=fy))
+                    updated.append(SavedFunction(id=function.id, name=name, fx=fx, fy=fy,
+                                                 description=description, tags=tags,
+                                                 source=function.source,
+                                                 community_id=function.community_id))
                     found = True
                 else:
                     updated.append(function)
@@ -389,7 +395,7 @@ class FunctionLabScene(Scene):
                       config.WARNING)
             self.audio.play("error")
             return
-        function = make_function(name, fx, fy)
+        function = make_function(name, fx, fy, description=description, tags=tags)
         self.session.function_library = functions + [function]
         self.editing_id = function.id
         self._say(f"Saved “{function.name}”.", config.SUCCESS)
@@ -413,6 +419,9 @@ class FunctionLabScene(Scene):
             return
         fx, fy = self.editor.lines
         name = clean_name(self.name_input.text)
+        description = clean_description(self.desc_input.text)
+        tags = parse_tags(self.tags_input.text)
+        current = find_function(self._library(), self.editing_id) if self.editing_id else None
         self.busy = True
         self._say("Uploading to community...", config.TEXT_DIM)
 
@@ -426,12 +435,18 @@ class FunctionLabScene(Scene):
 
         from ..account import community
         community.upload_community_function(
-            account, name, fx, fy, on_success=on_ok, on_error=on_err)
+            account,
+            function_name=name, fx=fx, fy=fy,
+            description=description, tags=tags,
+            community_id=(current.community_id if current else None),
+            on_success=on_ok, on_error=on_err)
 
     def _new(self):
         """Start a new function: an empty editor and an empty name."""
         self.editor.set_lines(["", ""])
         self.name_input.set_text("")
+        self.desc_input.set_text("")
+        self.tags_input.set_text("")
         self.editing_id = None
         self._say("New function. Write Fx and Fy, then save it.", config.TEXT_DIM)
 
@@ -439,8 +454,11 @@ class FunctionLabScene(Scene):
         """Put a saved function into the editor so it can be changed."""
         self.editor.set_lines([function.fx, function.fy])
         self.name_input.set_text(function.name)
+        self.desc_input.set_text(getattr(function, "description", "") or "")
+        self.tags_input.set_text(tags_to_text(getattr(function, "tags", ()) or ()))
         self.editing_id = function.id
-        self._say(f"Loaded “{function.name}”. Change it and save to update.",
+        origin = " from the community" if getattr(function, "community_id", None) else ""
+        self._say(f"Loaded “{function.name}”{origin}. Change it and save to update.",
                   config.TEXT_DIM)
 
     def _import(self, function):
@@ -448,6 +466,8 @@ class FunctionLabScene(Scene):
         self.session.imported_function_id = function.id
         self.editor.set_lines([function.fx, function.fy])
         self.name_input.set_text(function.name)
+        self.desc_input.set_text(getattr(function, "description", "") or "")
+        self.tags_input.set_text(tags_to_text(getattr(function, "tags", ()) or ()))
         self.editing_id = function.id
         self._say(f"Imported “{function.name}”. It is now used in the levels.",
                   config.SUCCESS)
@@ -475,17 +495,20 @@ class FunctionLabScene(Scene):
     def _text_field_active(self):
         """True when one of the lab's text fields has the keyboard."""
         return (self.name_input.active or self.start_x_input.active
-                or self.start_y_input.active)
+                or self.start_y_input.active
+                or self.desc_input.active or self.tags_input.active)
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self._to_levels()
             return
-        # The name field, the two coordinate fields and the code editor share
-        # the keyboard: only the focused one gets the text.
+        # The name field, the two coordinate fields, the description and the
+        # tags share the keyboard: only the focused one gets the text.
         self.name_input.handle_event(event)
         self.start_x_input.handle_event(event)
         self.start_y_input.handle_event(event)
+        self.desc_input.handle_event(event)
+        self.tags_input.handle_event(event)
         if self._text_field_active():
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
                               pygame.MOUSEMOTION):
@@ -503,8 +526,8 @@ class FunctionLabScene(Scene):
             return
         if self.community_button.handle_event(event) == "click":
             self.audio.play("click")
-            from .community_functions import CommunityFunctionsScene
-            self.manager.switch(CommunityFunctionsScene(self.manager))
+            from .community import open_community
+            open_community(self.manager, "functions", back_to=FunctionLabScene)
             return
         if self.start_reset_button.handle_event(event) == "click":
             self._reset_start()
@@ -661,6 +684,12 @@ class FunctionLabScene(Scene):
         self.upload_button.draw(surface)
         self._draw_start_fields(surface)
         self.back_button.draw(surface)
+        draw_text(surface, "DESCRIPTION", (px(LEFT_X), px(DESC_LABEL_Y)), 12,
+                  config.TEXT_DIM, kind="bold")
+        self.desc_input.draw(surface)
+        draw_text(surface, "TAGS", (px(LEFT_X), px(TAGS_LABEL_Y)), 12,
+                  config.TEXT_DIM, kind="bold")
+        self.tags_input.draw(surface)
         self._draw_plot(surface)
 
         probe_text = (f"Probe: a 1 kg particle released at "

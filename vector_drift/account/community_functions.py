@@ -2,55 +2,44 @@
 
 Functions are stored in the ``public.community_functions`` table.  Row level
 security is configured so that anybody can read (SELECT) them and only
-signed-in users can INSERT a function they own.
+signed-in users can INSERT a function they own; their favorites and ratings
+live in ``community_function_favorites`` / ``community_function_ratings``
+(see ``docs/supabase_schema.sql``).
 
 All network calls run on a background thread, mirroring
-:mod:`vector_drift.account.community`.
+:mod:`vector_drift.account.community`.  Ownership and statistics are never
+taken from the client: the server decides who owns a row and the database
+maintains the counters.
 """
 
 from __future__ import annotations
 
-import threading
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
+from .community_common import require_auth, run_async, uploader_name
 
 TABLE = "community_functions"
+FAVORITES_TABLE = "community_function_favorites"
+RATINGS_TABLE = "community_function_ratings"
+
+# Columns the browser needs.  The statistics columns were added after the
+# first release of the table, so an older database does not have them yet:
+# the fetch falls back to the plain column list when the extended one fails.
+BASE_COLUMNS = "id, user_id, uploader_name, function_name, fx, fy, created_at"
+STAT_COLUMNS = ("description, tags, updated_at, "
+                "usage_count, successful_usage_count, unique_user_count, "
+                "favorite_count, rating_count, rating_total")
+
+# Statistics an owner may never write from the client; they are maintained
+# by the database (triggers and security-definer functions).
+def _stat_columns_note() -> str:  # pragma: no cover - documentation helper
+    return "usage_count, successful_usage_count, unique_user_count, favorite_count, rating_count, rating_total"
 
 
-def _run_async(
-    fn: Callable[[], Any],
-    on_success: Optional[Callable[[Any], None]] = None,
-    on_error: Optional[Callable[[Exception], None]] = None,
-) -> None:
-    def _worker() -> None:
-        try:
-            result = fn()
-        except Exception as exc:  # noqa: BLE001 - report to the caller
-            if on_error is not None:
-                on_error(exc)
-            return
-        if on_success is not None:
-            on_success(result)
-
-    threading.Thread(target=_worker, daemon=True).start()
-
-
-def _require_auth(account: Any) -> None:
-    if account is None or not account.is_authenticated() or account.current_user is None:
-        raise RuntimeError("Not logged in. Please log in before uploading.")
-
-
-def _uploader_name(account: Any) -> str:
-    uploader_name = getattr(account.current_user, "name", None) or ""
-    if (
-        not uploader_name
-        and getattr(account, "profile", None) is not None
-        and getattr(account.profile, "display_name", None)
-        and "@" not in str(account.profile.display_name)
-    ):
-        uploader_name = account.profile.display_name
-    return uploader_name or ""
+_run_async = run_async
+_require_auth = require_auth
+_uploader_name = uploader_name
 
 
 def _extract_function(args, kwargs) -> tuple[str, str, str]:
@@ -85,10 +74,6 @@ def _extract_function(args, kwargs) -> tuple[str, str, str]:
             fy = getattr(function, "fy", None)
             if fy is None and isinstance(function, dict):
                 fy = function.get("fy")
-    # Positional strings: (name, fx, fy) or (fx, fy) or (name, fx, fy, ...)
-    if isinstance(name, str) and fx is None and fy is None and len(args) >= 2:
-        # (name, fx, fy)
-        pass
     # Handle remaining positional strings.
     strs = [a for a in args if isinstance(a, str)]
     if name is None and len(strs) >= 1:
@@ -108,6 +93,18 @@ def _extract_function(args, kwargs) -> tuple[str, str, str]:
     return clean_name(name), str(fx), str(fy)
 
 
+def _clean_description(value: Any) -> str:
+    from vector_drift.function_library import clean_description
+
+    return clean_description(value)
+
+
+def _clean_tags(value: Any) -> list:
+    from vector_drift.function_library import clean_tags
+
+    return list(clean_tags(value))
+
+
 def upload_community_function(
     account: Any,
     *args: Any,
@@ -116,11 +113,22 @@ def upload_community_function(
     name: Any = None,
     fx: Any = None,
     fy: Any = None,
+    description: Any = None,
+    tags: Any = None,
+    community_id: Any = None,
     on_success: Optional[Callable[[Any], None]] = None,
     on_error: Optional[Callable[[Exception], None]] = None,
     **kwargs: Any,
 ) -> None:
-    """Upload a force function to the public community table."""
+    """Upload a force function to the public community table.
+
+    ``description`` / ``tags`` describe the function for the public card.
+    ``community_id`` identifies the community row this function came from (an
+    imported function); when the signed-in user owns that row it is updated
+    in place, otherwise a brand-new row owned by the user is created.
+
+    Never writes statistics: those belong to the database.
+    """
     # Absorb alternate keyword names.
     if function is None:
         function = kwargs.pop("saved_function", None)
@@ -130,57 +138,165 @@ def upload_community_function(
         fx = kwargs.pop("fx_text", None)
     if fy is None:
         fy = kwargs.pop("fy_text", None)
+    if description is None:
+        description = kwargs.pop("description_text", None) or kwargs.pop("desc", None)
+    if tags is None:
+        tags = kwargs.pop("tag_list", None)
+    if community_id is None:
+        community_id = kwargs.pop("community_row_id", None)
 
     parsed_name, parsed_fx, parsed_fy = _extract_function(
         list(args), {"function": function, "function_name": function_name,
                      "name": name, "fx": fx, "fy": fy, **kwargs}
     )
-    # kwargs may still contain on_success/on_error? already popped.
+    # The description and tags may also travel on the passed function object.
+    if description is None and function is not None:
+        description = getattr(function, "description", None)
+        if description is None and isinstance(function, dict):
+            description = function.get("description")
+    if tags is None and function is not None:
+        tags = getattr(function, "tags", None)
+        if tags is None and isinstance(function, dict):
+            tags = function.get("tags")
+    if community_id is None and function is not None:
+        community_id = getattr(function, "community_id", None)
+        if community_id is None and isinstance(function, dict):
+            community_id = function.get("community_id")
+
+    parsed_description = _clean_description(description)
+    parsed_tags = _clean_tags(tags)
+    parsed_community_id = str(community_id).strip() if community_id else ""
+    if not parsed_fx.strip() or not parsed_fy.strip():
+        if on_error is not None:
+            on_error(ValueError("Fx and Fy must not be empty."))
+        return
 
     def _fn() -> Any:
-        _require_auth(account)
+        require_auth(account)
         client = get_client()
         row = {
             "user_id": account.current_user.id,
-            "uploader_name": _uploader_name(account),
+            "uploader_name": uploader_name(account),
             "function_name": parsed_name,
             "fx": parsed_fx,
             "fy": parsed_fy,
+            "description": parsed_description,
+            "tags": parsed_tags,
         }
-        # Avoid duplicate uploads for the same function id when provided.
-        target_id = ""
-        if function is not None:
-            target_id = str(getattr(function, "id", None) or
-                            (function.get("id") if isinstance(function, dict) else "") or "")
-        if target_id:
+        # An imported function keeps its community identity: when the signed
+        # in user owns that row the upload updates it in place, otherwise it
+        # becomes a brand-new row owned by the user.
+        if parsed_community_id:
             try:
                 resp = (
                     client.table(TABLE)
-                    .select("id, fx, fy")
+                    .update({k: v for k, v in row.items() if k != "user_id"})
+                    .eq("id", parsed_community_id)
                     .eq("user_id", account.current_user.id)
                     .execute()
                 )
-                existing_row_id = None
-                for existing in getattr(resp, "data", None) or []:
-                    # Match by name+formulas as a best effort.
-                    if (str(existing.get("function_name", "")) == parsed_name
-                            and str(existing.get("fx", "")) == parsed_fx
-                            and str(existing.get("fy", "")) == parsed_fy):
-                        existing_row_id = existing.get("id")
-                        break
-                if existing_row_id is not None:
-                    return (
-                        client.table(TABLE)
-                        .update(row)
-                        .eq("id", existing_row_id)
-                        .eq("user_id", account.current_user.id)
-                        .execute()
-                    )
+                if getattr(resp, "data", None):
+                    return resp
             except Exception:
+                # Fall through: the row is not ours or does not exist; a new
+                # row is created instead.
                 pass
+        # Same formulas already published by this user: update that row
+        # (statistics survive an update) instead of duplicating it.
+        try:
+            resp = (
+                client.table(TABLE)
+                .select("id")
+                .eq("user_id", account.current_user.id)
+                .eq("function_name", parsed_name)
+                .eq("fx", parsed_fx)
+                .eq("fy", parsed_fy)
+                .execute()
+            )
+            rows = getattr(resp, "data", None) or []
+        except Exception:
+            rows = []
+        update_payload = {k: v for k, v in row.items() if k != "user_id"}
+        if rows:
+            return (
+                client.table(TABLE)
+                .update(update_payload)
+                .eq("id", rows[0].get("id"))
+                .eq("user_id", account.current_user.id)
+                .execute()
+            )
         return client.table(TABLE).insert(row).execute()
 
-    _run_async(_fn, on_success=on_success, on_error=on_error)
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def update_community_function(
+    function_id: str,
+    account: Any,
+    *,
+    function_name: Any = None,
+    fx: Any = None,
+    fy: Any = None,
+    description: Any = None,
+    tags: Any = None,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Update one of the signed-in user's published functions.
+
+    Only the content columns are written; the row id is fixed by the caller
+    and ownership is enforced both here (``eq("user_id", ...)``) and by row
+    level security.  Statistics and the uploader name are never touched.
+    """
+    from vector_drift.function_library import clean_name
+
+    if function_id is None or str(function_id).strip() == "":
+        if on_error is not None:
+            on_error(ValueError("no community function id"))
+        return
+    payload: dict = {}
+    if function_name is not None:
+        raw_name = str(function_name).strip()
+        if not raw_name:
+            if on_error is not None:
+                on_error(ValueError("The function needs a name."))
+            return
+        payload["function_name"] = clean_name(raw_name)
+    if fx is not None:
+        fx_text = str(fx)
+        if not fx_text.strip():
+            if on_error is not None:
+                on_error(ValueError("Fx cannot be empty."))
+            return
+        payload["fx"] = fx_text
+    if fy is not None:
+        fy_text = str(fy)
+        if not fy_text.strip():
+            if on_error is not None:
+                on_error(ValueError("Fy cannot be empty."))
+            return
+        payload["fy"] = fy_text
+    if description is not None:
+        payload["description"] = _clean_description(description)
+    if tags is not None:
+        payload["tags"] = _clean_tags(tags)
+    if not payload:
+        if on_success is not None:
+            on_success(None)
+        return
+
+    def _fn() -> Any:
+        require_auth(account)
+        client = get_client()
+        return (
+            client.table(TABLE)
+            .update(payload)
+            .eq("id", str(function_id))
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def delete_community_function(
@@ -194,11 +310,9 @@ def delete_community_function(
     """Delete a community function the current user uploaded."""
     # Normalise argument order: (function_id, account) OR (account, function_id)
     if account is None:
-        # Try kwargs
         account = kwargs.pop("account", None)
     if function_id is None:
         function_id = kwargs.pop("function_id", None) or kwargs.pop("id", None)
-    # If first args include account/function_id in either order
     positional = [a for a in args if a is not None]
     for val in positional:
         if account is None and hasattr(val, "is_authenticated"):
@@ -224,26 +338,39 @@ def delete_community_function(
             .execute()
         )
 
-    _run_async(_fn, on_success=on_success, on_error=on_error)
+    run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def fetch_community_functions(
     on_success: Optional[Callable[[list[dict]], None]] = None,
     on_error: Optional[Callable[[Exception], None]] = None,
 ) -> None:
-    """Fetch all public community functions, newest first."""
+    """Fetch all public community functions, newest first.
+
+    The statistics columns are requested too; a database created before they
+    existed answers with an error, and the plain column list is used instead:
+    the functions still show up, only without their counters.
+    """
 
     def _fn() -> list[dict]:
         client = get_client()
-        resp = (
-            client.table(TABLE)
-            .select("id, user_id, uploader_name, function_name, fx, fy, created_at")
-            .order("created_at", desc=True)
-            .execute()
-        )
+        try:
+            resp = (
+                client.table(TABLE)
+                .select(f"{BASE_COLUMNS}, {STAT_COLUMNS}")
+                .order("created_at", desc=True)
+                .execute()
+            )
+        except Exception:
+            resp = (
+                client.table(TABLE)
+                .select(BASE_COLUMNS)
+                .order("created_at", desc=True)
+                .execute()
+            )
         return getattr(resp, "data", None) or []
 
-    _run_async(_fn, on_success=on_success, on_error=on_error)
+    run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 # Aliases mirroring community level naming.
@@ -270,7 +397,7 @@ def delete_user_community_functions(
         )
         return len(getattr(resp, "data", None) or [])
 
-    _run_async(_fn, on_success=on_success, on_error=on_error)
+    run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def update_community_functions_uploader_name(
@@ -293,14 +420,228 @@ def update_community_functions_uploader_name(
         )
         return len(getattr(resp, "data", None) or [])
 
-    _run_async(_fn, on_success=on_success, on_error=on_error)
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+# --- usage statistics ---------------------------------------------------------
+
+def record_community_function_usage(
+    function_id: str,
+    success: bool = False,
+    player_key: Optional[str] = None,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Count one usage of a community function.
+
+    The counter lives on the function row and is raised by a database
+    function (``community_function_record_usage``), so concurrent uses never
+    overwrite each other; the same player only counts once toward the
+    unique-user counter.  A database without that function simply does not
+    count the usage: the error is reported to the caller, never raised into
+    the game loop.
+    """
+    if not function_id:
+        if on_error is not None:
+            on_error(ValueError("no community function id"))
+        return
+
+    def _fn() -> Any:
+        client = get_client()
+        return client.rpc(
+            "community_function_record_usage",
+            {
+                "p_function_id": str(function_id),
+                "p_success": bool(success),
+                "p_player_key": player_key or "",
+            },
+        ).execute()
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+# --- favorites ----------------------------------------------------------------
+
+def set_function_favorite(
+    function_id: str,
+    favorite: bool,
+    account: Any,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Favorite (``favorite=True``) or unfavorite a community function.
+
+    One row per (user, function) is enforced by the primary key of the
+    favorites table; the ``favorite_count`` on the function row is maintained
+    by a database trigger, so duplicate toggles can never inflate it.
+    """
+    if not function_id:
+        if on_error is not None:
+            on_error(ValueError("no community function id"))
+        return
+
+    def _fn() -> Any:
+        require_auth(account)
+        client = get_client()
+        if favorite:
+            return (
+                client.table(FAVORITES_TABLE)
+                .upsert({
+                    "user_id": account.current_user.id,
+                    "function_id": str(function_id),
+                }, on_conflict="user_id,function_id")
+                .execute()
+            )
+        return (
+            client.table(FAVORITES_TABLE)
+            .delete()
+            .eq("function_id", str(function_id))
+            .eq("user_id", account.current_user.id)
+            .execute()
+        )
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def set_function_rating(
+    function_id: str,
+    rating: Any,
+    account: Any,
+    on_success: Optional[Callable[[Any], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Rate a community function from 1 to 5 stars.
+
+    One rating per (user, function) is enforced by the primary key of the
+    ratings table: submitting again *changes* the rating instead of adding a
+    new one.  The average and the count on the function row are maintained by
+    a database trigger.
+    """
+    if not function_id:
+        if on_error is not None:
+            on_error(ValueError("no community function id"))
+        return
+    try:
+        stars = int(rating)
+    except (TypeError, ValueError):
+        if on_error is not None:
+            on_error(ValueError("The rating must be a whole number of stars."))
+        return
+    if isinstance(rating, bool) or stars < 1 or stars > 5:
+        if on_error is not None:
+            on_error(ValueError("The rating must be between 1 and 5 stars."))
+        return
+
+    def _fn() -> Any:
+        require_auth(account)
+        client = get_client()
+        return (
+            client.table(RATINGS_TABLE)
+            .upsert({
+                "user_id": account.current_user.id,
+                "function_id": str(function_id),
+                "rating": stars,
+            }, on_conflict="user_id,function_id")
+            .execute()
+        )
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def fetch_function_engagement(
+    account: Any,
+    on_success: Optional[Callable[[dict], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Fetch the signed-in user's own favorites and ratings.
+
+    Returns ``{"favorites": [function_id, ...], "ratings": {function_id:
+    rating}}``.  Guests (or a missing account) get empty containers: the
+    public page works without an account, only the per-user state is missing.
+    """
+
+    def _fn() -> dict:
+        empty = {"favorites": [], "ratings": {}}
+        if (
+            account is None
+            or not account.is_authenticated()
+            or account.current_user is None
+        ):
+            return empty
+        client = get_client()
+        user_id = account.current_user.id
+        favorites: list[str] = []
+        ratings: dict = {}
+        try:
+            resp = (
+                client.table(FAVORITES_TABLE)
+                .select("function_id")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            for row in getattr(resp, "data", None) or []:
+                fid = row.get("function_id")
+                if fid:
+                    favorites.append(str(fid))
+        except Exception:
+            pass
+        try:
+            resp = (
+                client.table(RATINGS_TABLE)
+                .select("function_id, rating")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            for row in getattr(resp, "data", None) or []:
+                fid = row.get("function_id")
+                if fid:
+                    try:
+                        ratings[str(fid)] = int(row.get("rating"))
+                    except (TypeError, ValueError):
+                        continue
+        except Exception:
+            pass
+        return {"favorites": favorites, "ratings": ratings}
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
+
+
+def delete_user_function_engagement(
+    account: Any,
+    on_success: Optional[Callable[[bool], None]] = None,
+    on_error: Optional[Callable[[Exception], None]] = None,
+) -> None:
+    """Delete every favorite and rating the current user left on community
+    functions.  Called when the account data is cleared / the player returns
+    to guest, so rows pointing at the player do not stay behind."""
+
+    def _fn() -> bool:
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            raise RuntimeError("Not logged in.")
+        client = get_client()
+        client.table(RATINGS_TABLE).delete().eq("user_id", account.current_user.id).execute()
+        client.table(FAVORITES_TABLE).delete().eq("user_id", account.current_user.id).execute()
+        return True
+
+    run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 __all__ = [
     "TABLE",
+    "FAVORITES_TABLE",
+    "RATINGS_TABLE",
+    "BASE_COLUMNS",
+    "STAT_COLUMNS",
     "upload_community_function",
+    "update_community_function",
     "delete_community_function",
     "fetch_community_functions",
+    "fetch_community_functions_list",
     "delete_user_community_functions",
     "update_community_functions_uploader_name",
+    "record_community_function_usage",
+    "set_function_favorite",
+    "set_function_rating",
+    "fetch_function_engagement",
+    "delete_user_function_engagement",
 ]
