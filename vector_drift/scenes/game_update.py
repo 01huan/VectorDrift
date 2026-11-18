@@ -43,7 +43,7 @@ _RENDER_ERRORS = (
     pygame.error, ValueError, TypeError, OverflowError, MemoryError,
 )
 
-from .game_layout import ARRIVED, CAMERA_EASE_S, CAMERA_MARGIN_M, FLIGHT, PANNING
+from .game_layout import ARRIVED, CAMERA_EASE_S, CAMERA_MARGIN_M, FLIGHT, PANNING, SETUP
 
 
 class GameUpdateMixin:
@@ -96,9 +96,18 @@ class GameUpdateMixin:
         self.camera.zoom = target if abs(target - zoom) < 1e-3 else zoom
 
     def _update_ai(self):
-        """Random levels: restart the solver on a new state, poll the running job."""
+        """Random levels: restart the solver on a new state, poll the running job.
+
+        Only in SETUP, the one state an answer can be launched from. In
+        flight the key changes with every pickup taken and on the pan to the
+        next section; restarting there started a new pool of worker
+        processes (one per CPU) each time while the cancelled ones were
+        still shutting down, and on Level 8 the stacked pools ran the
+        machine out of memory. The job for the launch state keeps running
+        through the flight; a changed state is solved once back in SETUP.
+        """
         key = self._state_key()
-        if key != self._last_state_key:
+        if self.state == SETUP and key != self._last_state_key:
             self._last_state_key = key
             self._kick_ai_for_state()
         # Poll the offline solver job on the main thread (never blocks PyGame).
