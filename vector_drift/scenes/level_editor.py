@@ -846,6 +846,10 @@ class LevelEditorScene(Scene):
             if self.selected == ("hole", i):
                 pygame.draw.circle(surface, config.ACCENT, (int(bc[0]), int(bc[1])), int(r)+px(3), 1)
                 pygame.draw.circle(surface, config.ACCENT, (int(wc[0]), int(wc[1])), int(r)+px(3), 1)
+            elif self.selected == ("black_hole", i):
+                pygame.draw.circle(surface, config.ACCENT, (int(bc[0]), int(bc[1])), int(r)+px(3), 1)
+            elif self.selected == ("white_hole", i):
+                pygame.draw.circle(surface, config.ACCENT, (int(wc[0]), int(wc[1])), int(r)+px(3), 1)
         if self.selected == ("start", None):
             pygame.draw.circle(surface, config.ACCENT, (int(sx), int(sy)), int(self.START_RADIUS * self.viewport.scale) + px(3), 1)
         elif self.selected == ("target", None):
