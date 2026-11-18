@@ -44,7 +44,7 @@ _RENDER_ERRORS = (
 )
 
 from .. import achievements
-from .game_layout import CX, SETUP, STATUS_Y, UNBOUND_EDGE, ease_in_out
+from .game_layout import ARRIVED, CX, PANNING, SETUP, STATUS_Y, UNBOUND_EDGE, ease_in_out
 
 
 class GamePickupMixin:
@@ -173,6 +173,24 @@ class GamePickupMixin:
         # pickups stay gone for the rest of this run's lives.
 
     # ------------------------------------------------------------------ pickup effects
+    def _recover_end_flight(self, outcome):
+        """Restore a consistent state after an end-flight failure.
+
+        A completed clear (ARRIVED) or a checkpoint pan (PANNING) is not
+        wiped: the player still gets the win screen / next section even if
+        the bookkeeping threw. Only failures before the outcome was decided
+        force a clean SETUP.
+        """
+        if getattr(self, "state", None) in (ARRIVED, PANNING):
+            return
+        self.flight = None
+        self.launch_pos = self.level.start
+        self.state = SETUP
+        try:
+            self._refresh_buttons()
+        except _RENDER_ERRORS:
+            pass
+
     def _add_pickup_fx(self, make, event, *args):
         """Start one pickup's effect. Presentation only: a bad event never stops the rules."""
         try:
@@ -290,19 +308,10 @@ class GamePickupMixin:
             # State may be half-updated (lives/trail); log and force a
             # consistent SETUP so the next launch starts clean.
             log.warning("end-flight %s contained: %r", outcome, exc)
-            self.flight = None
-            self.launch_pos = self.level.start
-            self.state = SETUP
-            self._refresh_buttons()
+            self._recover_end_flight(outcome)
         except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
             log.exception("unexpected end-flight failure")
-            self.flight = None
-            self.launch_pos = self.level.start
-            self.state = SETUP
-            try:
-                self._refresh_buttons()
-            except _RENDER_ERRORS:
-                pass
+            self._recover_end_flight(outcome)
 
         if banner is not None:
             try:
