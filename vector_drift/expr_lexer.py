@@ -100,6 +100,8 @@ def tokenize(text):
 
         if ch.isalpha() or ch == "_":
             match = _IDENT_RE.match(text, i)
+            if not match:
+                raise ParseError(f"Unexpected character '{ch}'", i)
             word = match.group()
             tokens.append(Token("ident", word.lower(), i))
             i = match.end()
