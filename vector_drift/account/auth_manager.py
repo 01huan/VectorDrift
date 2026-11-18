@@ -15,6 +15,32 @@ from .session_manager import SessionManager
 from .supabase_client import get_client, is_configured
 
 
+def _is_transient_error(exc: BaseException) -> bool:
+    """True for offline/unreachable-server style failures during restore.
+
+    Definitive auth rejections (expired/revoked refresh token) are not
+    transient; network hiccups keep the saved session so the player is not
+    logged out just because their connection dropped.
+    """
+    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        return True
+    try:
+        import httpx
+
+        if isinstance(exc, httpx.TransportError):
+            return True
+    except Exception:
+        pass
+    try:
+        from supabase_auth.errors import AuthRetryableError
+
+        if isinstance(exc, AuthRetryableError):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _display_name_from_user(user: Any) -> Optional[str]:
     """從 Supabase 使用者物件的中讀取自訂顯示名稱（user_metadata）。
 
@@ -42,6 +68,7 @@ class AccountManager:
     def __init__(self) -> None:
         self.session_manager = SessionManager()
         self.profile_manager = ProfileManager()
+        self.local_profile_manager = LocalProfileManager()
         self._queue: "queue.Queue" = queue.Queue()
 
         self.current_user: Optional[AccountUser] = None
@@ -304,7 +331,14 @@ class AccountManager:
             except Exception:
                 user = None
             if user is None:
-                resp = client.auth.refresh_session(refresh_token)
+                try:
+                    resp = client.auth.refresh_session(refresh_token)
+                except Exception as exc:
+                    if _is_transient_error(exc):
+                        # Offline / server unreachable: keep the saved session.
+                        raise
+                    # The server definitively rejected the tokens.
+                    raise AuthenticationError("Session expired") from exc
                 user = getattr(resp, "user", None)
                 session = getattr(resp, "session", None)
                 if user is None or session is None:
@@ -346,7 +380,10 @@ class AccountManager:
                 on_success(account_user)
 
         def error(exc: Exception) -> None:
-            self.session_manager.clear()
+            if isinstance(exc, AuthenticationError):
+                # Only a definitive auth failure may drop the saved session;
+                # transient network errors keep it for the next launch.
+                self.session_manager.clear()
             self.reset_to_guest()
             if on_error:
                 on_error(exc)
