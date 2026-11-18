@@ -121,7 +121,13 @@ def test_playback_interpolates_between_saved_frames_at_every_speed(speed):
     scene.player.set_speed(speed)
     scene.paused = False
 
-    scene.update(0.05 / speed)
+    # Advance the same 0.05 s of playback in per-frame increments, like the
+    # real loop does (each frame's advance is capped at MAX_FRAME_DT).
+    remaining = 0.05 / speed
+    while remaining > 0.0:
+        step = min(remaining, config.MAX_FRAME_DT)
+        scene.update(step)
+        remaining -= step
 
     frame = scene._current_frame()
     assert scene.player.index == 0

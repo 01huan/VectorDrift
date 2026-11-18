@@ -8,6 +8,7 @@ import pygame
 from .. import config, sprites
 from ..config import px
 from . import ability_effects as afx
+from . import pickup_effects as pfx
 from .replay_data import START_MARKER_RADIUS_M, trail_strokes
 
 
@@ -75,6 +76,58 @@ class ReplayRenderMixin:
         if self._section_total > 1:
             label += f" · section {self._section_index + 1}/{self._section_total}"
         return label
+
+    @staticmethod
+    def _fade(color, progress):
+        """The colour dimmed towards the background (the text fades out with it)."""
+        try:
+            p = max(0.0, min(1.0, float(progress)))
+            return tuple(max(0, min(255, round(c + (b - c) * p)))
+                        for c, b in zip(color, config.BG))
+        except (TypeError, ValueError, OverflowError):
+            return color
+
+    def _draw_money_fx(self, surface, frame):
+        """The "+N" of a taken coin, rebuilt from the playback position.
+
+        The record's coins vanish without any feedback, so the replay shows the
+        same floating "+N" the live game shows (the coin count itself never
+        jumps in a replay: presentation only, no coins are awarded here).
+        Effects are rebuilt from the re-simulated events every frame, so
+        seeking back and forth shows them again exactly as the live game did.
+        """
+        events = getattr(self, "_pickup_sync_events", ())
+        if not events:
+            return
+        try:
+            now = float(frame.get("t", 0.0))
+        except (TypeError, ValueError, AttributeError):
+            now = 0.0
+        if not math.isfinite(now):
+            return
+        for event in events:
+            if not isinstance(event, dict) or event.get("kind") != "money":
+                continue
+            try:
+                age = now - float(event.get("t", 0.0))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if age < 0.0 or age >= pfx.FLY_S:
+                continue
+            try:
+                amount = int(event.get("amount", 1))
+            except (TypeError, ValueError, OverflowError):
+                amount = 1
+            try:
+                cx, cy = self._viewport.to_screen(*event.get("center", (0.0, 0.0)))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if not (math.isfinite(cx) and math.isfinite(cy)):
+                continue
+            p = age / pfx.FLY_S
+            color = self._fade(pfx.MONEY_COLOR, p)
+            draw_text(surface, f"+{amount}", (cx, cy - px(30) * p), pfx.FLY_TEXT_SIZE,
+                      color, kind="bold", anchor="center")
 
     def _draw_ability_fx(self, surface, frame):
         """The flashes of the abilities that were used, at the playback spot.
@@ -203,6 +256,7 @@ class ReplayRenderMixin:
                 pass
             sprites.draw_ship(surface, ship_pos, heading, self._viewport.length(self._ship.length), self._ship)
             self._draw_ability_fx(surface, cur)
+            self._draw_money_fx(surface, cur)
 
         if prev_clip is not None:
             try:

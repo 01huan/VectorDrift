@@ -47,6 +47,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         self._pickups = ()
         self._holes = ()
         self._ability_events = ()     # the active abilities used in this launch
+        self._pickup_sync_events = () # the pickup events the replay has re-simulated so far
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
@@ -117,6 +118,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         self._pickups = ()
         self._holes = ()
         self._ability_events = ()
+        self._pickup_sync_events = ()
         self._target_center = (0.0, 0.0)
         self._target_radius = 0.5
         self._start = (0.0, 0.0)
@@ -280,6 +282,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         except Exception:
             end = 0
         prev = None
+        events = []
         for i in range(end):
             f = frames[i]
             try:
@@ -289,8 +292,20 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
                 x, y = 0.0, 0.0
             xy = (float(x), float(y))
             if prev is not None:
-                self._consume_segment(prev, xy)
+                seg_t = _get(f, "t")
+                try:
+                    seg_t = float(seg_t)
+                except (TypeError, ValueError, OverflowError):
+                    seg_t = 0.0
+                try:
+                    events.extend(self._consume_segment(prev, xy, seg_t))
+                except Exception:
+                    pass
             prev = xy
+        # The pickup events the replayed segments consumed, each stamped with
+        # the time they happened. The render layer uses them to rebuild the
+        # pickup effects (e.g. the "+N" coins) at the same playback position.
+        self._pickup_sync_events = events
         # Re-apply recorded events (idempotent) for shockwave, unbound, etc.
         try:
             rec = self.records[self.index] if 0 <= self.index < len(self.records) else None
@@ -300,7 +315,7 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         except Exception:
             pass
 
-    def _consume_segment(self, p0, p1):
+    def _consume_segment(self, p0, p1, seg_t=0.0):
         try:
             from ..pickups import check_pickups_segment
 
@@ -311,11 +326,21 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
                     self.hull_radius = 0.0
 
             ctx = _Ctx(self._obstacles)
-            check_pickups_segment(self._pickups, p0, p1, 0.0, ctx=ctx)
+            events = check_pickups_segment(self._pickups, p0, p1, 0.0, ctx=ctx)
             if getattr(ctx, "obstacle_specs", None) is not None:
                 self._obstacles = tuple(ctx.obstacle_specs)
+            stamped = []
+            for event in events or ():
+                if isinstance(event, dict):
+                    event = dict(event)
+                    try:
+                        event["t"] = float(seg_t)
+                    except (TypeError, ValueError, OverflowError):
+                        event["t"] = 0.0
+                stamped.append(event)
+            return stamped
         except Exception:
-            pass
+            return []
 
     def handle_event(self, event):
         if self.back_button.handle_event(event) == "click":
@@ -395,7 +420,11 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         if self.paused or not self.records:
             self._update_camera(dt)  # Update camera even when paused (for manual stepping)
             return
-        self._playback_time += dt * self.player.speed
+        # Clamp the advance like the live flight does (Flight.advance clamps
+        # its accumulator to MAX_FRAME_DT): a long frame (font cache build,
+        # GC, focus loss) must not jump playback ahead and skip footage.
+        advance_dt = min(max(dt, 0.0), config.MAX_FRAME_DT)
+        self._playback_time += advance_dt * self.player.speed
         self._sync_index_to_time()
         if self._frame_times and self._playback_time >= self._frame_times[-1]:
             self.player.pause()
