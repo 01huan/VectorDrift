@@ -12,7 +12,7 @@ from vector_drift.ability_icons import (ability_icon, avatar_letters, draw_abili
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 IMAGES = Path(image_assets.IMAGES_DIR)
-WITH_PICTURE = ("ability_boost", "ability_brake", "ability_blink")
+WITH_PICTURE = tuple(ABILITIES)      # every ability has its picture now
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,7 @@ def test_image_key_and_file_drop_the_ability_prefix():
 
 
 @pytest.mark.parametrize("aid", WITH_PICTURE)
-def test_drawn_abilities_ship_a_256_px_palette_picture(aid):
+def test_every_ability_ships_a_256_px_palette_picture(aid):
     path = IMAGES / "abilities" / f"{short_id(aid)}.png"
     surf = pygame.image.load(str(path))
     assert surf.get_size() == (256, 256)

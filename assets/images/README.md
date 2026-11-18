@@ -17,8 +17,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `pickup.shield` | `pickups/shield.png` | Shield pickup icon, 256 x 256 |
 | `pickup.money` | `pickups/money.png` | Coin pickup on the map, 256 x 256 (coin_2) |
 | `pickup.unbound` | `pickups/unbound.png` | Unbound pickup icon (infinity sign), 256 x 256 |
-| `ability.boost`, `ability.brake`, `ability.blink` | `abilities/boost.png`, `abilities/brake.png`, `abilities/blink.png` | Ability icons (Boost, Retro Burn, Blink) on the shop cards and the game panel's ability slots, 256 x 256 |
-| `ability.shield_pulse`, `ability.magnet`, `ability.time_freeze`, `ability.phase` | `abilities/shield_pulse.png`, `abilities/magnet.png`, `abilities/time_freeze.png`, `abilities/phase.png` | Not drawn yet: these abilities show a letter avatar (S, M, T, P) until their PNG is added under that name |
+| `ability.boost`, `ability.shield_pulse`, `ability.magnet`, `ability.time_freeze`, `ability.phase`, `ability.brake`, `ability.blink` | `abilities/boost.png`, `abilities/shield_pulse.png`, `abilities/magnet.png`, `abilities/time_freeze.png`, `abilities/phase.png`, `abilities/brake.png`, `abilities/blink.png` | Ability icons (Boost, Shield Pulse, Magnet, Time Freeze, Phase Shift, Retro Burn, Blink) on the shop cards and the game panel's ability slots, 256 x 256; every ability has its picture |
 | `ui.coin_1` | `ui/coin_1.png` | Coin icon next to the player's balance, 256 x 256 |
 | `ui.coin_2` | `pickups/money.png` | Coin icon next to prices and coins earned (same picture as the map coin) |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
@@ -46,7 +45,8 @@ a rounded square with one capital letter. In shop order each ability takes
 the first letter of its name that no earlier ability has taken, then the
 next unused letter of its name (Blink is L because Boost has B). Abilities
 with a picture keep their letter too, so removing a picture never makes
-two avatars alike. Current letters: Boost B, Shield Pulse S, Magnet M,
+two avatars alike. All seven have a picture now; the letters are
+used only if one goes missing: Boost B, Shield Pulse S, Magnet M,
 Time Freeze T, Phase Shift P, Retro Burn R, Blink L.
 
 ## Sizing
