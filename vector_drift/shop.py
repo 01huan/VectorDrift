@@ -72,13 +72,38 @@ def can_purchase(item: ShopItem, session) -> bool:
         return False
 
 
+def _restore_money(session, amount: int) -> bool:
+    """Set the session's balance back to ``amount`` (best effort)."""
+    money = session.money
+    if hasattr(money, "amount") and not isinstance(money, (int, float, bool, str, bytes)):
+        try:
+            money.amount = int(amount)
+            return True
+        except Exception:
+            pass
+    for attr in ("value", "balance", "total"):
+        attr_value = getattr(money, attr, None)
+        if attr_value is not None and not callable(attr_value):
+            try:
+                setattr(money, attr, int(amount))
+                return True
+            except Exception:
+                pass
+    try:
+        session.money = int(amount)
+        return True
+    except Exception:
+        return False
+
+
 def purchase_item(item: ShopItem, session) -> bool:
     if not can_purchase(item, session):
         return False
+    before = _coerce_money(session.money)
     try:
         session.money.spend(item.price)
     except Exception:
-        new_amount = _coerce_money(session.money) - int(item.price)
+        new_amount = before - int(item.price)
         money = session.money
         updated = False
         if hasattr(money, "amount") and not isinstance(money, (int, float, bool, str, bytes)):
@@ -95,6 +120,8 @@ def purchase_item(item: ShopItem, session) -> bool:
     try:
         item.purchase(session)
     except Exception:
+        # Never charge for an item that was not granted.
+        _restore_money(session, before)
         return False
     # Abilities manage their own ownership (charges or purchased_items via
     # their _purchase callback); recording every ability id here would pollute
@@ -167,7 +194,15 @@ def _register_ships() -> None:
             return sid in _owned_ship_ids(s)
 
         def _purchase(s, sid=sid):
-            _owned_ship_ids(s).add(sid)
+            owned = _owned_ship_ids(s)
+            owned.add(sid)
+            # owned_ship_ids mutates the session's own set in place; when it
+            # had to hand back a fresh copy (the session stores a list or
+            # similar), write it back so the grant sticks.
+            for attr in ("owned_ships", "unlocked_ships", "purchased_ships", "owned_ship_ids"):
+                if isinstance(getattr(s, attr, None), set):
+                    return
+            setattr(s, "owned_ships", owned)
 
         register_item(ShopItem(
             id=sid,
