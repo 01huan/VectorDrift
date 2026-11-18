@@ -174,7 +174,7 @@ def generate_wormhole_network_layout(rng, preset):
         n_walls = 1
     spacing = abs(span) / (n_walls + 1)
     direction = 1.0 if span >= 0 else -1.0
-    offset = _clamp(0.30 * spacing, 1.35, 0.38 * spacing)
+    offset = min(max(0.30 * spacing, 1.35), 0.38 * spacing)
 
     walls = [sx + span * (k + 1) / (n_walls + 1) for k in range(n_walls)]
     wall_obstacles = []
