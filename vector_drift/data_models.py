@@ -197,7 +197,7 @@ def ship_unlocked(ship, level_id=None, session=None, owned=None):
 
 
 def default_ship_id(level_id=None, session=None):
-    """The ship a level starts on: the first owned ship (ship01 by default)."""
+    """The ship a level starts on: the newest owned ship (ship01 when that is all)."""
     owned = _owned_ship_ids(session)
     usable = [sid for sid in SHIPS if sid in owned]
     return usable[-1] if usable else next(iter(SHIPS))
