@@ -173,7 +173,7 @@ def multi_section_level(id, name, ship_id, sections, lives=5):
 SHIPS = {
     f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2,
                              unlock_level=n)
-    for n in range(1, 7)
+    for n in range(1, 11)
 }
 DEFAULT_SHIP_ID = "ship01"
 
