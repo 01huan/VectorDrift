@@ -65,10 +65,26 @@ class GameFlightMixin:
         if getattr(self, "lab_popup", False):
             if gfunc.handle_event(self, event):
                 return                  # modal: nothing behind it takes input
-        if self.ai_popup and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            self.audio.play("click")    # same as its Close button
-            self.ai_popup = False
-            return
+        if self.ai_popup:
+            # Modal: the popup owns every event while it is open.
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.audio.play("click")    # same as its Close button
+                self.ai_popup = False
+                return
+            self._position_ai_popup_buttons()
+            if self._ai_revealed():
+                if self.ai_apply_button.handle_event(event) == "click":
+                    self.audio.play("click")
+                    self._apply_ai_suggestion()
+                    return
+            elif self.ai_reveal_button.handle_event(event) == "click":
+                self._buy_ai_reveal()
+                return
+            if self.ai_close_button.handle_event(event) == "click":
+                self.audio.play("click")
+                self.ai_popup = False
+                return
+            return                      # swallow everything else
         if self.pause_menu is not None:
             self._handle_pause_event(event)
             return                      # modal: nothing behind it takes input
@@ -76,18 +92,6 @@ class GameFlightMixin:
             if self.state in (SETUP, FLIGHT):
                 self._open_pause()
             return                      # ARRIVED: Esc does nothing
-        # The run button sits inside the editor's header, so it gets the event first.
-        result = self.run_button.handle_event(event)
-        if result == "click":
-            if self.state == SETUP:
-                self._try_launch()
-            elif self.state == FLIGHT:
-                self._abort()
-            return
-        if result == "disabled":
-            self.audio.play("error")
-            return
-
         result = self.inventory_button.handle_event(event)
         if result == "click":
             self.audio.play("click")
@@ -102,6 +106,17 @@ class GameFlightMixin:
             # Modal: swallow other input while open.
             if event.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
                 return
+        # The run button sits inside the editor's header, so it gets the event first.
+        result = self.run_button.handle_event(event)
+        if result == "click":
+            if self.state == SETUP:
+                self._try_launch()
+            elif self.state == FLIGHT:
+                self._abort()
+            return
+        if result == "disabled":
+            self.audio.play("error")
+            return
         if self.state == FLIGHT and event.type == pygame.KEYDOWN:
             if self._use_ability_key(event.key):
                 return
@@ -126,22 +141,6 @@ class GameFlightMixin:
             self._switch_ship(-1)
         if self.next_ship.handle_event(event) == "click":
             self._switch_ship(1)
-
-        if self.ai_popup:
-            self._position_ai_popup_buttons()
-            if self._ai_revealed():
-                if self.ai_apply_button.handle_event(event) == "click":
-                    self.audio.play("click")
-                    self._apply_ai_suggestion()
-                    return
-            elif self.ai_reveal_button.handle_event(event) == "click":
-                self._buy_ai_reveal()
-                return
-            if self.ai_close_button.handle_event(event) == "click":
-                self.audio.play("click")
-                self.ai_popup = False
-                return
-            return  # Modal: swallow other input while the popup is open.
 
         if self.ai_button.handle_event(event) == "click":
             # Free to open; only the full answer costs (answer page / Reveal).

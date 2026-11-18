@@ -114,7 +114,7 @@ def handle_event(scene, event) -> bool:
         scene.lab_prev_button.handle_event(event)
         scene.lab_next_button.handle_event(event)
         scene.lab_close_button.handle_event(event)
-        return False
+        return True                       # modal: the hover belongs to the picker
     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
         for function, rect in scene.lab_rows:
             if rect.collidepoint(event.pos):
