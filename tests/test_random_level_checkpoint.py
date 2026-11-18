@@ -1,16 +1,31 @@
-"""Checkpoints in the merged random level: the screens are chained."""
+"""Checkpoints in the merged random level: the screens are chained.
 
+Level 8 itself is always one screen (checkpoints are introduced by Level 9);
+these tests let its pool chain up to three screens to cover a merged map.
+"""
+
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 
 from vector_drift import config
 from vector_drift.physics import Outcome
+from vector_drift import level_presets
+from vector_drift.level_merge import MAX_SECTIONS
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import ARRIVED, PANNING, SETUP, GameScene
 from vector_drift.scenes.win import WinScene
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
+
+MULTI = replace(level_presets.PRESET_8, max_sections=MAX_SECTIONS)
+
+
+@pytest.fixture(autouse=True)
+def multi_screen_level_8(monkeypatch):
+    """Let Level 8 chain screens for these tests only."""
+    monkeypatch.setitem(level_presets.PRESETS, 8, MULTI)
 
 
 class Audio:
@@ -61,10 +76,9 @@ def _reach_the_target(scene):
 def _multi_screen_seed():
     """A seed whose random map is made of more than one screen."""
     from vector_drift.level_merge import generate_merged_layout
-    from vector_drift.level_presets import PRESET_8
 
     for seed in range(60):
-        if len(generate_merged_layout(seed, PRESET_8).sections) > 1:
+        if len(generate_merged_layout(seed, MULTI).sections) > 1:
             return seed
     raise AssertionError("no multi-screen random map found")
 

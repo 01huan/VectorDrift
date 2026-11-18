@@ -11,13 +11,19 @@ from vector_drift.scenes.base import SceneManager
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 
+def test_ships_01_to_10_share_the_same_physics():
+    assert list(SHIPS) == [f"ship{n:02d}" for n in range(1, 11)]
+    for sid, ship in SHIPS.items():
+        assert (ship.id, ship.name, ship.mass, ship.hull_radius) == (sid, sid, 1.0, 0.2)
+
+
 def test_level_n_flies_ship_n():
-    for n in range(1, 7):
+    for n in range(1, 11):                       # level 10 does not exist yet: ship10 waits for it
         assert level_ship_id(n) == f"ship{n:02d}"
 
 
 def test_levels_whose_ship_is_not_made_yet_fly_ship01():
-    for n in (7, 8, 9, 10, 24):                  # ship07+ are not in SHIPS (yet)
+    for n in (11, 12, 24):                       # ship11+ are not in SHIPS (yet)
         assert f"ship{n:02d}" not in SHIPS
         assert level_ship_id(n) == "ship01"
     for odd in (None, 0, -3, "x", 2.5, True):
@@ -26,9 +32,9 @@ def test_levels_whose_ship_is_not_made_yet_fly_ship01():
 
 def test_a_new_ship_in_ships_is_flown_by_its_level(monkeypatch):
     ships = dict(SHIPS)
-    ships["ship07"] = ShipSpec(id="ship07", name="ship07", mass=1.0, hull_radius=0.2, unlock_level=7)
+    ships["ship11"] = ShipSpec(id="ship11", name="ship11", mass=1.0, hull_radius=0.2, unlock_level=11)
     monkeypatch.setattr(data_models, "SHIPS", ships)
-    assert level_ship_id(7) == "ship07"
+    assert level_ship_id(11) == "ship11"
 
 
 def test_custom_and_community_levels_fly_ship01(monkeypatch):
@@ -54,8 +60,7 @@ def game_on(manager, level_id):
     return GameScene(manager)
 
 
-@pytest.mark.parametrize("level_id, ship_id", [(1, "ship01"), (2, "ship02"), (6, "ship06"),
-                                               (7, "ship01"), (8, "ship01"), (9, "ship01")])
+@pytest.mark.parametrize("level_id, ship_id", [(n, f"ship{n:02d}") for n in range(1, 10)])
 def test_game_flies_the_levels_ship_with_no_arrows(level_id, ship_id):
     scene = game_on(SceneManager(Quiet()), level_id)
     assert scene.ship.id == ship_id
