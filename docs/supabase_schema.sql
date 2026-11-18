@@ -266,6 +266,9 @@ create policy "community_function_favorites_insert_own" on public.community_func
 drop policy if exists "community_function_favorites_delete_own" on public.community_function_favorites;
 create policy "community_function_favorites_delete_own" on public.community_function_favorites
     for delete using (auth.uid() = user_id);
+drop policy if exists "community_function_favorites_update_own" on public.community_function_favorites;
+create policy "community_function_favorites_update_own" on public.community_function_favorites
+    for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- 收藏數由觸發器維護，客戶端不送數字。
 create or replace function public.community_function_favorites_touch()
@@ -358,7 +361,7 @@ create trigger community_function_ratings_count
     for each row execute function public.community_function_ratings_touch();
 
 -- 使用者操作自己的收藏/評分所需的表級權限（RLS 負責列級限制）。
-grant select, insert, delete on public.community_function_favorites to authenticated;
+grant select, insert, update, delete on public.community_function_favorites to authenticated;
 grant select, insert, update, delete on public.community_function_ratings to authenticated;
 
 -- 統計欄位與擁有者絕不信任客戶端：撤掉整表的 insert/update 授權，只開放
@@ -417,6 +420,9 @@ create policy "community_level_favorites_insert_own" on public.community_level_f
 drop policy if exists "community_level_favorites_delete_own" on public.community_level_favorites;
 create policy "community_level_favorites_delete_own" on public.community_level_favorites
     for delete using (auth.uid() = user_id);
+drop policy if exists "community_level_favorites_update_own" on public.community_level_favorites;
+create policy "community_level_favorites_update_own" on public.community_level_favorites
+    for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create or replace function public.community_level_favorites_touch()
 returns trigger
@@ -507,7 +513,7 @@ create trigger community_level_ratings_count
     for each row execute function public.community_level_ratings_touch();
 
 -- 4) players manage their own rows only (RLS enforces it)
-grant select, insert, delete on public.community_level_favorites to authenticated;
+grant select, insert, update, delete on public.community_level_favorites to authenticated;
 grant select, insert, update, delete on public.community_level_ratings to authenticated;
 
 -- 5) the statistics columns are maintained by triggers/security-definer
