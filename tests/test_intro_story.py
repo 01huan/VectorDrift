@@ -11,7 +11,6 @@ from vector_drift import intro_story
 from vector_drift.image_assets import AssetSpec
 from vector_drift.scenes import story as story_module
 from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.story import StoryScene
 from vector_drift.scenes.tutorial_basics import BasicsScene
 
@@ -224,13 +223,25 @@ def test_scene_after_the_first_story_is_basics():
     assert isinstance(story_module.scene_after_story(manager), BasicsScene)
 
 
-def test_a_story_with_its_own_end_goes_there():
-    """A replay from the Tutorial menu passes where it ends (back to that menu)."""
-    manager = SceneManager(Audio())
-    scene = StoryScene(manager, after=lambda m: LevelSelectScene(m, tutorial_menu=True))
-    manager.switch(scene)
-    _key(scene, pygame.K_ESCAPE)
-    assert isinstance(manager.scene, LevelSelectScene) and manager.scene.tutorial_menu
+@pytest.mark.parametrize("how", ["played through", "skip", "esc"])
+def test_every_way_out_of_the_story_goes_to_the_same_place(monkeypatch, how):
+    marker = SimpleNamespace(music=None)
+    monkeypatch.setattr(story_module, "scene_after_story", lambda manager: marker)
+    scene = _story()
+    if how == "played through":
+        for _ in range(5):
+            _next(scene)
+        _key(scene, pygame.K_SPACE)
+    elif how == "skip":
+        _click(scene, scene.skip_button.rect.center)
+    else:
+        _key(scene, pygame.K_ESCAPE)
+    assert scene.manager.scene is marker
+
+
+def test_a_story_takes_no_other_end():
+    import inspect
+    assert "after" not in inspect.signature(StoryScene.__init__).parameters
 
 
 # --- fades ---------------------------------------------------------------------------

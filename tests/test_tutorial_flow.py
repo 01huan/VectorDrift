@@ -1,5 +1,5 @@
-"""How the tutorial is reached: first Start -> story -> Basics -> level select,
-and the Tutorial menu (Story, Basics, Field guide) on level select."""
+"""How the tutorial is reached: first Start -> story -> tutorial screen -> level select,
+and the Tutorial button on level select (story -> tutorial screen, no menu)."""
 
 from types import SimpleNamespace
 
@@ -8,7 +8,7 @@ import pytest
 
 from vector_drift import config
 from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.field_guide import FieldGuideScene, GuideDemoScene
+from vector_drift.scenes import levels as levels_module
 from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.menu import MenuScene
 from vector_drift.scenes.story import StoryScene
@@ -50,12 +50,16 @@ def _play_story_through(manager):
         story.next()
 
 
-def _open_tutorial_menu(manager):
+def _press_tutorial(manager):
     scene = LevelSelectScene(manager)
     manager.switch(scene)
     _click(manager, scene.tutorial_button.rect)
-    assert scene.tutorial_menu
-    return scene
+    assert isinstance(manager.scene, StoryScene)
+    return manager.scene
+
+
+def _on_tutorial_screen(manager, step=0):
+    return isinstance(manager.scene, BasicsScene) and manager.scene.index == step
 
 
 # --- the first Start ----------------------------------------------------------------------
@@ -63,9 +67,9 @@ def test_first_start_plays_the_story_then_basics_then_level_select():
     manager = _manager()
     _start(manager)
     _play_story_through(manager)
-    assert isinstance(manager.scene, BasicsScene) and manager.scene.index == 0
+    assert _on_tutorial_screen(manager)
     _key(manager, pygame.K_ESCAPE)
-    assert isinstance(manager.scene, LevelSelectScene) and not manager.scene.tutorial_menu
+    assert isinstance(manager.scene, LevelSelectScene)
 
 
 def test_skipping_the_first_story_still_opens_basics():
@@ -99,13 +103,12 @@ def test_the_first_story_watched_through_unlocks_is_anyone_out_there():
     assert "is_anyone_out_there" in manager.session.achievements
 
 
-def test_the_story_replayed_from_the_tutorial_menu_unlocks_it_too():
+def test_the_story_from_the_tutorial_button_unlocks_it_too():
     manager = _manager(seen_intro=True)
-    scene = _open_tutorial_menu(manager)
-    _click(manager, scene.tutorial_items[0].rect)
+    _press_tutorial(manager)
     _play_story_through(manager)
     assert "is_anyone_out_there" in manager.session.achievements
-    assert isinstance(manager.scene, LevelSelectScene) and manager.scene.tutorial_menu
+    assert _on_tutorial_screen(manager)
 
 
 def test_a_skipped_story_unlocks_nothing():
@@ -115,47 +118,44 @@ def test_a_skipped_story_unlocks_nothing():
     assert "is_anyone_out_there" not in manager.session.achievements
 
 
-# --- the Tutorial menu --------------------------------------------------------------------------
-def test_tutorial_menu_items_open_story_basics_and_field_guide():
-    for k, kind in enumerate((StoryScene, BasicsScene, FieldGuideScene)):
-        manager = _manager(seen_intro=True)
-        scene = _open_tutorial_menu(manager)
-        _click(manager, scene.tutorial_items[k].rect)
-        assert isinstance(manager.scene, kind)
-
-
-def test_basics_from_the_tutorial_menu_starts_at_step_one():
+# --- the Tutorial button ----------------------------------------------------------------------
+def test_the_tutorial_button_plays_the_story_with_no_menu():
     manager = _manager(seen_intro=True)
-    scene = _open_tutorial_menu(manager)
-    _click(manager, scene.tutorial_items[1].rect)
-    assert manager.scene.index == 0
+    story = _press_tutorial(manager)
+    assert story.index == 0
 
 
-def test_esc_closes_the_tutorial_menu_on_level_select():
+@pytest.mark.parametrize("how", ["played through", "skip", "esc"])
+def test_the_story_from_the_tutorial_button_always_ends_on_the_tutorial_screen(how):
     manager = _manager(seen_intro=True)
-    scene = _open_tutorial_menu(manager)
-    _key(manager, pygame.K_ESCAPE)
-    assert manager.scene is scene and not scene.tutorial_menu
-    _key(manager, pygame.K_ESCAPE)                  # closed: Esc goes back to the main menu as before
+    story = _press_tutorial(manager)
+    if how == "played through":
+        _play_story_through(manager)
+    elif how == "skip":
+        _click(manager, story.skip_button.rect)
+    else:
+        _key(manager, pygame.K_ESCAPE)
+    assert _on_tutorial_screen(manager)
+    assert ("is_anyone_out_there" in manager.session.achievements) == (how == "played through")
+
+
+def test_the_tutorial_screen_exit_goes_back_to_level_select():
+    manager = _manager(seen_intro=True)
+    _press_tutorial(manager)
+    _key(manager, pygame.K_ESCAPE)                  # skip the story
+    _click(manager, manager.scene.exit_button.rect)
+    assert isinstance(manager.scene, LevelSelectScene)
+
+
+def test_level_select_has_no_tutorial_menu():
+    manager = _manager(seen_intro=True)
+    scene = LevelSelectScene(manager)
+    for name in ("tutorial_menu", "tutorial_items", "tutorial_card"):
+        assert not hasattr(scene, name)
+    for name in ("TUTORIAL_ITEMS", "TUTORIAL_CARD"):
+        assert not hasattr(levels_module, name)
+    with pytest.raises(TypeError):
+        LevelSelectScene(manager, tutorial_menu=True)
+    manager.switch(scene)
+    _key(manager, pygame.K_ESCAPE)                  # Esc goes back to the main menu as before
     assert isinstance(manager.scene, MenuScene)
-
-
-def test_the_open_menu_takes_all_input():
-    manager = _manager(seen_intro=True)
-    scene = _open_tutorial_menu(manager)
-    _key(manager, pygame.K_RETURN)                  # would start a level
-    assert manager.scene is scene and scene.tutorial_menu
-    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
-
-
-def test_field_guide_back_returns_to_level_select_with_the_menu_open():
-    manager = _manager(seen_intro=True)
-    scene = _open_tutorial_menu(manager)
-    _click(manager, scene.tutorial_items[2].rect)
-    page = manager.scene
-    page.open(page.cards[0][0])
-    assert isinstance(manager.scene, GuideDemoScene)
-    _key(manager, pygame.K_ESCAPE)
-    assert isinstance(manager.scene, FieldGuideScene)
-    _key(manager, pygame.K_ESCAPE)
-    assert isinstance(manager.scene, LevelSelectScene) and manager.scene.tutorial_menu

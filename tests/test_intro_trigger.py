@@ -1,4 +1,4 @@
-"""When the intro story plays: the first Start (then Basics), and the Tutorial menu on level select.
+"""When the intro story plays: the first Start (then Basics), and the Tutorial button on level select.
 
 seen_intro is saved with the coins and progress (guest save and cloud
 profile, inside stats) the moment the story starts.
@@ -124,26 +124,25 @@ def _level_select(seen_intro=True):
     return scene
 
 
-def test_tutorial_button_opens_the_tutorial_menu():
+def test_tutorial_button_plays_the_story_straight_away():
     scene = _level_select()
     assert scene.tutorial_button.label == levels_module.TUTORIAL_LABEL == "Tutorial"
     _click(scene, scene.tutorial_button)
-    assert scene.manager.scene is scene and scene.tutorial_menu
-    assert [b.label for b in scene.tutorial_items] == ["Story", "Basics", "Field guide"]
+    story = scene.manager.scene
+    assert isinstance(story, StoryScene) and story.index == 0
 
 
-def test_story_from_the_tutorial_menu_returns_to_the_menu():
+def test_story_from_the_tutorial_button_goes_on_to_the_tutorial_screen():
+    from vector_drift.scenes.tutorial_basics import BasicsScene
     scene = _level_select()
     _click(scene, scene.tutorial_button)
-    _click(scene, scene.tutorial_items[0])
     story = scene.manager.scene
     assert isinstance(story, StoryScene)
     for _ in range(len(story.panels)):          # play it through
         story.update(3.0)               # long enough for the ship's line to be typed out
         story.update(3.0)
         story.next()
-    back = story.manager.scene
-    assert isinstance(back, LevelSelectScene) and back.tutorial_menu
+    assert isinstance(story.manager.scene, BasicsScene)
 
 
 def test_tutorial_button_sits_with_shop_and_level_editor_without_overlap():

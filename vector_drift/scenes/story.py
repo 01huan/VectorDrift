@@ -19,8 +19,11 @@ scales that to the screen (pygame.transform.scale: smoothscale is too slow
 at 4K). The placeholder text does not zoom.
 
 Click / Space / Right: next (while a panel is still fading in or its line
-is still being typed, the first press only shows it in full). Left: back. Esc or Skip ends the story at
-once, and Next on the last panel ends it too.
+is still being typed, the first press only shows it in full). Left: back.
+Esc or Skip ends the story at once, and Next on the last panel ends it
+too. However it ends, it goes on to the tutorial screen
+(scene_after_story): after the first Start and after the Tutorial button
+on level select alike.
 """
 
 import pygame
@@ -62,10 +65,9 @@ def start_first_intro(manager):
 
 
 def scene_after_story(manager):
-    """Where the first intro story ends (played through or skipped): the one place to change it.
+    """Where the story ends (played through, skipped or Esc): the one place to change it.
 
-    The Basics walkthrough; it ends at level select. (A replay from the
-    Tutorial menu passes its own ``after`` and goes back to that menu.)
+    The tutorial screen; it ends at level select.
     """
     from .tutorial_basics import BasicsScene
     return BasicsScene(manager)
@@ -74,9 +76,8 @@ def scene_after_story(manager):
 class StoryScene(Scene):
     music = None            # set to "opening" when that track exists, else the music stays
 
-    def __init__(self, manager, after=None):
+    def __init__(self, manager):
         super().__init__(manager)
-        self.after = after          # manager -> the scene the story ends at (None: scene_after_story)
         if "opening" in (getattr(self.audio, "music_paths", None) or {}):
             self.music = "opening"
         self.panels = story_panels()
@@ -171,8 +172,7 @@ class StoryScene(Scene):
 
     def finish(self):
         """End the story (last panel, Skip or Esc)."""
-        after = self.after or scene_after_story
-        self.manager.switch(after(self.manager))
+        self.manager.switch(scene_after_story(self.manager))
 
     # --- scene ------------------------------------------------------------------
     def handle_event(self, event):

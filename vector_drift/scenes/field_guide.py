@@ -35,12 +35,6 @@ GRID_TOP = 140
 ICON_R = 28
 
 
-def back_to_tutorial_menu(manager):
-    """Leaving the Field guide: level select with the Tutorial menu open."""
-    from .levels import LevelSelectScene
-    return LevelSelectScene(manager, tutorial_menu=True)
-
-
 # --- the clip ------------------------------------------------------------------------------
 class GuideDemoScene(TutorialGameScene):
 
@@ -213,7 +207,8 @@ class FieldGuideScene(Scene):
         self.audio.play("click")
         from .tutorial_play import give_back_session
         give_back_session(self.session, self.restore)
-        self.manager.switch(back_to_tutorial_menu(self.manager))
+        from .levels import LevelSelectScene
+        self.manager.switch(LevelSelectScene(self.manager))
 
     def handle_event(self, event):
         if self.back_button.handle_event(event) == "click":

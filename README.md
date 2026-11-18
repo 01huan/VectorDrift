@@ -345,10 +345,9 @@ The first time you press **Start**, the game plays a short opening story: six pa
 
 ### Tutorial
 
-The **Tutorial** button on the level selector opens a small menu (`Esc` closes it):
+The **Tutorial** button on the level selector plays the opening story again and then opens the tutorial screen, the same way the first **Start** does. However the story ends (played through, **Skip** or `Esc`), the tutorial screen comes next:
 
-* **Story** plays the opening story again and returns to this menu.
-* **Basics** walks through flying a level on the real game screen: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc` or Exit leaves to the level selector.
+* **Basics** walks through flying a level on the real game screen: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc`, Exit, or **Start playing** on the last step leaves to the level selector.
 * **Field guide** shows what every rock, portal and pickup does: open a card to watch a short looping clip of it, and press `Esc` or Back to return.
 
 Nothing done in the tutorial pays coins, changes level progress or best times, saves replays, or counts toward achievements; only watching the opening story through unlocks its achievement as usual. All tutorial text and maps are in `vector_drift/tutorial.toml`.
@@ -461,7 +460,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `<` / `>` arrows, `←` / `→` or the mouse wheel in the level selector | Previous / next page of nine levels (wheel down is the next page; the dots below the grid show the current page). |
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
 | Function Lab button | Open the Function Lab. |
-| Tutorial button | Open the Tutorial menu: Story, Basics, Field guide. |
+| Tutorial button | Play the opening story, then the tutorial screen. |
 | Replays button | Open saved launch replays. |
 
 ### In a level
