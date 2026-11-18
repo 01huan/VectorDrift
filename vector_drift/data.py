@@ -131,7 +131,7 @@ def community_level_id(remote_id) -> int:
         # No remote id to key on (should not happen with Supabase rows):
         # hand out a fresh unique id instead of reusing one.
         candidate = -1
-        while candidate in CUSTOM_LEVELS or candidate in COMMUNITY_REMOTE_IDS:
+        while candidate in CUSTOM_LEVELS or candidate in COMMUNITY_REMOTE_IDS or candidate in COMMUNITY_LEVELS:
             candidate -= 1
             if candidate <= -COMMUNITY_ID_SPACE:
                 raise RuntimeError("community level id space exhausted")
@@ -142,7 +142,7 @@ def community_level_id(remote_id) -> int:
         return cached
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     candidate = -1 - (int.from_bytes(digest[:7], "big") % COMMUNITY_ID_SPACE)
-    while candidate in CUSTOM_LEVELS or candidate in COMMUNITY_REMOTE_IDS:
+    while candidate in CUSTOM_LEVELS or candidate in COMMUNITY_REMOTE_IDS or candidate in COMMUNITY_LEVELS:
         candidate -= 1
         if candidate <= -COMMUNITY_ID_SPACE:
             raise RuntimeError("community level id space exhausted")
