@@ -132,12 +132,17 @@ class GamePickupMixin:
                 # and stay collectable for a later run.
                 key = self._coin_key(event.get("center"))
                 collected = self._collected_coins()
-                if key not in collected:
+                if is_custom_map(self.level.id, self.session):
+                    # Custom/community maps pay no coins (by design): the
+                    # coin is not banked, saved as collected or counted as
+                    # earned, so it stays collectable on every run.
+                    # (The sound below still plays.)
+                    pass
+                elif key not in collected:
                     collected.add(key)
                     amount = event.get("amount", 1)
-                    if not is_custom_map(self.level.id, self.session):
-                        self.session.money.add(amount)
-                        self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid
+                    self.session.money.add(amount)
+                    self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
                     self._save_progress()
