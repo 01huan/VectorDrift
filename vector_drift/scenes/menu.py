@@ -99,7 +99,7 @@ class MenuScene(InventoryMixin, Scene):
         cx, cy = config.WINDOW_W / 2, config.WINDOW_H / 2 + px(10)
         th = self.t * w
         pos = (cx + a * math.cos(th), cy - b * math.sin(th))
-        heading = math.atan2(b * math.cos(th), -a * math.sin(th))
+        heading = math.atan2(-b * math.cos(th), -a * math.sin(th))
         sprites.draw_ship(surface, pos, heading, px(64), SHIPS["ship01"])
 
         if not sprites.draw_logo(surface, (config.WINDOW_W // 2, px(LOGO_Y)), px(LOGO_W)):
