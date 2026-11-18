@@ -22,7 +22,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
 | `ui.logo` | `ui/logo.png` | Game logo on the main menu and the level panel, 1200 x 378, 256-colour palette (about 100 KB); the height follows the picture's aspect |
 | `background.space` | `background/space.png` | Tiled full-screen backdrop (optional) |
-| `story.panel1` … `story.panel6` | `story/panel1.png` … `story/panel6.png` | Intro story panels (`vector_drift/intro_story.toml`), fitted to the window keeping their shape. Not made yet: without one, the panel's scene description is shown as placeholder text |
+| `story.panel1` … `story.panel6` | `story/panel1.png` … `story/panel6.png` | Intro story panels (`vector_drift/intro_story.toml`), fitted to the window keeping their shape. Done: about 1670 x 941 (16:9), made with ChatGPT's image generation using the author's own drawings `ships/ship01.png` and `targets/planet.png` as reference. Without one, the panel's scene description is shown as placeholder text |
 
 Round props (the planet and the rocks) fill about 98% of their canvas: the
 whole canvas is drawn at the collision size, so the picture's circle is the

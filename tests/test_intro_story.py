@@ -47,6 +47,19 @@ def test_story_images_are_registered_like_the_other_pictures():
         assert spec.path == Path(f"story/panel{n}.png")
 
 
+def test_the_story_pictures_are_in_and_about_16_by_9():
+    image_assets.clear_cache()
+    try:
+        for n in range(1, 7):
+            key = f"story.panel{n}"
+            image = image_assets.load_image(key)
+            assert image is not None, key
+            w, h = image.get_size()
+            assert abs((w / h) / (16 / 9) - 1) <= 0.01, (key, w, h)
+    finally:
+        image_assets.clear_cache()
+
+
 @pytest.mark.parametrize("missing", ["image", "scene", "speaker", "line"])
 def test_a_panel_without_a_field_is_rejected(tmp_path, missing):
     fields = {"image": "story.panel1", "scene": "[x]", "speaker": "", "line": "y"}
@@ -90,7 +103,7 @@ class Audio:
 
 @pytest.fixture
 def no_pictures(tmp_path, monkeypatch):
-    """No story pictures exist (the real state today, made explicit)."""
+    """No story pictures exist: images are looked up in an empty temporary folder."""
     monkeypatch.setattr(image_assets, "IMAGES_DIR", tmp_path)
     image_assets.clear_cache()
     yield tmp_path
