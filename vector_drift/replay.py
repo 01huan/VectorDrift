@@ -140,23 +140,41 @@ class ReplayRecord:
         if isinstance(data, ReplayRecord):
             return data
         frames_raw = data.get("frames") if isinstance(data, dict) else None
-        frames = [ReplayFrame.from_dict(f) for f in (frames_raw or [])]
+        if not isinstance(frames_raw, (list, tuple)):
+            frames_raw = []
+        frames = [
+            ReplayFrame.from_dict(f)
+            for f in frames_raw
+            if isinstance(f, dict)
+        ]
         try:
             level_id = int(data.get("level_id", 0)) if isinstance(data, dict) else 0
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             level_id = 0
         created = data.get("created_at") if isinstance(data, dict) else None
         try:
             created = float(created) if created is not None else time.time()
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             created = time.time()
         seed = data.get("seed") if isinstance(data, dict) else None
         try:
             seed = int(seed) if seed is not None else None
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             seed = None
         consumed = data.get("consumed_pickups") if isinstance(data, dict) else None
         obstacles = data.get("obstacle_centers") if isinstance(data, dict) else None
+
+        def _iterables(value):
+            out = []
+            for item in value if isinstance(value, (list, tuple)) else []:
+                if isinstance(item, (list, tuple)):
+                    out.append(list(item))
+            return out
+
+        pickup_events_raw = data.get("pickup_events") if isinstance(data, dict) else None
+        pickup_events = [
+            e for e in (pickup_events_raw or []) if isinstance(e, dict)
+        ] if isinstance(pickup_events_raw, (list, tuple)) else []
         return ReplayRecord(
             level_id=level_id,
             ship_id=data.get("ship_id") if isinstance(data, dict) else None,
@@ -166,12 +184,12 @@ class ReplayRecord:
             frames=frames,
             created_at=created,
             seed=seed,
-            consumed_pickups=list(consumed or []),
-            obstacle_centers=list(obstacles or []),
+            consumed_pickups=_iterables(consumed),
+            obstacle_centers=_iterables(obstacles),
             level_snapshot=(dict(data["level_snapshot"])
                             if isinstance(data, dict) and isinstance(data.get("level_snapshot"), dict)
                             else None),
-            pickup_events=list(data.get("pickup_events") or []) if isinstance(data, dict) else [],
+            pickup_events=pickup_events,
             ability_events=normalize_ability_events(
                 data.get("ability_events") if isinstance(data, dict) else None),
             section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
