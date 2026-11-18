@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,26 +17,44 @@ def _storage_path() -> Path:
     return base / "guest_profile.json"
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically (temp file + rename)."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
 class LocalProfileManager:
     def __init__(self, path: Optional[Path] = None) -> None:
-        self._path = Path(path) if path is not None else _storage_path()
+        # The default (~/.vector_drift) is resolved lazily so merely
+        # constructing the manager does not create the folder.
+        self._path: Optional[Path] = Path(path) if path is not None else None
 
     @property
     def path(self) -> Path:
+        if self._path is None:
+            self._path = _storage_path()
         return self._path
 
     def exists(self) -> bool:
-        return self._path.exists()
+        return self.path.exists()
 
     def save(self, profile_or_session: Any = None) -> None:
         profile = self._coerce(profile_or_session)
         if profile is None:
             return
         try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_write_text(
+                self.path,
                 json.dumps(profile.to_row(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
             )
         except OSError as exc:
             raise ProfileError(f"Failed to save local profile: {exc}") from exc
@@ -52,10 +71,10 @@ class LocalProfileManager:
         self.save(profile)
 
     def load(self) -> Optional[PlayerProfile]:
-        if not self._path.exists():
+        if not self.path.exists():
             return None
         try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
+            data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, ValueError):
             return None
         if not isinstance(data, dict):
@@ -67,8 +86,8 @@ class LocalProfileManager:
 
     def clear(self) -> None:
         try:
-            if self._path.exists():
-                self._path.unlink()
+            if self.path.exists():
+                self.path.unlink()
         except OSError:
             pass
 
