@@ -18,7 +18,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Function Lab** — write a force function of your own, watch the field it produces, choose where the probe starts, give it a name, save it in your library and import it into the normal levels.
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
-- **Procedural level generation** — Level 8 builds a new one-screen course from one of five seeded generation modules (two corridor flavours, wormhole network, maze, extreme time).
+- **Procedural level generation** — Level 8 builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
 - **Procedural Level Validator** — every generated map is checked before play: fast path analysis (A*, route and seal checks) plus an AI Solver probe that confirms a solution exists under the formal physics; invalid maps are regenerated automatically.
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
@@ -41,7 +41,7 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 5 | First Extratime | A shorter time limit, bumper obstacles, and an extra-time pickup. |
 | 6 | First Unbound | An arc of bumpers runs from the top edge to the bottom edge between the ship and the planet; an Unbound pickup (top or bottom) lets the ship arch over or under it outside the map. |
 | 7 | First Shield | A column of bumpers seals the middle, leaving narrow slits at the top and bottom edges; two Shield pickups let the ship pass through the wall or bounce off the edge round it. The ship flies right to left. |
-| 8 | Random Drift | A procedurally generated one-screen layout from one of five generation modules (see below). |
+| 8 | Random Drift | Procedurally generated layouts from five generation modules, merged into one to three screens (see below). |
 | 9 | New Horizon | A two-section level connected by a checkpoint. |
 | 10–24 | Coming soon | Placeholder level slots. |
 
@@ -49,7 +49,7 @@ The current fixed campaign consists of Levels **1–7 and 9**. Level **8** is th
 
 ### Level 8 generation
 
-Level 8 is generated when it is entered from the level selector. The generator picks one complete module preset at random, builds its layout, validates it (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. Level 8 is always a single screen with no checkpoint: checkpoints are first introduced on Level 9. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering Level 8 as a new run generates a new seed and layout.
+Level 8 is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering Level 8 as a new run generates a new seed and layout.
 
 The modules:
 
@@ -676,7 +676,7 @@ The test suite covers expression parsing/evaluation, physics and edge cases, lev
 
 ### Add a random level
 
-Register a `RandomPreset` in `vector_drift/level_presets.py`. Generation itself lives in `vector_drift/level_modules.py` (corridor, wormhole network, maze, extreme time); it builds a `GeneratedLayout` (the `LevelSpec` plus the intended route, required pickups and any teleports) and `vector_drift/level_validator.py` verifies it — fast path analysis (grid A*, route clearance, wall/ring seals, required-pickup reachability, difficulty heuristics, trivial-field detection) plus an AI Solver probe — before the level is accepted. Invalid layouts are regenerated with a fresh deterministic seed (see `ValidationProfile` on the preset). `vector_drift/level_merge.py` then merges 1..`max_sections` of those layouts (one per template of the preset) into a single level whose screens are chained by checkpoints; Level 8's preset sets `max_sections` to 1, so it is always one screen, while a custom preset may raise it to chain up to three. `data.all_levels()` adds a level-selector card for each registered dynamic preset.
+Register a `RandomPreset` in `vector_drift/level_presets.py`. Generation itself lives in `vector_drift/level_modules.py` (corridor, wormhole network, maze, extreme time); it builds a `GeneratedLayout` (the `LevelSpec` plus the intended route, required pickups and any teleports) and `vector_drift/level_validator.py` verifies it — fast path analysis (grid A*, route clearance, wall/ring seals, required-pickup reachability, difficulty heuristics, trivial-field detection) plus an AI Solver probe — before the level is accepted. Invalid layouts are regenerated with a fresh deterministic seed (see `ValidationProfile` on the preset). `vector_drift/level_merge.py` then merges one to three of those layouts (one per template of the preset) into a single multi-screen level whose screens are chained by checkpoints; `max_sections` on the preset caps how many screens a level may have. `data.all_levels()` adds a level-selector card for each registered dynamic preset.
 
 ### Add a pickup type
 

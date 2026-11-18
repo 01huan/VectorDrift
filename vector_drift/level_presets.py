@@ -2,9 +2,9 @@
 
 A preset is one complete generation configuration (obstacles, pickups, time
 limit, ...).  A preset with ``templates`` is a *pool*: every random level
-picks 1..``max_sections`` of them and merges one generated layout per template
-into a single multi-screen level (see level_merge.py).  Level 8's own preset
-keeps ``max_sections`` at 1, so it is always one screen.
+picks one to three of them and merges one generated layout per template into
+a single multi-screen level (see level_merge.py); ``max_sections`` caps how
+many screens a level may have.
 """
 
 from __future__ import annotations
@@ -235,10 +235,8 @@ PRESET_8 = replace(
     name="Random Drift",  # the card name; templates carry their own flavour names
     templates=(_PRESET_8_TEMPLATE_1, _PRESET_8_TEMPLATE_2, _PRESET_8_WORMHOLE,
                _PRESET_8_MAZE, _PRESET_8_EXTREME_TIME),
-    # Level 8 is one screen: checkpoints are introduced by Level 9, so the
-    # random level must not chain screens before the player has met them.
-    max_sections=1,
-    card_blurb="A new screen every visit: corridors, wormhole gates, maze, extreme time",
+    max_sections=3,
+    card_blurb="One to three merged screens per visit: wormhole gates, maze, extreme time",
 )
 
 PRESETS = {8: PRESET_8}
