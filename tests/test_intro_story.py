@@ -119,9 +119,9 @@ def _story(audio=None):
 
 
 def _settle(scene):
-    """Let any fade finish, so the panel is fully shown."""
-    scene.update(1.0)
-    scene.update(1.0)
+    """Let any fade and typing finish, so the panel is fully shown."""
+    for _ in range(4):
+        scene.update(1.0)
 
 
 def _key(scene, key):
@@ -459,6 +459,121 @@ def test_a_missing_picture_draws_its_scene_text_without_zooming(monkeypatch):
     late = [d for d in drawn if d[0].startswith("[")]
     assert early and early == late                      # same text at the same place
     image_assets._sources.pop(key, None)
+
+
+# --- the ship's lines are typed out ----------------------------------------------------
+
+def _subtitle_texts(scene, monkeypatch):
+    """(text, position) of everything drawn for one frame."""
+    drawn = []
+    real = story_module.draw_text
+    monkeypatch.setattr(story_module, "draw_text",
+                        lambda surface, text, *a, **k: drawn.append((text, a[0])) or real(surface, text, *a, **k))
+    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    monkeypatch.setattr(story_module, "draw_text", real)
+    return drawn
+
+
+def _go_to_narration(scene):
+    while scene.panel.speaker:
+        _next(scene)
+
+
+def test_type_speed():
+    assert story_module.TYPE_CPS == 35
+
+
+def test_a_ship_line_is_typed_out_once_the_picture_is_in():
+    scene = _story()
+    line = scene.panel.line
+    assert scene.panel.speaker == "SHIP"
+    assert scene.typed_chars == 0
+    scene.update(story_module.FADE_S - 0.01)
+    assert scene.typed_chars == 0
+    counts = []
+    for _ in range(60):
+        scene.update(0.05)
+        counts.append(scene.typed_chars)
+    assert all(later >= earlier for earlier, later in zip(counts, counts[1:]))
+    assert 0 < counts[4] < counts[10] < len(line)
+    assert counts[-1] == len(line)
+
+
+def test_typing_takes_the_line_length_over_the_speed():
+    scene = _story()
+    n = len(scene.panel.line)
+    scene.update(story_module.FADE_S + (n - 2) / story_module.TYPE_CPS)
+    assert scene.typed_chars == n - 2 and not scene.fully_shown
+    scene.update(2 / story_module.TYPE_CPS + 0.001)
+    assert scene.typed_chars == n and scene.fully_shown
+
+
+def test_the_ellipsis_counts_as_one_character():
+    scene = _story()
+    _next(scene)
+    _next(scene)
+    line = scene.panel.line
+    assert "…" in line and "..." not in line
+    scene.t = story_module.FADE_S + (len(line) - 0.5) / story_module.TYPE_CPS
+    assert scene.typed_chars == len(line) - 1 and not scene.fully_shown
+    scene.t = story_module.FADE_S + (len(line) + 0.5) / story_module.TYPE_CPS
+    assert scene.typed_chars == len(line) and scene.fully_shown
+
+
+def test_the_name_and_box_show_at_once_but_the_line_is_typed(monkeypatch):
+    scene = _story()
+    scene.update(story_module.FADE_S + 5 / story_module.TYPE_CPS + 0.001)
+    assert scene.line_alpha == 255
+    texts = [t for t, _ in _subtitle_texts(scene, monkeypatch)]
+    assert "SHIP" in texts
+    assert scene.panel.line[:5] in texts and scene.panel.line not in texts
+
+
+def test_narration_still_fades_in_and_is_not_typed(monkeypatch):
+    scene = _story()
+    _go_to_narration(scene)
+    scene.t = 0.0                                       # as if the narration had just come up
+    assert scene.panel.speaker == "" and not scene.revealed
+    assert scene.typed_chars == len(scene.panel.line)
+    scene.update(story_module.FADE_S + story_module.LINE_FADE_S / 2)
+    assert 0 < scene.line_alpha < 255 and not scene.fully_shown
+    texts = [t for t, _ in _subtitle_texts(scene, monkeypatch)]
+    assert any(scene.panel.line.startswith(t) and len(t) > 20 for t in texts)
+    scene.update(story_module.LINE_FADE_S / 2 + 0.01)
+    assert scene.line_alpha == 255 and scene.fully_shown
+
+
+def test_next_while_typing_shows_the_whole_line_then_moves_on(monkeypatch):
+    scene = _story()
+    scene.update(story_module.FADE_S + 0.2)
+    assert 0 < scene.typed_chars < len(scene.panel.line) and not scene.fully_shown
+    _key(scene, pygame.K_SPACE)
+    assert scene.index == 0 and scene.leaving_to is None
+    assert scene.typed_chars == len(scene.panel.line) and scene.fully_shown
+    assert scene.panel.line in [t for t, _ in _subtitle_texts(scene, monkeypatch)]
+    _key(scene, pygame.K_SPACE)
+    _settle(scene)
+    assert scene.index == 1
+
+
+def test_a_typed_line_breaks_where_the_whole_line_does(monkeypatch):
+    long_line = ("Main engine offline. Fuel: zero. Broadcasting on all frequencies… "
+                 "Can anyone hear me? Write the field, Architect, and guide me home through the dark.")
+    scene = _story()
+    scene.panels = [replace(p, line=long_line) for p in scene.panels]
+    scene.update(100.0)
+    full = [(t, pos) for t, pos in _subtitle_texts(scene, monkeypatch)
+            if t and t in long_line and t != "SHIP"]
+    assert len(full) >= 2, "the test line should wrap"
+    for typed in range(1, len(long_line) + 1, 7):
+        scene.t = story_module.FADE_S + (typed + 0.5) / story_module.TYPE_CPS
+        assert scene.typed_chars == typed
+        partial = [(t, pos) for t, pos in _subtitle_texts(scene, monkeypatch)
+                   if t and t in long_line and t != "SHIP"]
+        assert len(partial) <= len(full)
+        for (part, part_pos), (whole, whole_pos) in zip(partial, full):
+            assert whole.startswith(part) and part_pos == whole_pos
+        assert " ".join(t for t, _ in partial).rstrip(" ") == long_line[:typed].rstrip(" ")
 
 
 # --- music ---------------------------------------------------------------------------

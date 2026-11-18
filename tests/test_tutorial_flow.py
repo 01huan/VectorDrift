@@ -45,8 +45,8 @@ def _play_story_through(manager):
     story = manager.scene
     assert isinstance(story, StoryScene)
     for _ in range(len(story.panels)):
-        story.update(1.0)
-        story.update(1.0)
+        story.update(3.0)               # long enough for the ship's line to be typed out
+        story.update(3.0)
         story.next()
 
 

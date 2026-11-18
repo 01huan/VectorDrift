@@ -139,8 +139,8 @@ def test_story_from_the_tutorial_menu_returns_to_the_menu():
     story = scene.manager.scene
     assert isinstance(story, StoryScene)
     for _ in range(len(story.panels)):          # play it through
-        story.update(1.0)
-        story.update(1.0)
+        story.update(3.0)               # long enough for the ship's line to be typed out
+        story.update(3.0)
         story.next()
     back = story.manager.scene
     assert isinstance(back, LevelSelectScene) and back.tutorial_menu

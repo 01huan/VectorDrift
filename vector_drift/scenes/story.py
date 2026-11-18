@@ -2,7 +2,11 @@
 
 A panel shows its picture fitted to the screen (or, without the picture,
 its scene description as dim placeholder text) with the line in a subtitle
-box. Panels fade out and in; the line fades in once the picture is up.
+box. Panels fade out and in. Once the picture is up, the ship's lines
+(speaker SHIP) are typed out at TYPE_CPS characters a second, with the
+name and the box shown at once; the narrator's lines (no speaker) fade in.
+A typed line is wrapped as the whole line first, so a word never jumps to
+the next line while it is being typed; "…" is one character.
 
 A picture slowly zooms in (Ken Burns): from 1.00x to ZOOM_END over ZOOM_S
 seconds with an ease-out, about ZOOM_ANCHOR (a point of the screen; the
@@ -14,8 +18,8 @@ size times ZOOM_END, and every frame cuts the visible part out of it and
 scales that to the screen (pygame.transform.scale: smoothscale is too slow
 at 4K). The placeholder text does not zoom.
 
-Click / Space / Right: next (while a panel is still fading in, the first
-press only shows it in full). Left: back. Esc or Skip ends the story at
+Click / Space / Right: next (while a panel is still fading in or its line
+is still being typed, the first press only shows it in full). Left: back. Esc or Skip ends the story at
 once, and Next on the last panel ends it too.
 """
 
@@ -32,7 +36,9 @@ ZOOM_END = 1.06            # a picture zooms in to this ...
 ZOOM_S = 8.0                # ... over this many seconds (ease-out), then holds
 ZOOM_ANCHOR = (0.5, 0.4)    # the screen point (fractions of width, height) that stays put
 FADE_S = 0.3                # a panel fades out / in this long
-LINE_FADE_S = 0.4           # then its line fades in this long
+LINE_FADE_S = 0.4           # then the narrator's line fades in this long
+TYPE_CPS = 35               # the ship's lines are typed out this many characters a second
+TYPED_SPEAKER = "SHIP"      # whose lines are typed out
 STORY_BG = (6, 9, 20)       # behind a picture, and the placeholder panel
 PLACEHOLDER_SIZE = 16       # scene description font size (logical px)
 PLACEHOLDER_W = 760         # ... wrapped to this width
@@ -93,8 +99,27 @@ class StoryScene(Scene):
         return f"{self.index + 1} / {len(self.panels)}"
 
     @property
+    def typed(self):
+        """This panel's line is typed out (the ship speaks), not faded in."""
+        return self.panel.speaker == TYPED_SPEAKER
+
+    @property
+    def typed_chars(self):
+        """How many characters of the line are showing (all of it for the narrator)."""
+        n = len(self.panel.line)
+        if self.revealed or not self.typed:
+            return n
+        return min(n, max(0, int((self.t - FADE_S) * TYPE_CPS + 1e-6)))
+
+    @property
     def fully_shown(self):
-        return self.leaving_to is None and (self.revealed or self.t >= FADE_S + LINE_FADE_S)
+        if self.leaving_to is not None:
+            return False
+        if self.revealed:
+            return True
+        if self.typed:
+            return self.typed_chars >= len(self.panel.line)
+        return self.t >= FADE_S + LINE_FADE_S
 
     @property
     def zoom(self):
@@ -113,9 +138,12 @@ class StoryScene(Scene):
 
     @property
     def line_alpha(self):
-        """The line fades in after the picture (255 at once once revealed)."""
+        """The subtitle box after the picture: at once for a typed line, faded in for
+        the narrator (255 at once once revealed)."""
         if self.revealed:
             return 255
+        if self.typed:
+            return 255 if self.t >= FADE_S else 0
         return round(255 * min(1.0, max(0.0, (self.t - FADE_S) / LINE_FADE_S)))
 
     # --- moving between panels ----------------------------------------------
@@ -256,8 +284,12 @@ class StoryScene(Scene):
         else:
             y += px(SPEAKER_SIZE + 10) // 2
             color = config.TEXT_DIM             # narrator: no name, dimmer
+        left = self.typed_chars                 # wrapped as the whole line, then cut
         for line in wrap_text(self.panel.line, LINE_SIZE, box.width - 2 * x):
-            draw_text(layer, line, (x, y), LINE_SIZE, color)
+            shown = line[:max(0, left)]
+            left -= len(line) + 1               # + the space the wrap took
+            if shown:
+                draw_text(layer, shown, (x, y), LINE_SIZE, color)
             y += px(LINE_SIZE + 8)
         layer.set_alpha(self.line_alpha)
         surface.blit(layer, box.topleft)
