@@ -204,9 +204,11 @@ The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_
 
 ## Ships and Shop
 
-There are six visual ship skins: `ship01` through `ship06`. `ship01` is owned by default; the other five are purchased in the Shop with coins. Their prices are 20, 30, 40, 50, and 60 coins respectively. All six use the same 1 kg mass and 0.2 m hull radius, so purchases are cosmetic and do not change the physics.
+There are six visual ship skins: `ship01` through `ship06`. `ship01` is owned by default; ships bought in earlier versions stay owned. All six use the same 1 kg mass and 0.2 m hull radius, so purchases are cosmetic and do not change the physics.
 
-The current shop catalog contains ship skins and active abilities. Owned ships can be selected with the previous/next ship arrows on the game screen. A locked ship cannot be used until it has been purchased.
+Owned ships can be selected with the previous/next ship arrows on the game screen.
+
+The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
 Active abilities are purchased in the Shop and used during a flight with a key. Every purchase grants **one use**; remaining uses are shown in the top-right corner of the game screen during a flight and are saved with the player's profile. Only abilities the player currently owns are shown there.
 

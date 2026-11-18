@@ -159,12 +159,20 @@ def test_shop_class():
 
 
 
-def test_register_ships_populated():
-    # _register_ships ran at import; at least ship02 should exist
-    item = get_item("ship02")
-    assert item is not None
-    assert item.category == "ship"
-    assert item.price > 0
+def test_shop_sells_only_the_abilities_in_registry_order():
+    from vector_drift.abilities import ABILITIES
+    from vector_drift.data import SHIPS
+
+    ids = [item.id for item in shop_module.all_items() if not item.id.startswith("__")]
+    assert ids == list(ABILITIES)
+    assert all(get_item(sid) is None for sid in SHIPS)
+
+
+def test_ability_descriptions_leave_the_key_to_the_card():
+    from vector_drift.abilities import ABILITIES
+
+    for ability in ABILITIES.values():
+        assert f"({ability.key})" not in ability.description
 
 
 def test_owned_ship_ids_public():

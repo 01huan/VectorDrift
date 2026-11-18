@@ -1,4 +1,9 @@
-"""Shop system: extensible catalog of purchasable items."""
+"""Shop system: extensible catalog of purchasable items.
+
+The shop sells the active abilities only. Ships are no longer sold: each
+level flies its own ship (data_models.level_ship_id); old saves keep their
+owned-ship list, which is no longer used.
+"""
 
 from __future__ import annotations
 
@@ -162,61 +167,6 @@ class Shop:
     def buy(self, item_id, session):
         it = self.get(item_id)
         return it is not None and purchase_item(it, session)
-
-
-def _ship_price(ship) -> int:
-    price = getattr(ship, "price", 0)
-    try:
-        return int(price)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _register_ships() -> None:
-    try:
-        from .data import SHIPS
-    except Exception:
-        return
-    for sid, ship in SHIPS.items():
-        if sid == "ship01":
-            continue
-        price = _ship_price(ship)
-        if price <= 0:
-            try:
-                n = int(sid.replace("ship", ""))
-            except ValueError:
-                n = 1
-            price = 10 * n
-        if sid in ITEMS:
-            continue
-
-        def _owned(s, sid=sid):
-            return sid in _owned_ship_ids(s)
-
-        def _purchase(s, sid=sid):
-            owned = _owned_ship_ids(s)
-            owned.add(sid)
-            # owned_ship_ids mutates the session's own set in place; when it
-            # had to hand back a fresh copy (the session stores a list or
-            # similar), write it back so the grant sticks.
-            for attr in ("owned_ships", "unlocked_ships", "purchased_ships", "owned_ship_ids"):
-                if isinstance(getattr(s, attr, None), set):
-                    return
-            setattr(s, "owned_ships", owned)
-
-        register_item(ShopItem(
-            id=sid,
-            name=getattr(ship, "name", sid),
-            description=f"Ship skin {sid}",
-            price=price,
-            category="ship",
-            icon="ship",
-            owned=_owned,
-            purchase=_purchase,
-        ))
-
-
-_register_ships()
 
 
 def _register_abilities() -> None:

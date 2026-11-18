@@ -131,42 +131,42 @@ def _activate_blink(flight):
 
 register_ability(Ability(
     id="ability_boost", name="Boost", key="B", key_code=pygame.K_b,
-    description="Instant speed burst along your heading (B).",
+    description="Instant speed burst along your heading.",
     price=3, sound="launch", activate=_activate_boost,
 ))
 
 register_ability(Ability(
     id="ability_shield_pulse", name="Shield Pulse", key="V", key_code=pygame.K_v,
-    description="Instant 3 s shield (V): the next bumper is passed.",
+    description="Instant 3 s shield: the next bumper is passed.",
     price=5, sound="shield", activate=_activate_shield_pulse,
 ))
 
 register_ability(Ability(
     id="ability_magnet", name="Magnet", key="M", key_code=pygame.K_m,
-    description="Pull toward the target for 3 s during a flight (M).",
+    description="Pull toward the target for 3 s during a flight.",
     price=8, sound="unbound", activate=_activate_magnet,
 ))
 
 register_ability(Ability(
     id="ability_time_freeze", name="Time Freeze", key="T", key_code=pygame.K_t,
-    description="Pause the flight clock for 3 s (T).",
+    description="Pause the flight clock for 3 s.",
     price=6, sound="extratime", activate=_activate_time_freeze,
 ))
 
 register_ability(Ability(
     id="ability_phase", name="Phase Shift", key="G", key_code=pygame.K_g,
-    description="Pass through obstacles for 2.5 s (G).",
+    description="Pass through obstacles for 2.5 s.",
     price=7, sound="warp", activate=_activate_phase,
 ))
 
 register_ability(Ability(
     id="ability_brake", name="Retro Burn", key="X", key_code=pygame.K_x,
-    description="Instantly cut speed to 40% (X).",
+    description="Instantly cut speed to 40%.",
     price=4, sound="bounce", activate=_activate_brake,
 ))
 
 register_ability(Ability(
     id="ability_blink", name="Blink", key="Q", key_code=pygame.K_q,
-    description="Teleport 2.5 m along your heading (Q).",
+    description="Teleport 2.5 m along your heading.",
     price=9, sound="warp", activate=_activate_blink,
 ))
