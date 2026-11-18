@@ -214,10 +214,15 @@ class PSOSolver(Solver):
 
         workers = cfg.n_workers or (os.cpu_count() or 1)
 
+        # Default to the configured simulation cap; ``simulation_budget``
+        # overrides it. ``time_budget_s`` is an independent wall-clock cap
+        # applied in the loop below. (Previously the cap applied only when
+        # a time budget was set, which made it dead code on the game's
+        # un-budgeted AI-assistant path.)
         max_sim = (
             cfg.simulation_budget
             if cfg.simulation_budget is not None
-            else (cfg.max_simulations if cfg.time_budget_s is not None else None)
+            else cfg.max_simulations
         )
 
         success_found = False
