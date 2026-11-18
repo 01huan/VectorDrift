@@ -1,6 +1,12 @@
-"""The merged random level: 1..3 screens, chained by checkpoints."""
+"""The merged random level: 1..3 screens, chained by checkpoints.
+
+Level 8 itself is always one screen (checkpoints are introduced by Level 9),
+so the merging is exercised through ``MULTI``, Level 8's pool with up to
+three screens.
+"""
 
 import math
+from dataclasses import replace
 
 from vector_drift.data import section_count, section_level, section_shift
 from vector_drift.level_merge import (
@@ -13,16 +19,29 @@ from vector_drift.level_presets import PRESET_8, RandomPreset
 from vector_drift.level_validator import validate_level
 from vector_drift.random_level import generate_random_level
 
+# Level 8's theme pool, allowed to chain up to three screens.
+MULTI = replace(PRESET_8, max_sections=MAX_SECTIONS)
+
 
 def _screens(level):
     """Every screen of a level, as plain one-screen levels."""
     return [section_level(level, k) for k in range(section_count(level))]
 
 
-def test_a_random_level_has_one_to_three_screens():
-    counts = set()
+def test_level_8_is_always_one_screen():
+    """No checkpoint on Level 8: the player first meets one on Level 9."""
+    assert PRESET_8.max_sections == 1
     for seed in range(30):
         level = generate_random_level(8, seed=seed, run_solver=False)
+        assert section_count(level) == 1
+        assert level.sections == ()
+
+
+def test_a_merged_random_level_has_one_to_three_screens():
+    counts = set()
+    for seed in range(30):
+        level = generate_random_level(8, seed=seed, preset=MULTI,
+                                      run_solver=False)
         counts.add(section_count(level))
     assert counts <= {1, 2, 3}
     assert 1 in counts, "a random level may be a single screen"
@@ -31,15 +50,15 @@ def test_a_random_level_has_one_to_three_screens():
 
 def test_the_screens_use_different_themes():
     for seed in range(20):
-        merged = generate_merged_layout(seed, PRESET_8)
+        merged = generate_merged_layout(seed, MULTI)
         themes = [section.preset for section in merged.sections]
         assert len(set(themes)) == len(themes)
 
 
 def test_the_same_seed_gives_the_same_merged_level():
     for seed in (3, 11, 42):
-        first = generate_merged_layout(seed, PRESET_8)
-        again = generate_merged_layout(seed, PRESET_8)
+        first = generate_merged_layout(seed, MULTI)
+        again = generate_merged_layout(seed, MULTI)
         assert first.level == again.level
         assert [section.layout.level for section in first.sections] == \
             [section.layout.level for section in again.sections]
@@ -68,7 +87,8 @@ def test_choose_themes_never_repeats_a_theme():
 
 def test_the_merged_level_mirrors_its_first_screen():
     for seed in range(20):
-        level = generate_random_level(8, seed=seed, run_solver=False)
+        level = generate_random_level(8, seed=seed, preset=MULTI,
+                                      run_solver=False)
         screens = _screens(level)
         first = screens[0]
         assert level.id == PRESET_8.level_id
@@ -85,7 +105,8 @@ def test_the_merged_level_mirrors_its_first_screen():
 def test_every_screen_but_the_last_ends_on_a_checkpoint():
     """The screens are chained: the camera pans from a checkpoint to the next."""
     for seed in range(20):
-        level = generate_random_level(8, seed=seed, run_solver=False)
+        level = generate_random_level(8, seed=seed, preset=MULTI,
+                                      run_solver=False)
         screens = _screens(level)
         assert len(screens) == section_count(level)
         for k in range(len(screens) - 1):
@@ -100,7 +121,7 @@ def test_every_screen_but_the_last_ends_on_a_checkpoint():
 
 def test_every_screen_validates_on_its_own():
     for seed in range(10):
-        merged = generate_merged_layout(seed, PRESET_8)
+        merged = generate_merged_layout(seed, MULTI)
         for section in merged.sections:
             layout = section.layout
             report = validate_level(
@@ -112,7 +133,7 @@ def test_every_screen_validates_on_its_own():
 
 
 def test_the_merged_report_keeps_the_screen_of_every_check():
-    merged = generate_merged_layout(5, PRESET_8)
+    merged = generate_merged_layout(5, MULTI)
     reports = []
     for section in merged.sections:
         layout = section.layout
