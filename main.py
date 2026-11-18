@@ -113,12 +113,22 @@ def main():
                     save_progress,
                 )
                 # 先將目前未登入賺的進度寫入本地，避免登入後被雲端舊資料覆蓋。
-                save_guest_profile(manager.session)
+                try:
+                    save_guest_profile(manager.session)
+                except Exception:
+                    pass
                 chosen = apply_best_profile(
                     manager.session, profile,
                     account_manager.current_user.id,
                     account_manager.current_user.email,
                 )
+                if chosen is profile:
+                    # 雲端較新：把套用後的進度寫回本地，否則下次以訪客身分開啟時
+                    # 會讀到舊的本地檔案，靜默回退到登入前的進度。
+                    try:
+                        save_guest_profile(manager.session)
+                    except Exception:
+                        pass
                 # 本地較新且雲端已有資料時，把本地推回雲端，讓兩端收斂。
                 if chosen is not None and chosen is not profile and profile is not None:
                     save_progress(account_manager, manager.session)
