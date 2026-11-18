@@ -26,8 +26,8 @@ def _fly(level, fx, fy):
 
 
 def _hole(level):
-    (pair,) = level.holes
-    return pair
+    (hole,) = level.holes
+    return hole.black_center, hole.white_center, hole.radius
 
 
 @pytest.mark.parametrize("solution", [SMOOTH, SPLIT])

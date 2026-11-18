@@ -18,7 +18,8 @@ from vector_drift.scenes.replay import ReplayScene, trail_strokes
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 LEVEL4 = get_level(4)
-(BLACK, WHITE, HOLE_R), = LEVEL4.holes
+(_LEVEL4_HOLE,) = LEVEL4.holes
+BLACK, WHITE, HOLE_R = _LEVEL4_HOLE.black_center, _LEVEL4_HOLE.white_center, _LEVEL4_HOLE.radius
 FX, FY = "2", "1 - 0.5x - 2y"           # level 4's hint answer: in at (-3, 4), out at (2, 4)
 
 

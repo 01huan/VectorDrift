@@ -66,7 +66,7 @@ def test_pair_number_stands_out_on_both_holes():
     manager.switch(scene)
     screen = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(screen)
-    black_center, white_center, _ = scene.holes[0]
+    black_center, white_center = scene.holes[0].black_center, scene.holes[0].white_center
     for center, wanted in ((white_center, "dark"), (black_center, "light")):
         x, y = scene.viewport.to_screen(*center)
         half = config.px(5)
