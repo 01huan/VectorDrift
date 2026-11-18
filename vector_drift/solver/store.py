@@ -69,7 +69,12 @@ class JSONLStore:
             self.add(r, include_trajectory=include_trajectory)
 
     def iter_records(self, include_trajectory: bool = False) -> Iterator[SimulationRecord]:
-        """Yield records from disk.  Skips the header line and malformed lines."""
+        """Yield records from disk.  Skips the header line and malformed lines.
+
+        When ``include_trajectory`` is False the trajectory is stripped from
+        each line before decoding, so summary reads do not pay the memory
+        cost of full flight paths.
+        """
         if not self.path.exists():
             return
         with self.path.open("r", encoding="utf-8") as fh:
@@ -83,6 +88,8 @@ class JSONLStore:
                     continue
                 if "_header" in obj:
                     continue
+                if not include_trajectory and isinstance(obj, dict):
+                    obj.pop("trajectory", None)
                 try:
                     yield dict_to_record(obj)
                 except Exception:
@@ -129,14 +136,12 @@ class JSONLStore:
         if not records:
             return 0
 
-        removed = 0
         ordered = sorted(records, key=lambda r: r.timestamp)
         cutoff_idx = max(0, len(ordered) - self.config.summary_only_after)
         rewritten: list[SimulationRecord] = []
         for i, r in enumerate(ordered):
             if i < cutoff_idx and r.trajectory is not None:
                 r.trajectory = None
-                removed += 1
             rewritten.append(r)
 
         keep_ids = set()
@@ -148,13 +153,14 @@ class JSONLStore:
                 keep_ids.add(r.record_id)
 
         evict_candidates = [r for r in ordered if r.record_id not in keep_ids]
-        while len(rewritten) - removed > self.config.max_records and evict_candidates:
+        evicted = 0
+        while len(rewritten) > self.config.max_records and evict_candidates:
             victim = evict_candidates.pop(0)
             rewritten.remove(victim)
-            removed += 1
+            evicted += 1
 
         self._rewrite(rewritten)
-        return removed
+        return evicted
 
     def _rewrite(self, records: list[SimulationRecord]) -> None:
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
