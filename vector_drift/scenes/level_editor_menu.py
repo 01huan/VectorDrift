@@ -124,9 +124,15 @@ class LevelEditorMenuScene(Scene):
                 pass
         self.message = "Deleted."
         self.message_timer = 1.5
+        # The list is rebuilt only when the data changes (init / deletion /
+        # page turn); rebuilding every frame would allocate new buttons and
+        # discard their hover state between events.
+        self._rebuild()
 
     def update(self, dt):
-        self._rebuild()
+        # Cards and paging buttons are rebuilt on data changes only
+        # (see _rebuild callers), not every frame: per-frame rebuilds
+        # allocate fresh Buttons and lose their hover state.
         if getattr(self, "message_timer", 0) > 0:
             self.message_timer -= dt
             if self.message_timer <= 0:
