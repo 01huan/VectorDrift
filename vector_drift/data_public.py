@@ -167,6 +167,15 @@ def level_spec_from_public(raw, level_id):
     if sections_raw and "target_radius" not in raw:
         raw = dict(raw)
         raw["target_radius"] = sections_raw[0].get("target_radius") if isinstance(sections_raw[0], dict) else None
+    # Mirror the remaining per-screen props of section 1 the same way
+    # multi_section_level does, so consumers that read the top-level fields
+    # (thumbnails, previews) see the same level the player flies.
+    first_section = sections_raw[0] if sections_raw and isinstance(sections_raw[0], dict) else None
+    if first_section is not None:
+        for key in ("time_limit", "obstacles", "pickups", "holes"):
+            if key not in raw and key in first_section:
+                raw = dict(raw)
+                raw[key] = first_section[key]
     for required in ("start", "target_center", "target_radius"):
         if required not in raw:
             raise ValueError(f"{required} is required")
