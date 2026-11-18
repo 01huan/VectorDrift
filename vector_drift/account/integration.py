@@ -108,7 +108,7 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     for lid in stats.pop(CLEAR_REWARDED_KEY, None) or ():
         try:
             rewarded.add(int(lid))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
     session.clear_rewarded_levels = rewarded
     saved_intro = stats.pop(SEEN_INTRO_KEY, False) is True
@@ -138,7 +138,7 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
             if isinstance(value, (int, float, str)):
                 try:
                     merged[str(key)] = int(value)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
                     continue
     # Keep any counts already present when the incoming profile omits them,
     # so an upload/download round trip never wipes the remaining uses.
@@ -164,6 +164,10 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         pass
     if stats:
         session.stats = stats
+    elif getattr(session, "stats", None):
+        # The applied profile carries no stats: do not let this run's stale
+        # stats survive the apply and get re-uploaded on the next save.
+        session.stats = {}
 
 
 def _apply_achievements(session: Any, saved: Any, saved_progress: Any) -> None:
