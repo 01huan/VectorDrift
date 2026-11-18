@@ -17,6 +17,8 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 | `pickup.shield` | `pickups/shield.png` | Shield pickup icon, 256 x 256 |
 | `pickup.money` | `pickups/money.png` | Coin pickup on the map, 256 x 256 (coin_2) |
 | `pickup.unbound` | `pickups/unbound.png` | Unbound pickup icon (infinity sign), 256 x 256 |
+| `ability.boost`, `ability.brake`, `ability.blink` | `abilities/boost.png`, `abilities/brake.png`, `abilities/blink.png` | Ability icons (Boost, Retro Burn, Blink) on the shop cards and the game panel's ability slots, 256 x 256 |
+| `ability.shield_pulse`, `ability.magnet`, `ability.time_freeze`, `ability.phase` | `abilities/shield_pulse.png`, `abilities/magnet.png`, `abilities/time_freeze.png`, `abilities/phase.png` | Not drawn yet: these abilities show a letter avatar (S, M, T, P) until their PNG is added under that name |
 | `ui.coin_1` | `ui/coin_1.png` | Coin icon next to the player's balance, 256 x 256 |
 | `ui.coin_2` | `pickups/money.png` | Coin icon next to prices and coins earned (same picture as the map coin) |
 | `ui.start_marker` | `ui/start_marker.png` | Launch pad / start marker ring |
@@ -35,6 +37,17 @@ Pickups are small on screen (a 0.45-0.5 m radius, under 150 px even at
 4K), so their icons are 256 x 256, fitted to 95% of the canvas and stored
 the same way (about 10-15 KB each).
 The two coin icons are stored the same way.
+
+Ability icons follow the pickup rule (256 x 256, 95% of the canvas,
+256-colour palette, about 10-17 KB each). The file is the ability id
+without `ability_` (`ability_brake` -> `abilities/brake.png`), whatever the
+source file was called. An ability without its PNG shows a letter avatar:
+a rounded square with one capital letter. In shop order each ability takes
+the first letter of its name that no earlier ability has taken, then the
+next unused letter of its name (Blink is L because Boost has B). Abilities
+with a picture keep their letter too, so removing a picture never makes
+two avatars alike. Current letters: Boost B, Shield Pulse S, Magnet M,
+Time Freeze T, Phase Shift P, Retro Burn R, Blink L.
 
 ## Sizing
 

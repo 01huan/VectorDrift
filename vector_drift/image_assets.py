@@ -84,6 +84,19 @@ register(AssetSpec("pickup.shield", Path("pickups/shield.png"), display_w=40, di
 register(AssetSpec("pickup.life", Path("pickups/life.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.money", Path("pickups/money.png"), display_w=40, display_h=40))
 register(AssetSpec("pickup.unbound", Path("pickups/unbound.png"), display_w=40, display_h=40))
+# Ability icons (key = f"ability.{id without 'ability_'}", e.g. ability.boost ->
+# abilities/boost.png). One slot per registered ability; an ability without
+# its PNG shows a letter avatar instead (ability_icons.draw_ability_icon).
+def _register_ability_icons() -> None:
+    from .abilities import ABILITIES
+
+    for _aid in ABILITIES:
+        _short = _aid[len("ability_"):] if _aid.startswith("ability_") else _aid
+        register(AssetSpec(f"ability.{_short}", Path(f"abilities/{_short}.png"),
+                           display_w=44, display_h=44))
+
+
+_register_ability_icons()
 # Black/white holes (key = f"black_hole.black_hole{n:02d}" / "white_hole.white_hole{n:02d}")
 for _n in range(1, 11):
     register(AssetSpec(f"black_hole.black_hole{_n:02d}", Path(f"black_holes/black_hole{_n:02d}.png"), display_w=48, display_h=48))
