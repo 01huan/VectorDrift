@@ -12,7 +12,7 @@ from vector_drift.image_assets import AssetSpec
 from vector_drift.scenes import story as story_module
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.story import StoryScene
-from vector_drift.scenes.tutorial_basics import BasicsScene
+from vector_drift.scenes.tutorial_screen import TutorialScene
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -186,20 +186,20 @@ def test_next_on_the_last_panel_ends_the_first_story_at_basics():
         _next(scene)
     assert scene.index == 5 and scene.counter_text == "6 / 6"
     _key(scene, pygame.K_SPACE)
-    assert isinstance(scene.manager.scene, BasicsScene)
+    assert isinstance(scene.manager.scene, TutorialScene)
 
 
 def test_skip_button_ends_the_first_story_at_basics():
     scene = _story()
     _next(scene)
     _click(scene, scene.skip_button.rect.center)
-    assert isinstance(scene.manager.scene, BasicsScene)
+    assert isinstance(scene.manager.scene, TutorialScene)
 
 
 def test_escape_ends_the_first_story_at_basics():
     scene = _story()
     _key(scene, pygame.K_ESCAPE)
-    assert isinstance(scene.manager.scene, BasicsScene)
+    assert isinstance(scene.manager.scene, TutorialScene)
 
 
 def test_skip_click_does_not_also_count_as_next():
@@ -218,9 +218,10 @@ def test_where_the_story_ends_is_decided_in_one_place(monkeypatch):
     assert scene.manager.scene is marker
 
 
-def test_scene_after_the_first_story_is_basics():
+def test_scene_after_the_story_is_the_tutorial_screen():
     manager = SceneManager(Audio())
-    assert isinstance(story_module.scene_after_story(manager), BasicsScene)
+    after = story_module.scene_after_story(manager)
+    assert isinstance(after, TutorialScene) and after.inner.index == 0
 
 
 @pytest.mark.parametrize("how", ["played through", "skip", "esc"])

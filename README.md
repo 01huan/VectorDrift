@@ -347,7 +347,8 @@ The first time you press **Start**, the game plays a short opening story: six pa
 
 The **Tutorial** button on the level selector plays the opening story again and then opens the tutorial screen, the same way the first **Start** does. However the story ends (played through, **Skip** or `Esc`), the tutorial screen comes next:
 
-* **Basics** walks through flying a level on the real game screen: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc`, Exit, or **Start playing** on the last step leaves to the level selector.
+* **Basics** walks through flying a level on the real game screen, shown slightly smaller with the step (Tutorial 1 / 4) and Exit above it: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc`, Exit, or **Start playing** on the last step leaves to the level selector.
+* A list on the right names every rock, portal and pickup, grouped as Obstacles, Portals and Pickups.
 * **Field guide** shows what every rock, portal and pickup does: open a card to watch a short looping clip of it, and press `Esc` or Back to return.
 
 Nothing done in the tutorial pays coins, changes level progress or best times, saves replays, or counts toward achievements; only watching the opening story through unlocks its achievement as usual. All tutorial text and maps are in `vector_drift/tutorial.toml`.

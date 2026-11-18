@@ -13,6 +13,7 @@ from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.menu import MenuScene
 from vector_drift.scenes.story import StoryScene
 from vector_drift.scenes.tutorial_basics import BasicsScene
+from vector_drift.scenes.tutorial_screen import TutorialScene
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -59,7 +60,8 @@ def _press_tutorial(manager):
 
 
 def _on_tutorial_screen(manager, step=0):
-    return isinstance(manager.scene, BasicsScene) and manager.scene.index == step
+    scene = manager.scene
+    return isinstance(scene, TutorialScene) and scene.inner.index == step
 
 
 # --- the first Start ----------------------------------------------------------------------
@@ -76,7 +78,7 @@ def test_skipping_the_first_story_still_opens_basics():
     manager = _manager()
     _start(manager)
     _click(manager, manager.scene.skip_button.rect)
-    assert isinstance(manager.scene, BasicsScene)
+    assert isinstance(manager.scene, TutorialScene)
 
 
 def test_after_basics_start_goes_straight_to_level_select():

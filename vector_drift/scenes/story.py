@@ -69,8 +69,8 @@ def scene_after_story(manager):
 
     The tutorial screen; it ends at level select.
     """
-    from .tutorial_basics import BasicsScene
-    return BasicsScene(manager)
+    from .tutorial_screen import TutorialScene
+    return TutorialScene(manager)
 
 
 class StoryScene(Scene):

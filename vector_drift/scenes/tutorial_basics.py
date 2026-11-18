@@ -11,6 +11,10 @@ Steps and texts come from tutorial.toml (tutorial.py):
          up resumes where the ship stopped, anything else goes back to start).
   card - a card with one button; the Hint button is marked, not usable.
 Esc or Exit leaves to level select at any time.
+
+Players see it inside the tutorial screen (tutorial_screen.TutorialScene),
+shrunk beside the element list; that screen has the Exit button, so the
+walkthrough's own one is hidden there (show_exit).
 """
 
 import pygame
@@ -30,6 +34,7 @@ TEXT_SIZE = 16
 
 
 class BasicsScene(TutorialGameScene):
+    show_exit = True                # False inside the tutorial screen (it has its own Exit)
 
     def __init__(self, manager, index=0, restore=None):
         self.steps = tutorial().basics
@@ -145,7 +150,7 @@ class BasicsScene(TutorialGameScene):
 
     # --- input ------------------------------------------------------------------------
     def handle_event(self, event):
-        if self.exit_button.handle_event(event) == "click":
+        if self.show_exit and self.exit_button.handle_event(event) == "click":
             self.audio.play("click")
             self.leave()
             return
@@ -177,7 +182,8 @@ class BasicsScene(TutorialGameScene):
 
     def draw_overlay(self, surface):
         plot = pygame.Rect(self.camera.rect)
-        self.exit_button.draw(surface)
+        if self.show_exit:
+            self.exit_button.draw(surface)
         if self.step.kind == "card":
             self._draw_card(surface, plot)
             return

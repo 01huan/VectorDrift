@@ -100,12 +100,12 @@ def test_the_cloud_profile_is_saved_too_when_signed_in():
 
 
 def test_skipping_the_first_story_goes_to_basics_and_start_skips_both_next_time():
-    from vector_drift.scenes.tutorial_basics import BasicsScene
+    from vector_drift.scenes.tutorial_screen import TutorialScene
     menu = _menu(seen_intro=False)
     manager = menu.manager
     _click(menu, menu.start_button)
     _escape(manager.scene)
-    assert isinstance(manager.scene, BasicsScene)
+    assert isinstance(manager.scene, TutorialScene)
     _escape(manager.scene)                      # leaving Basics: level select
     assert isinstance(manager.scene, LevelSelectScene)
     again = MenuScene(manager)
@@ -133,7 +133,7 @@ def test_tutorial_button_plays_the_story_straight_away():
 
 
 def test_story_from_the_tutorial_button_goes_on_to_the_tutorial_screen():
-    from vector_drift.scenes.tutorial_basics import BasicsScene
+    from vector_drift.scenes.tutorial_screen import TutorialScene
     scene = _level_select()
     _click(scene, scene.tutorial_button)
     story = scene.manager.scene
@@ -142,7 +142,7 @@ def test_story_from_the_tutorial_button_goes_on_to_the_tutorial_screen():
         story.update(3.0)               # long enough for the ship's line to be typed out
         story.update(3.0)
         story.next()
-    assert isinstance(story.manager.scene, BasicsScene)
+    assert isinstance(story.manager.scene, TutorialScene)
 
 
 def test_tutorial_button_sits_with_shop_and_level_editor_without_overlap():
