@@ -245,22 +245,25 @@ class Flight:
             return self.outcome
 
         self.x, self.y = nx, ny
-        legs = self._bounce_along_path(p0, solid)
-        # Holes, pickups and the target see the piecewise path the ship flew
+        # Pickups and the target see the piecewise path the ship flew
         # (p0 -> bounce contact -> ... -> final), not the open chord across it.
-        # Black holes teleport the ship to the paired white hole (same velocity).
+        # That path ends at the first black hole on it (see _bounce_along_path).
+        legs, white = self._bounce_along_path(p0, solid)
+        reached = any(
+            segment_hits_circle(leg_a, leg_b, self.target, self.hit_radius)
+            for leg_a, leg_b in legs
+        )
+        # A black hole teleports the ship to the paired white hole with the
+        # velocity it went in with, unless the target came first on the path.
         self.hole_teleported = False
-        for leg_a, leg_b in legs:
-            self._take_holes(leg_a, leg_b)
+        if white is not None and not reached:
+            self._teleport(white)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
         for leg_a, leg_b in legs:
             self._take_pickups(leg_a, leg_b)
 
-        if any(
-            segment_hits_circle(leg_a, leg_b, self.target, self.hit_radius)
-            for leg_a, leg_b in legs
-        ):
+        if reached:
             self.outcome = Outcome.REACHED
         elif not self.unbound and (abs(self.x) > self.bounds[0] or abs(self.y) > self.bounds[1]):
             self.outcome = Outcome.OUT_OF_BOUNDS
@@ -338,24 +341,47 @@ class Flight:
             return None
 
         return near[0] / norm, near[1] / norm
-    def _take_holes(self, p0, p1):
-        """Teleport the ship through any black hole hit on p0->p1."""
+
+    def _first_hole(self, start, end):
+        """(t, white center) of the first black hole touched on start->end, else None.
+
+        First along the path, whatever order the holes are listed in.
+        """
+        first = None
         for black, white, radius in (self.holes or []):
             try:
-                if segment_hits_circle(p0, p1, black, radius + self.hull_radius):
-                    # The stroke ends where the ship went in; a new one starts
-                    # at the white hole (drawing only, the motion is unchanged).
-                    self.trail.append((p1[0], p1[1]))
-                    self.trail_breaks.append(len(self.trail))
-                    self.x, self.y = white[0], white[1]
-                    self.trail.append((self.x, self.y))
-                    self.hole_teleported = True
-                    self.teleports += 1
-                    return
+                t = segment_circle_first_hit(start, end, black, radius + self.hull_radius)
             except (TypeError, ValueError, OverflowError):
                 continue
+            if t is not None and (first is None or t < first[0]):
+                first = (t, white)
+        return first
 
+    def _enter_hole(self, start, end, legs, before=1.0):
+        """End this step's path at the first black hole on start->end, if any.
 
+        Only a hole touched no later than parameter ``before`` (the next
+        bounce on this leg) counts. The path then stops at the hole entry:
+        the last leg runs start->entry, the ship and the trail's stroke end
+        there. Returns the paired white hole, else None.
+        """
+        hole = self._first_hole(start, end)
+        if hole is None or hole[0] > before:
+            return None
+        t, white = hole
+        entry = (start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t)
+        legs.append((start, entry))
+        self.x, self.y = entry
+        self.trail.append(entry)
+        return white
+
+    def _teleport(self, white):
+        """Come out of the white hole: a new trail stroke starts there; velocity is kept."""
+        self.trail_breaks.append(len(self.trail))
+        self.x, self.y = white[0], white[1]
+        self.trail.append((self.x, self.y))
+        self.hole_teleported = True
+        self.teleports += 1
 
     def _take_pickups(self, p0, p1):
         """Trigger the pickups on p0->p1, apply them to this flight, keep the events."""
@@ -524,17 +550,25 @@ class Flight:
         protection: if the edge comes first the ship bounces off it
         (_bounce_off_edge) and later bumpers reflect as usual; once the
         protection is gone, leaving the map is OUT_OF_BOUNDS in step().
+
+        Events are taken in the order the ship meets them: the first black
+        hole on the path ends it at the hole entry (_enter_hole), so nothing
+        after it (bounce, shield use, rest of the path) happens this step.
+
+        Returns (legs, white): the flown legs [(start, end), ...] and the
+        white hole to come out of, or None when no black hole was hit.
         """
-        if self.phase_remaining > 0.0:
-            self.trail.append((self.x, self.y))
-            return [(p0, (self.x, self.y))]
-        if not obstacles and not self._edge_can_bounce():
-            self.trail.append((self.x, self.y))
-            return [(p0, (self.x, self.y))]
+        legs = []
+        if self.phase_remaining > 0.0 or (not obstacles and not self._edge_can_bounce()):
+            end = (self.x, self.y)
+            white = self._enter_hole(p0, end, legs)
+            if white is None:
+                self.trail.append(end)
+                legs.append((p0, end))
+            return legs, white
         obstacles = list(obstacles)
         start = p0
         end = (self.x, self.y)
-        legs = []
         for _ in range(max(1, len(obstacles) * 2) + 1):
             earliest = None  # (t, obstacle)
             for obstacle in obstacles:
@@ -544,13 +578,18 @@ class Flight:
             # The map edge competes with the bumpers for the one shield:
             # whichever the ship touches first takes it.
             edge_t = self._edge_crossing(start, end) if self._edge_can_bounce() else None
-            if edge_t is not None and (earliest is None or edge_t <= earliest[0]):
+            edge_first = edge_t is not None and (earliest is None or edge_t <= earliest[0])
+            if not edge_first and earliest is None:
+                break
+            # A black hole before this bounce (or shield use) ends the path.
+            white = self._enter_hole(start, end, legs, edge_t if edge_first else earliest[0])
+            if white is not None:
+                return legs, white
+            if edge_first:
                 contact, new_end = self._bounce_off_edge(start, end, edge_t)
                 legs.append((start, contact))
                 start, end = contact, new_end
                 continue
-            if earliest is None:
-                break
             t, obstacle = earliest
             center, radius, restitution = obstacle
             if self.shield_remaining > 0.0:
@@ -579,10 +618,13 @@ class Flight:
             start = (hx, hy)
             self.bounces += 1
             self.trail.append((hx, hy))
+        white = self._enter_hole(start, end, legs)
+        if white is not None:
+            return legs, white
         self.x, self.y = end
         self.trail.append((self.x, self.y))
         legs.append((start, end))
-        return legs
+        return legs, None
 
     ABILITY_CHARGE_ATTRS = {
         "ability_boost": "boost_charges",
