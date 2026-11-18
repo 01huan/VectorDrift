@@ -192,6 +192,8 @@ ARROW_MIN_PX = 20
 def grid_step(scale, min_px):
     """Smallest of 1, 2, 5, 10, 20, 50, ... m that is at least ``min_px`` px at ``scale`` px/m."""
     step = 1
+    if scale <= 0:
+        return int(step)
     while step * scale < min_px:
         for k in (2, 2.5, 2):               # 1 -> 2 -> 5 -> 10 -> ...
             step *= k
@@ -203,6 +205,8 @@ def grid_step(scale, min_px):
 def arrow_spacing(scale):
     """Field-arrow spacing (m) at ``scale`` px/m: 1 m, doubled while closer than ARROW_MIN_PX."""
     spacing = ARROW_SPACING_M
+    if scale <= 0:
+        return spacing
     while spacing * scale < ARROW_MIN_PX * config.UI_SCALE:
         spacing *= 2
     return spacing
