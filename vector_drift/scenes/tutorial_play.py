@@ -1,4 +1,4 @@
-"""The game screen in tutorial mode (Basics and the Field guide build on it).
+"""The game screen in tutorial mode (Basics and the element demos build on it).
 
 It is the ordinary GameScene - same physics, field arrows, editor, timer,
 pickup effects - on a map from tutorial.toml, with everything that would

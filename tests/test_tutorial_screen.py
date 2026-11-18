@@ -9,6 +9,7 @@ from vector_drift import config
 from vector_drift.config import px
 from vector_drift.scenes import tutorial_screen as ts
 from vector_drift.scenes.base import SceneManager
+from vector_drift.scenes.field_guide import GuideDemoScene
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.game_layout import FLIGHT, SETUP
 from vector_drift.scenes.levels import LevelSelectScene
@@ -247,3 +248,277 @@ def test_an_ordinary_level_keeps_its_full_screen_layout_and_input():
     game._refresh_buttons()
     _click(game, game.run_button.rect.center)
     assert game.state == FLIGHT
+
+
+# --- the demo popup --------------------------------------------------------------------------------
+BORROWED = ("fx_text", "fy_text", "editor_history", "ship_id", "level_id", "random_seed")
+
+
+def _row(scene, name):
+    return next(rect for item, rect in scene.items if item.name == name)
+
+
+def _item(scene, name):
+    return next(item for item, _ in scene.items if item.name == name)
+
+
+def _session_values(session):
+    return {k: getattr(session, k) for k in BORROWED}
+
+
+def test_clicking_a_list_item_opens_its_demo_popup():
+    _, scene = _open()
+    assert scene.popup is None
+    _click(scene, _row(scene, "Shockwave").center)
+    assert scene.popup is not None and scene.popup.item is _item(scene, "Shockwave")
+    assert isinstance(scene.popup.demo, GuideDemoScene)
+    _draw(scene)
+
+
+def test_the_list_works_on_every_step():
+    for index in range(4):
+        _, scene = _open(index)
+        _click(scene, _row(scene, "Rock").center)
+        assert scene.popup is not None and scene.popup.item.name == "Rock"
+
+
+def test_another_item_replaces_the_popup():
+    _, scene = _open()
+    _click(scene, _row(scene, "Rock").center)
+    first = scene.popup
+    _click(scene, _row(scene, "Shield").center)
+    assert scene.popup is not first and scene.popup.item.name == "Shield"
+
+
+@pytest.mark.parametrize("how", ["x", "esc", "same item", "main view"])
+def test_the_popup_closes(how):
+    mgr, scene = _open()
+    _click(scene, _row(scene, "Rock").center)
+    popup = scene.popup
+    if how == "x":
+        _click(scene, popup.close_rect.center)
+    elif how == "esc":
+        _key(scene, pygame.K_ESCAPE)
+    elif how == "same item":
+        _click(scene, _row(scene, "Rock").center)
+    else:
+        spot = (scene.frame.x + px(40), scene.frame.bottom - px(40))
+        assert not popup.rect.collidepoint(spot)
+        _click(scene, spot)
+    assert scene.popup is None
+    assert mgr.scene is scene                           # still in the tutorial
+
+
+def test_a_click_on_the_dimmed_view_only_closes_the_popup():
+    _, scene = _open()
+    inner = scene.inner
+    _type(inner, "5", "0")
+    _click(scene, _row(scene, "Rock").center)
+    play = _outer(scene, inner.run_button.rect.center)
+    assert not scene.popup.rect.collidepoint(play)
+    _click(scene, play)
+    assert scene.popup is None and inner.state == SETUP  # the click did not reach Play
+
+
+def test_esc_with_a_popup_only_closes_it_then_leaves():
+    mgr, scene = _open()
+    _click(scene, _row(scene, "Rock").center)
+    _key(scene, pygame.K_ESCAPE)
+    assert mgr.scene is scene and scene.popup is None
+    _key(scene, pygame.K_ESCAPE)
+    assert isinstance(mgr.scene, LevelSelectScene)
+
+
+def test_one_popup_at_a_time(monkeypatch):
+    opened, closed = [], []
+    real_open, real_close = ts.DemoPopup.__init__, ts.DemoPopup.close
+    monkeypatch.setattr(ts.DemoPopup, "__init__",
+                        lambda self, *a, **k: opened.append(self) or real_open(self, *a, **k))
+    monkeypatch.setattr(ts.DemoPopup, "close", lambda self: closed.append(self) or real_close(self))
+    _, scene = _open()
+    for name in ("Rock", "Shockwave", "Unbound", "Shield"):
+        _click(scene, _row(scene, name).center)
+        assert len(opened) - len(closed) == 1           # never two open
+    assert scene.popup is opened[-1] and scene.popup.item.name == "Shield"
+
+
+def test_a_popup_sits_left_of_the_list_beside_its_row_and_on_screen():
+    _, scene = _open()
+    for item, row in scene.items:
+        _click(scene, row.center)
+        popup = scene.popup
+        assert popup.item is item
+        assert popup.rect.right < scene.list_rect.left
+        assert popup.rect.w == px(440)
+        assert popup.demo_rect.size == (px(404), px(303))
+        assert popup.rect.top >= 0 and popup.rect.bottom <= config.WINDOW_H
+        assert popup.rect.top <= row.centery <= popup.rect.bottom
+        assert abs(popup.pointer_y - row.centery) <= 1
+        _draw(scene)
+
+
+def test_the_popup_shows_the_name_text_and_part_but_never_the_formula(monkeypatch):
+    drawn = []
+    real = ts.draw_text
+    monkeypatch.setattr(ts, "draw_text", lambda s, text, *a, **k: drawn.append(text) or real(s, text, *a, **k))
+    _, scene = _open()
+    _click(scene, _row(scene, "Shield").center)
+    monkeypatch.setattr(scene.popup.demo.editor, "draw", lambda *a: pytest.fail("the editor was drawn"))
+    drawn.clear()
+    _draw(scene)
+    shown = " ".join(drawn)
+    assert "Shield" in drawn and "1 / 2" in drawn and "Paused" in drawn
+    assert scene.popup.demo.part.text.split()[0] in shown
+    assert not any(f in shown for f in ("Fx", "Fy"))
+
+
+def test_the_popup_demo_loops_its_parts():
+    _, scene = _open()
+    _click(scene, _row(scene, "Shield").center)
+    demo = scene.popup.demo
+    for _ in range(20 * 30):
+        scene.update(1 / 30)
+        if demo.part_index == 1:
+            break
+    assert demo.part_index == 1
+
+
+def test_extratime_shows_its_timer_in_the_popup(monkeypatch):
+    drawn = []
+    real = ts.draw_text
+    monkeypatch.setattr(ts, "draw_text", lambda s, text, *a, **k: drawn.append(text) or real(s, text, *a, **k))
+    _, scene = _open()
+    _click(scene, _row(scene, "Extratime").center)
+    _draw(scene)
+    assert "03:00" in drawn
+    demo = scene.popup.demo
+    assert pygame.Rect(demo.camera.rect).collidepoint(demo._fly_target("timer"))   # "+3" flies to the shown clock
+
+
+# --- the walkthrough waits while a popup is open -----------------------------------------------------
+def test_the_walkthrough_is_paused_while_a_popup_is_open():
+    _, scene = _open(1)                                 # a demo step: it launches by itself
+    inner = scene.inner
+    scene.update(0.3)
+    wait = inner.auto_wait
+    _click(scene, _row(scene, "Rock").center)
+    for _ in range(90):
+        scene.update(1 / 30)
+    assert inner.auto_wait == wait and inner.flight is None
+    _click(scene, scene.popup.close_rect.center)
+    for _ in range(60):
+        scene.update(1 / 30)
+    assert inner.flight is not None                     # it carried on
+
+
+def test_a_flight_stands_still_while_a_popup_is_open():
+    _, scene = _open(0)
+    inner = scene.inner
+    _type(inner, "5", "0")
+    _click(scene, _outer(scene, inner.run_button.rect.center))
+    for _ in range(10):
+        scene.update(1 / 30)
+    assert inner.state == FLIGHT
+    time, pos, t = inner.flight.time, (inner.flight.x, inner.flight.y), inner.t
+    _click(scene, _row(scene, "Unbound").center)
+    for _ in range(60):
+        scene.update(1 / 30)
+    assert (inner.flight.time, (inner.flight.x, inner.flight.y), inner.t) == (time, pos, t)
+    _key(scene, pygame.K_ESCAPE)
+    scene.update(1 / 30)
+    assert inner.flight.time > time
+
+
+def test_input_goes_only_to_the_popup_list_and_exit():
+    _, scene = _open()
+    inner = scene.inner
+    _type(inner, "5", "0")
+    _click(scene, _row(scene, "Rock").center)
+    _key(scene, pygame.K_RETURN)                        # would launch
+    scene.handle_event(pygame.event.Event(pygame.TEXTINPUT, text="7"))
+    assert inner.state == SETUP and inner.editor.lines == ["5", "0"]
+    _click(scene, _row(scene, "Shield").center)         # the list still works
+    assert scene.popup.item.name == "Shield"
+
+
+def test_exit_with_a_popup_open_leaves():
+    mgr, scene = _open()
+    _click(scene, _row(scene, "Rock").center)
+    _click(scene, scene.exit_button.rect.center)
+    assert isinstance(mgr.scene, LevelSelectScene)
+
+
+# --- the session is borrowed once and given back -----------------------------------------------------
+def _fresh_session(mgr):
+    session = mgr.session
+    session.fx_text, session.fy_text, session.level_id = "x", "y", 4
+    session.ship_id, session.random_seed, session.editor_history = "ship02", 1234, None
+    return _session_values(session)
+
+
+def test_a_popup_leaves_the_walkthrough_its_own_session_values():
+    mgr = _manager()
+    _fresh_session(mgr)
+    _, scene = _open(0, mgr)
+    _type(scene.inner, "5", "0")
+    during = _session_values(mgr.session)
+    _click(scene, _row(scene, "Shield").center)
+    assert (mgr.session.fx_text, mgr.session.fy_text) == tuple(scene.popup.demo.part.force)
+    _click(scene, _row(scene, "Rock").center)           # replaced: given back, borrowed again
+    _key(scene, pygame.K_ESCAPE)                        # closed
+    assert _session_values(mgr.session) == during
+
+
+@pytest.mark.parametrize("how", ["closed first", "exit with popup", "esc twice"])
+def test_leaving_gives_the_session_back_even_after_popups(how):
+    mgr = _manager()
+    before = _fresh_session(mgr)
+    _, scene = _open(0, mgr)
+    _click(scene, _row(scene, "Shockwave").center)
+    for _ in range(30):
+        scene.update(1 / 30)
+    _click(scene, _row(scene, "Extratime").center)
+    if how == "closed first":
+        _click(scene, scene.popup.close_rect.center)
+        _click(scene, scene.exit_button.rect.center)
+    elif how == "exit with popup":
+        _click(scene, scene.exit_button.rect.center)
+    else:
+        _key(scene, pygame.K_ESCAPE)
+        _key(scene, pygame.K_ESCAPE)
+    assert isinstance(mgr.scene, LevelSelectScene)
+    assert _session_values(mgr.session) == before
+
+
+# --- nothing counts in the popup -------------------------------------------------------------------
+def _watch_every_demo(scene):
+    for item, row in scene.items:
+        _click(scene, row.center)
+        demo = scene.popup.demo
+        for _ in range(len(item.parts) * 150):
+            scene.update(1 / 30)
+        assert scene.popup.demo is demo
+
+
+def test_popup_demos_count_for_nothing():
+    mgr, scene = _open()
+    session = mgr.session
+    before = (dict(session.achievements), dict(session.achievement_progress), session.money,
+              dict(session.records))
+    _watch_every_demo(scene)
+    assert (session.achievements, session.achievement_progress, session.money, session.records) == before
+
+
+def test_the_same_demos_would_count_outside_the_tutorial(monkeypatch):
+    """Shows the check above is real: counted, the clips unlock hole_in_one, kaboom, ..."""
+    monkeypatch.setattr(TutorialScene, "counts_for_progress", True)
+    mgr, scene = _open()
+    _watch_every_demo(scene)
+    assert {"hole_in_one", "kaboom", "not_a_scratch"} <= set(mgr.session.achievements)
+
+
+def test_the_help_card_points_at_the_list():
+    help_card = tutorial().basics[3]
+    assert ("Want to know what a rock, portal or pickup does? Click it in the list on the right."
+            in help_card.text)
+    assert "Tutorial menu" not in help_card.text and "Field guide" not in help_card.text

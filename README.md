@@ -345,11 +345,10 @@ The first time you press **Start**, the game plays a short opening story: six pa
 
 ### Tutorial
 
-The **Tutorial** button on the level selector plays the opening story again and then opens the tutorial screen, the same way the first **Start** does. However the story ends (played through, **Skip** or `Esc`), the tutorial screen comes next:
+The **Tutorial** button on the level selector plays the opening story again and then opens the tutorial screen, the same way the first **Start** does. However the story ends (played through, **Skip** or `Esc`), the tutorial screen comes next. It has two parts:
 
-* **Basics** walks through flying a level on the real game screen, shown slightly smaller with the step (Tutorial 1 / 4) and Exit above it: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc`, Exit, or **Start playing** on the last step leaves to the level selector.
-* A list on the right names every rock, portal and pickup, grouped as Obstacles, Portals and Pickups.
-* **Field guide** shows what every rock, portal and pickup does: open a card to watch a short looping clip of it, and press `Esc` or Back to return.
+* **Basics**, the real game screen shown slightly smaller, with the step (Tutorial 1 / 4) and Exit above it: fly home with Fx = 5 and Fy = 0, what happens when time runs out or the ship leaves the map, and where to find help. `Esc`, Exit, or **Start playing** on the last step leaves to the level selector.
+* A list on the right of every rock, portal and pickup, grouped as Obstacles, Portals and Pickups, usable on every step. Clicking one opens a small window beside the list with a short looping clip of it, its name and what it does (items with several parts, like Shield, show which part is playing). Clicking another item switches the clip; clicking the same item again, the close button, the dimmed game screen, or pressing `Esc` closes it. While it is open, Basics is paused (dimmed, marked Paused) and carries on where it stopped once the window closes; `Esc` closes the window first, and only leaves the tutorial when no window is open.
 
 Nothing done in the tutorial pays coins, changes level progress or best times, saves replays, or counts toward achievements; only watching the opening story through unlocks its achievement as usual. All tutorial text and maps are in `vector_drift/tutorial.toml`.
 
@@ -628,7 +627,7 @@ VectorDrift/
     ├── pickups.py                  # Pickup lifecycle and effect registry
     ├── hints.py / hints.toml       # Fixed-level hints and answer formulas
     ├── intro_story.py / .toml      # Opening story panels (played by scenes/story.py)
-    ├── tutorial.py / .toml         # Tutorial text and maps (Basics, Field guide)
+    ├── tutorial.py / .toml         # Tutorial text and maps (Basics, element demos)
     ├── replay.py                   # Replay records and playback data
     ├── render.py                   # World, grid, and force-field rendering
     ├── sprites.py                  # Ships, planets, obstacles, pickups, effects
@@ -647,8 +646,9 @@ VectorDrift/
         ├── community_functions.py  # The Functions tab (inspect, favorite, rate, edit, import)
         ├── community.py            # The unified Community entry points
         ├── function_lab.py         # The Function Lab screen
+        ├── tutorial_screen.py      # Tutorial screen: shrunk Basics, element list, demo popup
         ├── tutorial_basics.py      # Basics walkthrough (on tutorial_play.py's game screen)
-        ├── field_guide.py          # Field guide cards and clips
+        ├── field_guide.py          # Element demo clips (shown in the tutorial popup)
         └── game_functions.py       # In-game picker for the saved functions
 ```
 

@@ -1,4 +1,7 @@
-# Tutorial mode: the Basics walkthrough and the Field guide (read by tutorial.py).
+# Tutorial mode: the Basics walkthrough and the element demos (read by tutorial.py).
+# Both are on the tutorial screen (scenes/tutorial_screen.py), reached through
+# the story: the Basics steps in the frame, the [guide] items in the list on
+# the right, each opening its demo in a popup.
 #
 # Every text here is shown in the game as written. The maps are flown by the
 # real physics engine; tests/test_tutorial_data.py checks each one gives the
@@ -12,7 +15,7 @@
 #   obstacles    - [{ center = [x, y], radius = r }]
 #   pickups      - [{ center = [x, y], kind = "shockwave" | "extratime" | "shield" | "unbound" }]
 #   holes        - [{ black = [x, y], white = [x, y], radius = r }]
-# A force is two formulas, force = ["Fx", "Fy"] (never shown in the Field guide).
+# A force is two formulas, force = ["Fx", "Fy"] (never shown in a demo popup).
 
 # --- Basics: four steps in order -------------------------------------------
 # kind = "play": the player types the force and launches.
@@ -63,14 +66,15 @@ point = "hint"
 button = "Start playing"
 text = """Stuck? **Hint** gives step-by-step tips for the level.
 Press **Esc** at any time for the menu (restart, levels, quit).
-The **Field guide** in the Tutorial menu shows what every rock, portal and pickup does."""
+Want to know what a rock, portal or pickup does? Click it in the list on the right."""
 map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
 
-# --- Field guide ------------------------------------------------------------
-# Categories in order; each item is a card (icon = what its picture shows:
-# "rock", "holes" or a pickup kind). Opening a card loops its parts one after
-# another: each part flies `force` for `cap` seconds (or until the flight
-# ends), holds, and starts over. show_timer = true shows the flight clock.
+# --- Element demos (the list on the tutorial screen) -----------------------
+# Categories in order, as the list groups them; each item is one row (icon =
+# what its picture shows: "rock", "holes" or a pickup kind). Clicking it opens
+# a popup that loops its parts one after another: each part flies `force` for
+# `cap` seconds (or until the flight ends), holds, and starts over.
+# show_timer = true shows the flight clock in the popup.
 
 [[guide.category]]
 name = "Obstacles"

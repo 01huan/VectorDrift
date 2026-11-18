@@ -1,4 +1,4 @@
-"""Field guide: the card page and every clip on the real game screen and engine."""
+"""Field guide clips (shown in the tutorial screen's popup) on the real game screen and engine."""
 
 from types import SimpleNamespace
 
@@ -8,9 +8,10 @@ import pytest
 from vector_drift import config
 from vector_drift.physics import Outcome
 from vector_drift.scenes.base import SceneManager
-from vector_drift.scenes.field_guide import HOLD, FieldGuideScene, GuideDemoScene
+from vector_drift.scenes import field_guide
+from vector_drift.scenes.field_guide import HOLD, GuideDemoScene
 from vector_drift.scenes.game_layout import FLIGHT
-from vector_drift.scenes.levels import LevelSelectScene
+from vector_drift.scenes.tutorial_play import give_back_session
 from vector_drift.tutorial import tutorial
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
@@ -59,59 +60,23 @@ def _click(scene, pos):
     scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
 
 
-def _esc(scene):
-    scene.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode="",
-                                          scancode=0))
-
-
-# --- the page ---------------------------------------------------------------------------
-def test_page_lists_the_categories_and_cards():
-    mgr = _manager()
-    page = FieldGuideScene(mgr)
-    assert [name for name, _ in page.headers] == ["Obstacles", "Portals", "Pickups"]
-    assert [item.name for item, _ in page.cards] == ALL_ITEMS
-    page.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
-
-
-def test_a_card_opens_its_clip_and_esc_goes_back_to_the_page():
-    mgr = _manager()
-    page = FieldGuideScene(mgr)
-    mgr.switch(page)
-    item, rect = page.cards[0]
-    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=rect.center))
-    assert isinstance(mgr.scene, GuideDemoScene) and mgr.scene.item is item
-    _esc(mgr.scene)
-    assert isinstance(mgr.scene, FieldGuideScene)
-    back = mgr.scene.back_button.rect.center
-    _open("Rock", mgr)
-    _click(mgr.scene, back)                     # the clip's Back button sits at the same place
-    assert isinstance(mgr.scene, FieldGuideScene)
-
-
-def test_esc_on_the_page_leaves_to_level_select():
-    mgr = _manager()
-    page = FieldGuideScene(mgr)
-    mgr.switch(page)
-    _esc(page)
-    assert isinstance(mgr.scene, LevelSelectScene)
+# --- no page of its own ------------------------------------------------------------------
+def test_there_is_no_card_page_any_more():
+    assert not hasattr(field_guide, "FieldGuideScene")
+    assert not hasattr(field_guide, "back_to_tutorial_menu")
+    assert [i.name for c in tutorial().guide for i in c.items] == ALL_ITEMS
 
 
 @pytest.mark.parametrize("name", ALL_ITEMS)
 def test_no_formula_is_shown_anywhere(name, monkeypatch):
+    """A clip draws its map only: never the editor or the left panel with the formulas."""
     _, scene = _open(name)
     monkeypatch.setattr(scene.editor, "draw", lambda *a: pytest.fail("the editor was drawn"))
-    drawn = []
-    from vector_drift.scenes import field_guide
-    real = field_guide.draw_text
-    monkeypatch.setattr(field_guide, "draw_text", lambda s, text, *a, **k: (drawn.append(text),
-                                                                           real(s, text, *a, **k)))
+    monkeypatch.setattr(scene, "_draw_panel", lambda *a: pytest.fail("the left panel was drawn"))
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(surface)
     _until_hold(scene)
     scene.draw(surface)
-    for part in scene.item.parts:
-        assert not any(f in t for t in drawn for f in ("Fx", "Fy", " = "))
-        assert part.text in " ".join(drawn) or len(part.text) > 30
 
 
 # --- each clip --------------------------------------------------------------------------
@@ -198,17 +163,15 @@ def test_shield_plays_both_parts_in_turn():
 
 # --- nothing counts --------------------------------------------------------------------------
 def _play_every_clip(mgr):
-    """From the page: open each card, play all its parts, Esc back to the page."""
-    page = FieldGuideScene(mgr)
-    mgr.switch(page)
-    for item, _rect in page.cards:
-        mgr.scene.open(item)
-        scene = mgr.scene
+    """Each clip in turn, all its parts, then the session given back (as the popup does)."""
+    for name in ALL_ITEMS:
+        scene = GuideDemoScene(mgr, _item(name))
+        mgr.switch(scene)
         for _ in scene.item.parts:
             _until_hold(scene)
             _next_clip(scene)
-        _esc(scene)
-        assert isinstance(mgr.scene, FieldGuideScene)
+        scene.on_exit()
+        give_back_session(mgr.session, scene.restore)
 
 
 def test_the_clips_change_no_achievements_or_counters():
@@ -236,7 +199,6 @@ def test_the_clips_change_no_coins_records_replays_or_saves(monkeypatch):
     session.fx_text, session.fy_text, session.level_id = "x", "y", 3
     before = (session.money, dict(session.records), list(session.replays or []))
     _play_every_clip(mgr)
-    _esc(mgr.scene)
     assert (session.money, session.records, list(session.replays or [])) == before
     assert saves == []
     assert (session.fx_text, session.fy_text, session.level_id) == ("x", "y", 3)

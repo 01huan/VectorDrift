@@ -1,7 +1,8 @@
 """Tutorial mode data, read from tutorial.toml.
 
-The Basics walkthrough (scenes/tutorial_basics.py) and the Field guide
-(scenes/field_guide.py) take every text and every map from here, so the
+The Basics walkthrough (scenes/tutorial_basics.py) and the element demos
+(scenes/field_guide.py, in the tutorial screen's popup) take every text and
+every map from here, so the
 scenes hold no tutorial content of their own. Each map becomes an ordinary
 LevelSpec and each force an ordinary ForceField: the tutorial flies the same
 physics as the game.
