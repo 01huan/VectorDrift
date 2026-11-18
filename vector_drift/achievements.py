@@ -65,7 +65,6 @@ ACHIEVEMENTS = (
                 MECHANICS),
     Achievement("halfway_there", "Halfway There", "Reach a checkpoint", MECHANICS),
     Achievement("pocket_change", "Pocket Change", "Collect every coin in the campaign", MECHANICS),
-    Achievement("fleet_commander", "Fleet Commander", "Own all six ships", MECHANICS),
     Achievement("power_trip", "Power Trip", "Use Boost, Shield Pulse and Magnet", MECHANICS),
 
     Achievement("built_different", "Built Different", "Save a level in the Level Editor", CREATION),
@@ -277,9 +276,6 @@ def check_state(manager):
                  if isinstance(k, tuple) and len(k) == 2}
     if coins and coins <= collected:
         unlock(manager, "pocket_change")
-    from .data import SHIPS
-    if set(SHIPS) <= set(getattr(session, "owned_ships", None) or ()):
-        unlock(manager, "fleet_commander")
 
 
 def counts(session):

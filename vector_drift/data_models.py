@@ -167,21 +167,23 @@ def multi_section_level(id, name, ship_id, sections, lives=5):
 
 
 # Ship skins: same physics, different look (assets/images/ships/<id>.png).
-# The shown name is the id until the team picks real names. shipN unlocks
-# on level N.
+# The shown name is the id until the team picks real names. Fixed level N
+# flies shipNN (default_ship_id); to add a ship, add its picture and its
+# entry here: the level with its number switches to it on its own.
 SHIPS = {
     f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2,
                              unlock_level=n)
     for n in range(1, 7)
 }
+DEFAULT_SHIP_ID = "ship01"
 
 
 def ship_unlocked(ship, level_id=None, session=None, owned=None):
-    """True if ``ship`` is owned by the player (purchased).
+    """True if ``ship`` is in the player's owned-ship list.
 
-    Ownership replaces the old level-based unlock: only ``ship01`` is owned
-    from the start; every other skin must be bought in the shop.  ``level_id``
-    is kept for backwards compatibility but no longer gates anything.
+    Kept for old saves and callers: ships are no longer bought or picked
+    (each level flies its own ship, see default_ship_id), so the game does
+    not check this any more.
     """
     ship_id = _ship_id(ship)
     if isinstance(ship_id, (list, tuple, set)):
@@ -197,10 +199,20 @@ def ship_unlocked(ship, level_id=None, session=None, owned=None):
 
 
 def default_ship_id(level_id=None, session=None):
-    """The ship a level starts on: the newest owned ship (ship01 when that is all)."""
-    owned = _owned_ship_ids(session)
-    usable = [sid for sid in SHIPS if sid in owned]
-    return usable[-1] if usable else next(iter(SHIPS))
+    """The ship level ``level_id`` flies: level N flies shipNN.
+
+    A level whose ship is not made yet (shipNN not in SHIPS), and anything
+    that is not a level number, flies ship01. ``session`` is unused (kept
+    for callers). Community and custom levels: data.level_ship_id.
+    """
+    try:
+        number = int(level_id)
+    except (TypeError, ValueError):
+        return DEFAULT_SHIP_ID
+    if isinstance(level_id, bool) or number != level_id:
+        return DEFAULT_SHIP_ID
+    ship_id = f"ship{number:02d}"
+    return ship_id if number >= 1 and ship_id in SHIPS else DEFAULT_SHIP_ID
 
 
 # Black/white hole (wormhole) spec.
@@ -259,6 +271,6 @@ def level_holes(level):
 
 __all__ = [
     "ShipSpec", "ObstacleSpec", "PickupSpec", "LevelSpec", "SectionSpec",
-    "HoleSpec", "SHIPS", "section_count", "section_level", "section_shift",
+    "HoleSpec", "SHIPS", "DEFAULT_SHIP_ID", "section_count", "section_level", "section_shift",
     "multi_section_level", "ship_unlocked", "default_ship_id", "level_holes",
 ]

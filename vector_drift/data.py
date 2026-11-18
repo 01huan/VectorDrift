@@ -26,6 +26,7 @@ from .data_models import (
     SectionSpec,
     ShipSpec,
     SHIPS,
+    DEFAULT_SHIP_ID,
     _ship_id,
     default_ship_id,
     level_holes,
@@ -224,6 +225,17 @@ def is_community_level(level_id):
     return level_id in COMMUNITY_LEVELS
 
 
+def level_ship_id(level_id, session=None):
+    """The ship a level flies; the player does not pick it.
+
+    Campaign level N (the random level 8 too) flies shipNN, or ship01 while
+    that ship is not in SHIPS yet. Community and custom levels fly ship01.
+    """
+    if is_community_level(level_id) or is_custom_map(level_id, session):
+        return DEFAULT_SHIP_ID
+    return default_ship_id(level_id)
+
+
 def is_custom_map(level_id, session=None):
     """True for a map that is not part of the campaign.
 
@@ -276,6 +288,7 @@ __all__ = [
     "register_custom_level", "is_custom_level", "community_level_id",
     "clean_level_name", "unique_level_name",
     "register_community_level", "is_community_level", "is_custom_map",
+    "level_ship_id", "DEFAULT_SHIP_ID",
     "community_remote_id", "COMMUNITY_ID_SPACE", "COMMUNITY_REMOTE_IDS",
     "section_count", "section_level", "section_shift", "multi_section_level",
     "ship_unlocked", "default_ship_id", "level_holes",

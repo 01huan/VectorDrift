@@ -10,9 +10,9 @@ from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
-from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
-                    is_custom_map, level_holes, section_count, section_level, section_shift,
-                    ship_unlocked)
+from ..data import (DEFAULT_SHIP_ID, SHIPS, custom_level_to_snapshot, get_level,
+                    is_custom_map, level_holes, level_ship_id, section_count, section_level,
+                    section_shift)
 from ..expr_parser import diagnose_expression
 from ..hints import get_hint
 from ..level_presets import is_dynamic_level
@@ -67,14 +67,12 @@ class GameCoreMixin:
         self.section_index = 0
         self.level = section_level(self.full_level, 0)
         self.pan = None                 # SectionPan while state == PANNING
-        # Every skin in order; the ones this level has not unlocked are shown
-        # (grey, "LvN+") but cannot fly. Retry / Replay keep the session's
-        # pick; the level select clears it, so a level starts on its newest ship.
-        self.owned_ships = list(SHIPS)
-        ship_id = self.session.ship_id
-        if ship_id not in SHIPS or not ship_unlocked(SHIPS[ship_id], session=self.session):
-            ship_id = default_ship_id(self.level.id, session=self.session)
-        self.ship_index = self.owned_ships.index(ship_id)
+        # Each level flies its own ship (level N: shipNN, else ship01); the
+        # player does not pick it.
+        ship_id = self._level_ship_id()
+        if ship_id not in SHIPS:
+            ship_id = DEFAULT_SHIP_ID
+        self.session.ship_id = ship_id
         self.ship = SHIPS[ship_id]
         self.flyable_ship = self.ship           # what flies (and fills the lives row)
 
@@ -129,8 +127,6 @@ class GameCoreMixin:
 
         # Widgets
         self.level_button = IconButton(R(CX + 16, LEVEL_ROW_Y - 18, 36, 36), "grid", style="circle")
-        self.prev_ship = IconButton(R(CX - 112, 181, 26, 38), "chev_left")
-        self.next_ship = IconButton(R(CX + 86, 181, 26, 38), "chev_right")
         self.editor = CodeEditor((px(PAD), px(EDITOR_Y)), px(CONTENT_W), title="Vector_field",
                                  footer_title="TELEMETRY", footer_rows_h=4 * TELEMETRY_ROW_H + 8,
                                  on_change=self._on_text_change)
@@ -321,31 +317,16 @@ class GameCoreMixin:
             self.run_button.enabled = True
         else:
             self.run_button.icon, self.run_button.color = "play", RUN_GREEN
-            self.run_button.enabled = self.state == SETUP and self.valid and self._ship_unlocked
+            self.run_button.enabled = self.state == SETUP and self.valid
         setup = self.state == SETUP
         self.level_button.enabled = setup
         self.lab_button.enabled = setup and not getattr(self, "lab_popup", False)
-        self.prev_ship.enabled = setup and self.ship_index > 0
-        self.next_ship.enabled = setup and self.ship_index < len(self.owned_ships) - 1
         self.editor.enabled = setup
         self._update_cursor()
 
-    @property
-    def _ship_unlocked(self):
-        return ship_unlocked(self.ship, session=self.session)
-
-    def _switch_ship(self, step):
-        """Show the previous / next skin; no wrap-around at either end."""
-        index = max(0, min(len(self.owned_ships) - 1, self.ship_index + step))
-        if index == self.ship_index:
-            return
-        self.ship_index = index
-        self.session.ship_id = self.owned_ships[index]
-        self.ship = SHIPS[self.session.ship_id]
-        if self._ship_unlocked:
-            self.flyable_ship = self.ship
-        self.audio.play("click")
-        self._refresh_buttons()
+    def _level_ship_id(self):
+        """The ship this level flies (data.level_ship_id; tutorial scenes override it)."""
+        return level_ship_id(self.level.id, self.session)
 
     def _update_cursor(self):
         over_text = self.pause_menu is None and self.editor.is_text_area(self._mouse_pos)

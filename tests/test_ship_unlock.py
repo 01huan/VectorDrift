@@ -1,33 +1,44 @@
-"""Ship skins unlock by level: fixed level N flies ship01..shipN, random levels fly any."""
+"""Each level flies its own ship: level N flies shipNN, else ship01; no picking."""
 import math
 
 import pygame
 import pytest
 
-from vector_drift.data import SHIPS, default_ship_id, ship_unlocked
+from vector_drift import data_models
+from vector_drift.data import SHIPS, ShipSpec, default_ship_id, level_ship_id
 from vector_drift.scenes.base import SceneManager
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 
-def usable(level_id):
-    return [sid for sid, ship in SHIPS.items() if ship_unlocked(ship, level_id)]
+def test_level_n_flies_ship_n():
+    for n in range(1, 7):
+        assert level_ship_id(n) == f"ship{n:02d}"
 
 
-def test_fixed_level_n_flies_ship01_to_ship_n():
-    assert usable(1) == ["ship01"]
-    assert usable(2) == ["ship01"]
-    assert SHIPS["ship03"].unlock_level == 3
+def test_levels_whose_ship_is_not_made_yet_fly_ship01():
+    for n in (7, 8, 9, 10, 24):                  # ship07+ are not in SHIPS (yet)
+        assert f"ship{n:02d}" not in SHIPS
+        assert level_ship_id(n) == "ship01"
+    for odd in (None, 0, -3, "x", 2.5, True):
+        assert default_ship_id(odd) == "ship01"
 
 
-def test_random_levels_fly_every_ship():
-    assert usable(8) == ["ship01"]
+def test_a_new_ship_in_ships_is_flown_by_its_level(monkeypatch):
+    ships = dict(SHIPS)
+    ships["ship07"] = ShipSpec(id="ship07", name="ship07", mass=1.0, hull_radius=0.2, unlock_level=7)
+    monkeypatch.setattr(data_models, "SHIPS", ships)
+    assert level_ship_id(7) == "ship07"
 
 
-def test_a_level_starts_on_its_newest_ship():
-    assert default_ship_id(1) == "ship01"
-    assert default_ship_id(2) == "ship01"
-    assert default_ship_id(8) == "ship01"
+def test_custom_and_community_levels_fly_ship01(monkeypatch):
+    from vector_drift import data
+
+    monkeypatch.setitem(data.CUSTOM_LEVELS, 3, object())       # even with a campaign-like id
+    assert level_ship_id(3) == "ship01"
+    monkeypatch.delitem(data.CUSTOM_LEVELS, 3)
+    monkeypatch.setitem(data.COMMUNITY_LEVELS, 5, object())
+    assert level_ship_id(5) == "ship01"
 
 
 class Quiet:
@@ -38,68 +49,55 @@ class Quiet:
 def game_on(manager, level_id):
     from vector_drift.scenes.game import GameScene
     manager.session.level_id = level_id
-    if level_id >= 8:
+    if level_id == 8:
         manager.session.random_seed = 123
     return GameScene(manager)
 
 
-def test_level_2_browses_back_freely_and_forward_only_to_locked_ships():
-    scene = game_on(SceneManager(Quiet()), 2)
-    assert scene.ship.id == "ship01"
-    assert scene.run_button.enabled
+@pytest.mark.parametrize("level_id, ship_id", [(1, "ship01"), (2, "ship02"), (6, "ship06"),
+                                               (7, "ship01"), (8, "ship01"), (9, "ship01")])
+def test_game_flies_the_levels_ship_with_no_arrows(level_id, ship_id):
+    scene = game_on(SceneManager(Quiet()), level_id)
+    assert scene.ship.id == ship_id
+    assert scene.flyable_ship.id == ship_id
+    assert not hasattr(scene, "prev_ship") and not hasattr(scene, "next_ship")
+    assert not hasattr(scene, "_switch_ship")
 
-    scene._switch_ship(-1)
-    assert scene.ship.id == "ship01"
-    assert not scene.prev_ship.enabled           # no wrap-around past ship01
-    scene._switch_ship(-1)
-    assert scene.ship.id == "ship01"
 
-    scene._switch_ship(1)
-    scene._switch_ship(1)
-    assert scene.ship.id == "ship03"             # shown, but locked on level 2
-    assert not scene.run_button.enabled
+def test_a_saved_ship_pick_and_old_owned_ships_are_ignored():
+    manager = SceneManager(Quiet())
+    manager.session.ship_id = "ship05"                     # an old pick
+    manager.session.owned_ships = {"ship01", "ship05"}     # an old save's purchases
+    scene = game_on(manager, 2)
+    assert scene.ship.id == "ship02"
     scene.editor.set_lines(["1", "0"])
+    scene._on_text_change(scene.editor)
     scene._try_launch()
-    assert scene.flight is None
-
-    for _ in range(5):
-        scene._switch_ship(1)
-    assert scene.ship.id == "ship06"
-    assert not scene.next_ship.enabled           # no wrap-around past the last ship
+    assert scene.flight is not None          # the old pick never blocks the launch
+    assert scene.ship.id == "ship02"
 
 
-def test_lives_show_the_ship_that_would_fly_while_a_locked_one_is_shown(monkeypatch):
+def test_lives_show_the_levels_ship(monkeypatch):
     from vector_drift import sprites
-    scene = game_on(SceneManager(Quiet()), 2)
-    scene._switch_ship(1)                        # ship03, locked
+    scene = game_on(SceneManager(Quiet()), 3)
     drawn = []
     monkeypatch.setattr(sprites, "draw_ship_icon",
                         lambda surface, center, size, ship, alive=True: drawn.append(ship.id))
     scene.draw(pygame.Surface((1280, 720)))
-    assert drawn and set(drawn) == {"ship01"}
+    assert drawn and set(drawn) == {"ship03"}
 
 
-def test_retry_keeps_the_chosen_ship_and_level_select_resets_it():
+def test_retry_and_level_select_keep_the_levels_ship():
     from vector_drift.scenes.game import GameScene
     from vector_drift.scenes.levels import LevelSelectScene
     manager = SceneManager(Quiet())
-    scene = game_on(manager, 2)
-    scene._switch_ship(-1)                       # pick ship01
-    assert GameScene(manager).ship.id == "ship01"            # Retry / Replay
-    LevelSelectScene(manager)._start(2)                      # back in from level select
-    assert manager.scene.ship.id == "ship01"
+    game_on(manager, 4)
+    assert GameScene(manager).ship.id == "ship04"            # Retry / Replay
+    LevelSelectScene(manager)._start(4)                      # back in from level select
+    assert manager.scene.ship.id == "ship04"
 
 
-def test_random_level_starts_on_ship06_and_flies_any_ship():
-    scene = game_on(SceneManager(Quiet()), 8)
-    assert scene.ship.id == "ship01"
-    for _ in range(5):
-        scene._switch_ship(-1)
-    assert scene.ship.id == "ship01"
-    assert scene.run_button.enabled
-
-
-def test_locked_ship_preview_is_grey():
+def test_grey_ship_drawing_still_works():
     import numpy as np
     from vector_drift import sprites
     surface = pygame.Surface((200, 200), pygame.SRCALPHA)

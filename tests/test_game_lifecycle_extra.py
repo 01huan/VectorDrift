@@ -107,10 +107,13 @@ def test_replay_records_each_fixed_physics_step():
         [0.0, 1 / 120, 2 / 120])
 
 
-def test_game_switch_ship():
+def test_game_ship_cannot_be_switched():
+    # The ship arrows are gone: a click where they were leaves the level's ship.
     scene, mgr = _scene(1)
-    scene._switch_ship(1)
-    scene._switch_ship(-1)
+    for pos in ((config.px(48) + config.px(13), config.px(200)),
+                (config.px(246) + config.px(13), config.px(200))):
+        scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    assert scene.ship.id == "ship01"
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(surface)
 
@@ -276,15 +279,6 @@ def test_game_handle_level_button_click():
     assert mgr.scene is not None
 
 
-def test_game_handle_ship_nav():
-    scene, mgr = _scene(1)
-    for btn in (scene.prev_ship, scene.next_ship):
-        evt = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=tuple(btn.rect.center))
-        scene.handle_event(evt)
-    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
-    scene.draw(surface)
-
-
 def test_game_handle_ai_button_with_money():
     scene, mgr = _scene(1)
     scene.session.money.add(1000)
@@ -380,16 +374,6 @@ def test_game_on_text_change_invalid():
         scene._on_text_change(scene.editor)
     except Exception:
         pass
-    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
-    scene.draw(surface)
-
-
-def test_game_switch_ship_bounds():
-    scene, mgr = _scene(1)
-    for _ in range(5):
-        scene._switch_ship(1)
-    for _ in range(5):
-        scene._switch_ship(-1)
     surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
     scene.draw(surface)
 

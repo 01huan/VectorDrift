@@ -46,9 +46,11 @@ def _unlocked(manager):
 
 
 # --- the list --------------------------------------------------------------------
-def test_there_are_27_with_unique_ids_and_only_failures_hidden():
-    assert len(ach.ACHIEVEMENTS) == 27
-    assert len(ach.BY_ID) == 27
+def test_there_are_26_with_unique_ids_and_only_failures_hidden():
+    # Fleet Commander ("Own all six ships") is gone: ships are no longer bought.
+    assert len(ach.ACHIEVEMENTS) == 26
+    assert len(ach.BY_ID) == 26
+    assert "fleet_commander" not in ach.BY_ID
     assert {a.id for a in ach.ACHIEVEMENTS if a.hidden} == {"houston", "divide_by_zero", "lost_in_space"}
     assert {a.category for a in ach.ACHIEVEMENTS} == set(ach.CATEGORIES)
 
@@ -152,7 +154,20 @@ def test_saved_progress_unlocks_on_the_next_check():
     from vector_drift.scenes.achievements_page import AchievementsScene
     manager.switch(AchievementsScene(manager))
     manager.update(0.01)                            # SceneManager checks right away
-    assert {"fleet_commander", "pocket_change", "we_have_liftoff"} <= _unlocked(manager)
+    assert {"pocket_change", "we_have_liftoff"} <= _unlocked(manager)
+    assert "fleet_commander" not in _unlocked(manager)
+
+
+def test_an_old_save_with_fleet_commander_still_loads_and_counts():
+    manager = _manager()
+    manager.session.achievements = {"fleet_commander": "2026-11-01T00:00:00+00:00"}
+    manager.session.owned_ships = {"ship01", "ship02", "ship03"}
+    assert ach.counts(manager.session) == (0, len(ach.ACHIEVEMENTS))
+    assert not ach.unlock(manager, "fleet_commander")
+    from vector_drift.scenes.achievements_page import AchievementsScene
+    manager.switch(AchievementsScene(manager))
+    manager.update(0.01)
+    manager.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
 
 
 # --- saving ----------------------------------------------------------------------

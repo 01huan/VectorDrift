@@ -137,10 +137,6 @@ class GameFlightMixin:
             self.audio.play("click")
             gfunc.open_popup(self)
             return
-        if self.prev_ship.handle_event(event) == "click":
-            self._switch_ship(-1)
-        if self.next_ship.handle_event(event) == "click":
-            self._switch_ship(1)
 
         if self.ai_button.handle_event(event) == "click":
             # Free to open; only the full answer costs (answer page / Reveal).
@@ -227,7 +223,7 @@ class GameFlightMixin:
             self._replay_initial_obstacle_centers = [tuple(getattr(o, "center", ())) for o in (getattr(self.level, "obstacles", ()) or ())]
         except Exception:
             self._replay_initial_obstacle_centers = []
-        if not self.valid or not self._ship_unlocked:
+        if not self.valid:
             self.audio.play("error")
             return
         if is_custom_map(self.level.id, self.session):

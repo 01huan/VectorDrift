@@ -61,9 +61,16 @@ def get_spec(key: str) -> AssetSpec | None:
     return _SPECS.get(key)
 
 
-# Ships (key = f"ship.{ship_id}")
-for _n in range(1, 7):
-    register(AssetSpec(f"ship.ship{_n:02d}", Path(f"ships/ship{_n:02d}.png"), display_w=76, display_h=76))
+# Ships (key = f"ship.{ship_id}"): one slot per ship in data_models.SHIPS,
+# so a new ship needs only its picture and its SHIPS entry.
+def _register_ships() -> None:
+    from .data_models import SHIPS
+
+    for _sid in SHIPS:
+        register(AssetSpec(f"ship.{_sid}", Path(f"ships/{_sid}.png"), display_w=76, display_h=76))
+
+
+_register_ships()
 # Targets / destination
 register(AssetSpec("target.planet", Path("targets/planet.png"), display_w=120, display_h=120))
 # Checkpoint (multi-section levels). Without the picture, sprites.draw_checkpoint

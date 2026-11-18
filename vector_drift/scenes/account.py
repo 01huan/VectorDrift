@@ -251,7 +251,6 @@ class AccountScene(InventoryMixin, Scene):
             ("Display name", s.display_name or "-"),
             (COIN_BALANCE, str(int(s.money))),
             ("Records", str(len(s.records))),
-            ("Owned ships", ", ".join(sorted(s.owned_ships))),
             ("Sync", s.sync_status),
         ]
         y = px(160)

@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 class Session:
     """State shared between scenes during one run of the game."""
     level_id: int = 1
-    ship_id: str | None = None                      # None = the level's default ship
+    ship_id: str | None = None                      # the ship the current level flies (set by GameScene)
     fx_text: str = ""
     fy_text: str = ""
     editor_history: tuple | None = None             # (level_id, (fx, fy), editor history) kept for Retry
@@ -34,7 +34,7 @@ class Session:
     money: Money = field(default_factory=Money)     # player's currency balance
     purchased_items: set = field(default_factory=set)   # purchased shop item ids
     ability_charges: dict = field(default_factory=dict)  # consumable ability id -> remaining uses
-    owned_ships: set = field(default_factory=lambda: {"ship01"})  # purchased ship skins
+    owned_ships: set = field(default_factory=lambda: {"ship01"})  # ships bought before levels fixed them; kept, unused
     collected_money_pickups: set = field(default_factory=set)  # (level_id, cx, cy) of money pickups already taken
     collected_random_coins: set = field(default_factory=set)   # (level_id, seed, (cx, cy)); this launch only, not saved
     clear_rewarded_levels: set = field(default_factory=set)    # fixed level ids whose clear reward was paid (saved)

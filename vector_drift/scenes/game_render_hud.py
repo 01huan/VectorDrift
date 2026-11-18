@@ -48,24 +48,14 @@ class GameHudRenderMixin:
         # Current ship
         draw_text(surface, "Current ship", (cx, px(SHIP_LABEL_Y)), 15, config.TEXT_DIM, anchor="center")
         draw_panel_box(surface, SHIP_BOX, fill=config.BG)
-        unlocked = self._ship_unlocked
         sprites.draw_ship(surface, SHIP_BOX.center, math.pi / 4 + 0.12 * math.sin(self.t * 1.3),
-                          px(76), self.ship, grey=not unlocked)
-        if not unlocked:
-            lock = icon_surface("lock", px(22), config.TEXT_DIM)
-            surface.blit(lock, lock.get_rect(bottomright=(SHIP_BOX.right - px(6), SHIP_BOX.bottom - px(6))))
-        self.prev_ship.draw(surface)
-        self.next_ship.draw(surface)
-        draw_text(surface, self.ship.name, (cx, px(SHIP_NAME_Y)), 18,
-                  config.TEXT if unlocked else config.TEXT_DIM, kind="bold", anchor="center")
-        if unlocked:
-            draw_text(surface, f"Mass: {self.ship.mass:g} kg", (cx, px(SHIP_MASS_Y)), 15, config.TEXT_DIM,
-                      anchor="center")
-        else:
-            draw_text(surface, f"Lv{self.ship.unlock_level}+", (cx, px(SHIP_MASS_Y)), 15, config.WARNING,
-                      kind="bold", anchor="center")
+                          px(76), self.ship)
+        draw_text(surface, self.ship.name, (cx, px(SHIP_NAME_Y)), 18, config.TEXT, kind="bold",
+                  anchor="center")
+        draw_text(surface, f"Mass: {self.ship.mass:g} kg", (cx, px(SHIP_MASS_Y)), 15, config.TEXT_DIM,
+                  anchor="center")
 
-        # Lives + clock (the lives show the ship that would fly, not a locked one on display)
+        # Lives + clock
         icon_step = px(18)
         first = px(CX - 52) - icon_step * (self.level.lives - 1) // 2
         for i in range(self.level.lives if self.show_lives else 0):

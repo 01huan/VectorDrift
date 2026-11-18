@@ -8,7 +8,7 @@ existing pygame code-drawn art, so the game is fully playable without any PNG.
 
 | Resource key | File (relative to this folder) | Used for |
 |--------------|-------------------------------|----------|
-| `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite) |
+| `ship.ship01` … `ship.ship06` | `ships/ship01.png` … `ships/ship06.png` | Player ship skins, 512 x 512 (panel preview, lives icon, in-flight sprite). One slot per ship in `SHIPS` (`vector_drift/data_models.py`); level N flies `shipNN`, or `ship01` while that ship is not there |
 | `target.planet` | `targets/planet.png` | Destination / target planet, 512 x 512 |
 | `target.checkpoint` | `targets/checkpoint.png` | Checkpoint on multi-section levels (a launch portal), 512 x 512, drawn at the checkpoint's collision size like the planet. Without it the game draws a white square with the flying ship inside |
 | `obstacle.rock01`, `obstacle.rock02` | `obstacles/rock01.png`, `obstacles/rock02.png` | Bumper rocks, 512 x 512: each bumper shows one of them, picked at random and turned by a random angle (fixed per bumper) |

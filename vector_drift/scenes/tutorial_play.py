@@ -4,7 +4,7 @@ It is the ordinary GameScene - same physics, field arrows, editor, timer,
 pickup effects - on a map from tutorial.toml, with everything that would
 outlast the tutorial turned off: no coins, clear reward, best time, replay,
 save or achievement; endless lives with the lives row hidden; no Hint, AI Solver, Lab,
-ability or level / ship buttons. The session's formulas, ship and level are
+ability or level buttons. The session's formulas, ship and level are
 put back on leaving, so no level's progress changes.
 """
 
@@ -53,6 +53,9 @@ class TutorialGameScene(GameScene):
     def _load_level(self):
         return self._tutorial_level
 
+    def _level_ship_id(self):
+        return TUTORIAL_SHIP_ID
+
     # --- nothing outlasts the tutorial ------------------------------------------
     def _spend_life(self):
         pass                            # endless lives
@@ -82,12 +85,11 @@ class TutorialGameScene(GameScene):
         return False
 
     def _hidden_buttons(self):
-        return (self.inventory_button, self.level_button, self.lab_button, self.ai_button,
-                self.prev_ship, self.next_ship)
+        return (self.inventory_button, self.level_button, self.lab_button, self.ai_button)
 
     def _refresh_buttons(self):
         super()._refresh_buttons()
-        for button in (self.level_button, self.lab_button, self.prev_ship, self.next_ship):
+        for button in (self.level_button, self.lab_button):
             button.enabled = False
 
     def _update_flight(self, dt):
