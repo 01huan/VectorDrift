@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
-from .community_common import run_async, uploader_name, norm_name
+from .community_common import run_async, uploader_name, norm_name, select_all_pages
 
 TABLE = "community_levels"
 FAVORITES_TABLE = "community_level_favorites"
@@ -64,13 +64,9 @@ def upload_community_level(
             "level_data": level_data,
         }
         target_id = str(level_data.get("id")) if level_data.get("id") is not None else ""
-        resp = (
-            client.table(TABLE)
-            .select("id, level_name, level_data")
-            .eq("user_id", account.current_user.id)
-            .execute()
+        own_rows = select_all_pages(
+            lambda: client.table(TABLE).select("id, level_name, level_data").eq("user_id", account.current_user.id)
         )
-        own_rows = getattr(resp, "data", None) or []
         target = norm_name(level_name)
         paired_row_id = None
         for existing in own_rows:
@@ -138,20 +134,13 @@ def fetch_community_levels(
     def _fn() -> list[dict]:
         client = get_client()
         try:
-            resp = (
-                client.table(TABLE)
-                .select(f"{BASE_COLUMNS}, {STAT_COLUMNS}")
-                .order("created_at", desc=True)
-                .execute()
+            return select_all_pages(
+                lambda: client.table(TABLE).select(f"{BASE_COLUMNS}, {STAT_COLUMNS}").order("created_at", desc=True)
             )
         except Exception:
-            resp = (
-                client.table(TABLE)
-                .select(BASE_COLUMNS)
-                .order("created_at", desc=True)
-                .execute()
+            return select_all_pages(
+                lambda: client.table(TABLE).select(BASE_COLUMNS).order("created_at", desc=True)
             )
-        return getattr(resp, "data", None) or []
 
     _run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -324,26 +313,18 @@ def fetch_level_engagement(
         favorites: list[str] = []
         ratings: dict = {}
         try:
-            resp = (
-                client.table(FAVORITES_TABLE)
-                .select("level_id")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            for row in getattr(resp, "data", None) or []:
+            for row in select_all_pages(
+                lambda: client.table(FAVORITES_TABLE).select("level_id").eq("user_id", user_id)
+            ):
                 fid = row.get("level_id")
                 if fid:
                     favorites.append(str(fid))
         except Exception:
             pass
         try:
-            resp = (
-                client.table(RATINGS_TABLE)
-                .select("level_id, rating")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            for row in getattr(resp, "data", None) or []:
+            for row in select_all_pages(
+                lambda: client.table(RATINGS_TABLE).select("level_id, rating").eq("user_id", user_id)
+            ):
                 fid = row.get("level_id")
                 if fid:
                     try:
@@ -577,12 +558,9 @@ def update_community_level_by_local_id(
         if account is None or not account.is_authenticated() or account.current_user is None:
             raise RuntimeError("Not logged in.")
         client = get_client()
-        own_rows = (
-            client.table(TABLE)
-            .select("id, level_name, level_data")
-            .eq("user_id", account.current_user.id)
-            .execute()
-        ).data or []
+        own_rows = select_all_pages(
+            lambda: client.table(TABLE).select("id, level_name, level_data").eq("user_id", account.current_user.id)
+        )
         target = norm_name(level_name)
         row_id = None
         for entry in own_rows:

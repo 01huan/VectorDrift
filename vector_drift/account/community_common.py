@@ -17,7 +17,41 @@ from typing import Any, Callable, Optional
 
 __all__ = [
     "run_async", "require_auth", "uploader_name", "norm_name",
+    "select_all_pages",
 ]
+
+# PostgREST responses are capped server-side (Supabase defaults to 1000
+# rows), and the extra rows are dropped silently.  Any select that is
+# expected to return everything must page through the table.
+
+def select_all_pages(make_query, page_size: int = 1000, max_rows: int = 20000):
+    """Fetch every row of a select in offset pages.
+
+    ``make_query`` is a zero-arg factory returning a fresh PostgREST
+    builder (filters / order applied, no ``.range`` yet): a builder
+    instance cannot be re-used for multiple pages, calling ``.range``
+    more than once would send duplicate offset/limit params.
+
+    Returns at most ``max_rows`` rows.  A failed query raises, so callers
+    keep their fail-closed behaviour.  Builders without offset paging
+    (older or mock clients) degrade to a single unpaged query.
+    """
+    rows: list = []
+    offset = 0
+    while True:
+        query = make_query()
+        if not hasattr(query, "range"):
+            resp = query.execute()
+            batch = getattr(resp, "data", None)
+            return list(batch) if isinstance(batch, list) else []
+        resp = query.range(offset, offset + page_size - 1).execute()
+        batch = getattr(resp, "data", None)
+        if not isinstance(batch, list):
+            batch = []
+        rows.extend(batch)
+        if len(batch) < page_size or len(rows) >= max_rows:
+            return rows[:max_rows]
+        offset += page_size
 
 
 def norm_name(value: Any) -> str:

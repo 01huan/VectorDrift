@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
-from .community_common import require_auth, run_async, uploader_name, norm_name
+from .community_common import require_auth, run_async, uploader_name, norm_name, select_all_pages
 
 TABLE = "community_functions"
 FAVORITES_TABLE = "community_function_favorites"
@@ -51,13 +51,9 @@ def _own_function_rows(client: Any, user_id: str, columns: str = "id, fx, fy, fu
     A failed query raises so callers can fail-closed instead of treating
     a read error as "no rows" and accidentally creating duplicates.
     """
-    resp = (
-        client.table(TABLE)
-        .select(columns)
-        .eq("user_id", user_id)
-        .execute()
+    return select_all_pages(
+        lambda: client.table(TABLE).select(columns).eq("user_id", user_id)
     )
-    return list(getattr(resp, "data", None) or [])
 
 
 def _extract_function(args, kwargs) -> tuple[str, str, str]:
@@ -397,20 +393,13 @@ def fetch_community_functions(
     def _fn() -> list[dict]:
         client = get_client()
         try:
-            resp = (
-                client.table(TABLE)
-                .select(f"{BASE_COLUMNS}, {STAT_COLUMNS}")
-                .order("created_at", desc=True)
-                .execute()
+            return select_all_pages(
+                lambda: client.table(TABLE).select(f"{BASE_COLUMNS}, {STAT_COLUMNS}").order("created_at", desc=True)
             )
         except Exception:
-            resp = (
-                client.table(TABLE)
-                .select(BASE_COLUMNS)
-                .order("created_at", desc=True)
-                .execute()
+            return select_all_pages(
+                lambda: client.table(TABLE).select(BASE_COLUMNS).order("created_at", desc=True)
             )
-        return getattr(resp, "data", None) or []
 
     run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -615,26 +604,18 @@ def fetch_function_engagement(
         favorites: list[str] = []
         ratings: dict = {}
         try:
-            resp = (
-                client.table(FAVORITES_TABLE)
-                .select("function_id")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            for row in getattr(resp, "data", None) or []:
+            for row in select_all_pages(
+                lambda: client.table(FAVORITES_TABLE).select("function_id").eq("user_id", user_id)
+            ):
                 fid = row.get("function_id")
                 if fid:
                     favorites.append(str(fid))
         except Exception:
             pass
         try:
-            resp = (
-                client.table(RATINGS_TABLE)
-                .select("function_id, rating")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            for row in getattr(resp, "data", None) or []:
+            for row in select_all_pages(
+                lambda: client.table(RATINGS_TABLE).select("function_id, rating").eq("user_id", user_id)
+            ):
                 fid = row.get("function_id")
                 if fid:
                     try:
