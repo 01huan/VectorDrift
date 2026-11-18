@@ -245,21 +245,21 @@ class Flight:
             return self.outcome
 
         self.x, self.y = nx, ny
-        self._bounce_along_path(p0, solid)
-        # Remember where the ship actually travelled this step before any
-        # black-hole teleport, so the teleport itself does not draw a trail
-        # segment and does not count as passing the target/endpoints.
-        pre_hole_pos = (self.x, self.y)
+        legs = self._bounce_along_path(p0, solid)
+        # Holes, pickups and the target see the piecewise path the ship flew
+        # (p0 -> bounce contact -> ... -> final), not the open chord across it.
         # Black holes teleport the ship to the paired white hole (same velocity).
         self.hole_teleported = False
-        self._take_holes(p0, (self.x, self.y))
-        reach_end = pre_hole_pos if self.hole_teleported else (self.x, self.y)
+        for leg_a, leg_b in legs:
+            self._take_holes(leg_a, leg_b)
         # Pickups use the same segment test (no tunneling); one shared call
         # handles every kind — no per-kind branches in the loop.
-        self._take_pickups(p0, reach_end)
+        for leg_a, leg_b in legs:
+            self._take_pickups(leg_a, leg_b)
 
-        if segment_hits_circle(
-            p0, reach_end, self.target, self.hit_radius
+        if any(
+            segment_hits_circle(leg_a, leg_b, self.target, self.hit_radius)
+            for leg_a, leg_b in legs
         ):
             self.outcome = Outcome.REACHED
         elif not self.unbound and (abs(self.x) > self.bounds[0] or abs(self.y) > self.bounds[1]):
@@ -527,13 +527,14 @@ class Flight:
         """
         if self.phase_remaining > 0.0:
             self.trail.append((self.x, self.y))
-            return
+            return [(p0, (self.x, self.y))]
         if not obstacles and not self._edge_can_bounce():
             self.trail.append((self.x, self.y))
-            return
+            return [(p0, (self.x, self.y))]
         obstacles = list(obstacles)
         start = p0
         end = (self.x, self.y)
+        legs = []
         for _ in range(max(1, len(obstacles) * 2) + 1):
             earliest = None  # (t, obstacle)
             for obstacle in obstacles:
@@ -544,7 +545,9 @@ class Flight:
             # whichever the ship touches first takes it.
             edge_t = self._edge_crossing(start, end) if self._edge_can_bounce() else None
             if edge_t is not None and (earliest is None or edge_t <= earliest[0]):
-                start, end = self._bounce_off_edge(start, end, edge_t)
+                contact, new_end = self._bounce_off_edge(start, end, edge_t)
+                legs.append((start, contact))
+                start, end = contact, new_end
                 continue
             if earliest is None:
                 break
@@ -568,6 +571,7 @@ class Flight:
             self.vx, self.vy = reflect_velocity(self.vx, self.vy, nx, ny,
                                                 restitution)
             # Nudge off the surface so the next test starts outside.
+            legs.append((start, (hx, hy)))
             hx, hy = hx + nx * 1e-6, hy + ny * 1e-6
             # Remaining leg re-emitted from the contact point.
             frac = 1.0 - t
@@ -577,6 +581,8 @@ class Flight:
             self.trail.append((hx, hy))
         self.x, self.y = end
         self.trail.append((self.x, self.y))
+        legs.append((start, end))
+        return legs
 
     ABILITY_CHARGE_ATTRS = {
         "ability_boost": "boost_charges",
