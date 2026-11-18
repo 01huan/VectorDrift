@@ -1,11 +1,22 @@
 """Intro story: the panels of intro_story.toml, one at a time.
 
-A panel shows its picture fitted to the screen (or, until the picture
-exists, its scene description as dim placeholder text) with the line in a
-subtitle box. Panels fade out and in; the line fades in once the picture
-is up. Click / Space / Right: next (while a panel is still fading in, the
-first press only shows it in full). Left: back. Esc or Skip ends the story
-at once, and Next on the last panel ends it too.
+A panel shows its picture fitted to the screen (or, without the picture,
+its scene description as dim placeholder text) with the line in a subtitle
+box. Panels fade out and in; the line fades in once the picture is up.
+
+A picture slowly zooms in (Ken Burns): from 1.00x to ZOOM_END over ZOOM_S
+seconds with an ease-out, about ZOOM_ANCHOR (a point of the screen; the
+pictures keep their subject in the upper two thirds), then holds. The zoom
+follows only how long the panel has been up, so showing a panel in full
+does not jump it; it goes on while the panel fades out, and the next panel
+starts again at 1.00x. Each panel loads its picture once, at the fitted
+size times ZOOM_END, and every frame cuts the visible part out of it and
+scales that to the screen (pygame.transform.scale: smoothscale is too slow
+at 4K). The placeholder text does not zoom.
+
+Click / Space / Right: next (while a panel is still fading in, the first
+press only shows it in full). Left: back. Esc or Skip ends the story at
+once, and Next on the last panel ends it too.
 """
 
 import pygame
@@ -17,6 +28,9 @@ from ..intro_story import story_panels
 from ..ui import Button, draw_text, wrap_text
 from .base import Scene
 
+ZOOM_END = 1.06            # a picture zooms in to this ...
+ZOOM_S = 8.0                # ... over this many seconds (ease-out), then holds
+ZOOM_ANCHOR = (0.5, 0.4)    # the screen point (fractions of width, height) that stays put
 FADE_S = 0.3                # a panel fades out / in this long
 LINE_FADE_S = 0.4           # then its line fades in this long
 STORY_BG = (6, 9, 20)       # behind a picture, and the placeholder panel
@@ -65,6 +79,7 @@ class StoryScene(Scene):
         self.revealed = False       # Next pressed while fading in: shown in full
         self.leaving_to = None      # index being faded over to (fading out), else None
         self.out_t = 0.0
+        self._zoom_picture = None   # (key, screen size, the panel's picture at its largest size)
         self.skip_button = Button((config.WINDOW_W - px(140), config.WINDOW_H - px(62),
                                    px(110), px(40)), "Skip", style="plain", font_size=16)
 
@@ -80,6 +95,12 @@ class StoryScene(Scene):
     @property
     def fully_shown(self):
         return self.leaving_to is None and (self.revealed or self.t >= FADE_S + LINE_FADE_S)
+
+    @property
+    def zoom(self):
+        """How far the picture has zoomed in: 1.0 when the panel starts, ZOOM_END after ZOOM_S."""
+        p = min(1.0, max(0.0, self.t / ZOOM_S))
+        return 1.0 + (ZOOM_END - 1.0) * (1.0 - (1.0 - p) ** 3)     # ease-out (cubic)
 
     @property
     def dark_alpha(self):
@@ -142,13 +163,12 @@ class StoryScene(Scene):
             self.next()
 
     def update(self, dt):
+        self.t += dt                            # keeps counting while fading out (the zoom goes on)
         if self.leaving_to is not None:
             self.out_t += dt
             if self.out_t >= FADE_S:
                 self.index, self.leaving_to = self.leaving_to, None
                 self.t, self.revealed = 0.0, False
-            return
-        self.t += dt
 
     def draw(self, surface):
         surface.fill(STORY_BG)
@@ -169,18 +189,47 @@ class StoryScene(Scene):
         self.skip_button.draw(surface)
 
     def _draw_picture(self, surface):
-        """The panel's picture fitted to the screen, keeping its shape; False if there is none."""
+        """The panel's picture fitted to the screen, keeping its shape, zoomed in by
+        ``zoom`` about ZOOM_ANCHOR; False if there is none."""
         size = source_size(self.panel.image)
         if size is None or not size[0] or not size[1]:
             return False
         sw, sh = surface.get_size()
         scale = min(sw / size[0], sh / size[1])
         fit = (max(1, round(size[0] * scale)), max(1, round(size[1] * scale)))
-        img = load_image(self.panel.image, size_px=fit)
-        if img is None:
+        big = self._largest_picture(surface, fit)
+        if big is None:
             return False
-        surface.blit(img, img.get_rect(center=(sw // 2, sh // 2)))
+        box = pygame.Rect((0, 0), fit)
+        box.center = (sw // 2, sh // 2)
+        # The anchor as a point of the fitted picture (fractions), kept in place.
+        fx = min(1.0, max(0.0, (sw * ZOOM_ANCHOR[0] - box.x) / fit[0]))
+        fy = min(1.0, max(0.0, (sh * ZOOM_ANCHOR[1] - box.y) / fit[1]))
+        bw, bh = big.get_size()
+        zoom = self.zoom
+        cw, ch = min(bw, max(1, round(bw / zoom))), min(bh, max(1, round(bh / zoom)))
+        part = big.subsurface((round(fx * (bw - cw)), round(fy * (bh - ch)), cw, ch))
+        try:
+            pygame.transform.scale(part, fit, surface.subsurface(box))   # no new 4K surface
+        except (ValueError, pygame.error):      # a target the scale cannot write into
+            surface.blit(pygame.transform.scale(part, fit), box)
         return True
+
+    def _largest_picture(self, surface, fit):
+        """The panel's picture at its largest (fitted size times ZOOM_END), opaque in the
+        screen's format. Asked from load_image once per panel and screen size."""
+        key = self.panel.image
+        want = (key, surface.get_size())
+        if self._zoom_picture is None or self._zoom_picture[:2] != want:
+            big_size = (max(1, round(fit[0] * ZOOM_END)), max(1, round(fit[1] * ZOOM_END)))
+            img = load_image(key, size_px=big_size)
+            if img is None:
+                return None
+            flat = pygame.Surface(img.get_size(), 0, surface)
+            flat.fill(STORY_BG)
+            flat.blit(img, (0, 0))
+            self._zoom_picture = (*want, flat)
+        return self._zoom_picture[2]
 
     def _draw_placeholder(self, surface):
         """No picture yet: the scene description, small and dim, in the middle."""

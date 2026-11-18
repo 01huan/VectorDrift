@@ -1,4 +1,5 @@
 """Intro story: the six panels in intro_story.toml and the screen that plays them."""
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -326,6 +327,138 @@ def test_a_story_picture_fills_the_screen_keeping_its_shape(no_pictures, monkeyp
     # 2:1 in a 16:9 window: full width, dark bands above and below.
     assert surface.get_at((config.WINDOW_W // 2, 2))[:3] != (200, 40, 40)
     assert surface.get_at((2, config.WINDOW_H // 4))[:3] == (200, 40, 40)
+
+
+# --- slow zoom (Ken Burns) -------------------------------------------------------------
+
+def _with_test_picture(folder, size=(320, 180)):
+    """A plain 16:9 picture for story.panel1..6 in ``folder`` (the no_pictures folder)."""
+    (folder / "story").mkdir(exist_ok=True)
+    picture = pygame.Surface(size)
+    picture.fill((90, 140, 200))
+    pygame.draw.rect(picture, (250, 220, 40), (size[0] // 4, size[1] // 4, size[0] // 2, size[1] // 2))
+    for n in range(1, 7):
+        pygame.image.save(picture, str(folder / "story" / f"panel{n}.png"))
+
+
+def test_zoom_settings():
+    assert story_module.ZOOM_END == 1.06
+    assert story_module.ZOOM_S == 8.0
+    assert story_module.ZOOM_ANCHOR == (0.5, 0.4)
+
+
+def test_a_panel_starts_at_full_size_and_slowly_zooms_in_then_stays():
+    scene = _story()
+    assert scene.zoom == 1.0
+    zooms = [scene.zoom]
+    for _ in range(100):                                # 10 s in steps of 0.1 s
+        scene.update(0.1)
+        zooms.append(scene.zoom)
+    assert all(later > earlier for earlier, later in zip(zooms[:80], zooms[1:81]))
+    assert zooms[-1] == pytest.approx(story_module.ZOOM_END)
+    scene.update(30.0)
+    assert scene.zoom == pytest.approx(story_module.ZOOM_END)
+
+
+def test_the_zoom_eases_out():
+    scene = _story()
+    scene.update(story_module.ZOOM_S / 2)
+    grown = scene.zoom - 1.0
+    assert grown > (story_module.ZOOM_END - 1.0) * 0.6     # well past half way at half time
+    scene.update(story_module.ZOOM_S / 2 - 0.001)
+    assert scene.zoom < story_module.ZOOM_END
+    scene.update(0.002)
+    assert scene.zoom == pytest.approx(story_module.ZOOM_END)
+
+
+def test_showing_the_panel_in_full_does_not_move_the_zoom():
+    scene = _story()
+    scene.update(story_module.FADE_S / 2)
+    before = scene.zoom
+    _key(scene, pygame.K_SPACE)
+    assert scene.revealed and scene.index == 0
+    assert scene.zoom == before
+    scene.update(0.5)
+    later = scene.zoom
+    scene2 = _story()
+    scene2.update(story_module.FADE_S / 2)
+    scene2.update(0.5)
+    assert later == pytest.approx(scene2.zoom)          # same as without the press
+
+
+def test_the_zoom_goes_on_while_fading_out_and_restarts_on_the_next_panel():
+    scene = _story()
+    _settle(scene)
+    _key(scene, pygame.K_SPACE)                         # leave for panel 2
+    before = scene.zoom
+    scene.update(story_module.FADE_S / 2)
+    assert scene.leaving_to == 1 and scene.zoom > before
+    scene.update(story_module.FADE_S)
+    assert scene.index == 1 and scene.zoom == 1.0
+    scene.update(1.0)
+    assert scene.zoom > 1.0
+
+
+def test_the_picture_grows_about_the_anchor(no_pictures):
+    _with_test_picture(no_pictures)
+    scene = _story()
+    _key(scene, pygame.K_SPACE)                         # shown in full (no veil), still 1.00x
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+    assert scene.zoom == 1.0
+    first = surface.copy()
+    scene.update(100.0)
+    scene.draw(surface)
+    w, h = config.WINDOW_W, config.WINDOW_H
+    ax, ay = round(w * 0.5), round(h * 0.4)
+    assert surface.get_at((ax, ay))[:3] == first.get_at((ax, ay))[:3]
+    # The yellow box (a quarter in from each side) has moved out from the anchor.
+    def left_edge(s):
+        y = h // 2
+        return next(x for x in range(w) if s.get_at((x, y))[:3] == (250, 220, 40))
+    assert left_edge(surface) < left_edge(first)
+
+
+def test_each_panel_asks_load_image_for_one_size_only(no_pictures, monkeypatch):
+    _with_test_picture(no_pictures)
+    asked = {}
+    real = story_module.load_image
+    monkeypatch.setattr(story_module, "load_image",
+                        lambda key, size_px=None: asked.setdefault(key, set()).add(size_px) or real(key, size_px))
+    scene = _story()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    for _ in range(6):
+        for _ in range(60):
+            scene.draw(surface)
+            scene.update(1 / 20)
+        _key(scene, pygame.K_SPACE)
+        for _ in range(20):
+            scene.draw(surface)
+            scene.update(1 / 20)
+    assert set(asked) == {f"story.panel{n}" for n in range(1, 7)}
+    assert all(len(sizes) == 1 for sizes in asked.values()), asked
+
+
+def test_a_missing_picture_draws_its_scene_text_without_zooming(monkeypatch):
+    key = "test.story_panel_that_does_not_exist"
+    monkeypatch.setitem(image_assets._SPECS, key,
+                        AssetSpec(key, Path("story/no_such_panel_for_tests.png")))
+    image_assets._sources.pop(key, None)
+    scene = _story()
+    scene.panels = [replace(p, image=key) for p in scene.panels]
+    drawn = []
+    real = story_module.draw_text
+    monkeypatch.setattr(story_module, "draw_text",
+                        lambda surface, text, *a, **k: drawn.append((text, a[0])) or real(surface, text, *a, **k))
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+    early = [d for d in drawn if d[0].startswith("[")]
+    drawn.clear()
+    scene.update(100.0)
+    scene.draw(surface)
+    late = [d for d in drawn if d[0].startswith("[")]
+    assert early and early == late                      # same text at the same place
+    image_assets._sources.pop(key, None)
 
 
 # --- music ---------------------------------------------------------------------------
