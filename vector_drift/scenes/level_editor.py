@@ -629,9 +629,32 @@ class LevelEditorScene(Scene):
         self._save_current_section()
         level_id = self.level.id if self.level is not None else None
         if level_id is None:
-            existing_ids = {lv.id for lv in data.LEVELS} | self.session.custom_level_ids
-            level_id = max(existing_ids or {0}) + 1
-            level_id = max(level_id, 1000)
+            # Never re-issue an id: the high-water mark (saved in the profile)
+            # plus every id the profile still references.  A recycled id would
+            # inherit the dead level's records / paid-answer / reward state.
+            ref_pools = (
+                {lv.id for lv in data.LEVELS},
+                getattr(self.session, "custom_level_ids", ()) or (),
+                getattr(self.session, "records", ()) or (),          # dict keys
+                getattr(self.session, "clear_rewarded_levels", ()) or (),
+                getattr(self.session, "paid_answer_levels", ()) or (),
+                getattr(self.session, "collected_money_pickups", ()) or (),
+            )
+            ref_ids = []
+            for pool in ref_pools:
+                for item in pool:
+                    # pools of (level_id, x, y[, ...]) keys unpack to ints too
+                    candidate = item[0] if isinstance(item, (tuple, list)) and item else item
+                    try:
+                        ref_ids.append(int(candidate))
+                    except (TypeError, ValueError, OverflowError):
+                        continue
+            try:
+                high_water = int(getattr(self.session, "next_custom_level_id", 1000) or 1000)
+            except (TypeError, ValueError, OverflowError):
+                high_water = 1000
+            level_id = max([999, high_water - 1, *(ref_ids or [999])]) + 1
+            self.session.next_custom_level_id = level_id + 1
 
         from vector_drift.data import HoleSpec, SectionSpec, multi_section_level
 

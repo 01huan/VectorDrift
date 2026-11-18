@@ -42,6 +42,10 @@ SEEN_INTRO_KEY = "seen_intro"
 # it to count the different players who cleared a level.  It rides along in
 # the profile's stats, so no extra column is needed.
 PLAYER_KEY_KEY = "player_key"
+# Monotonic high-water mark for player-created level ids (saved in the
+# profile's stats).  Prevents re-issuing the id of a deleted custom level,
+# which would inherit its records, paid-answer and reward state.
+NEXT_CUSTOM_LEVEL_ID_KEY = "next_custom_level_id"
 # Achievements (Session.achievements, Session.achievement_progress), saved the
 # same way.  They are progress like the rest: applying a save replaces the
 # session's with the applied copy's, so the achievements follow the player's
@@ -115,6 +119,11 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
             session.player_key = str(saved_player_key)
         except Exception:
             pass
+    try:
+        session.next_custom_level_id = max(
+            1000, int(stats.pop(NEXT_CUSTOM_LEVEL_ID_KEY, 1000) or 1000))
+    except (TypeError, ValueError, OverflowError):
+        session.next_custom_level_id = 1000
     _apply_achievements(session, stats.pop(ACHIEVEMENTS_KEY, None),
                          stats.pop(ACHIEVEMENT_PROGRESS_KEY, None))
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
@@ -305,6 +314,11 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
     player_key = getattr(session, "player_key", None)
     if player_key:
         stats[PLAYER_KEY_KEY] = str(player_key)
+    try:
+        stats[NEXT_CUSTOM_LEVEL_ID_KEY] = max(
+            1000, int(getattr(session, "next_custom_level_id", 1000) or 1000))
+    except (TypeError, ValueError, OverflowError):
+        stats[NEXT_CUSTOM_LEVEL_ID_KEY] = 1000
     return PlayerProfile(
         user_id=user_id,
         display_name=session.display_name,
@@ -341,6 +355,7 @@ def reset_session_to_guest(session: Any) -> None:
 
     session.custom_levels = []
     session.custom_level_ids = set()
+    session.next_custom_level_id = 1000
     # The Function Lab's library is deleted with the rest of the local data.
     session.function_library = []
     session.imported_function_id = None

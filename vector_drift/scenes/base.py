@@ -41,6 +41,7 @@ class Session:
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
+    next_custom_level_id: int = 1000  # monotonic high-water for custom level ids (saved); never re-issued
     # The Function Lab's library: named Fx/Fy pairs the player saved.
     function_library: list = field(default_factory=list)     # list of SavedFunction
     imported_function_id: str | None = None                 # the one imported for levels
