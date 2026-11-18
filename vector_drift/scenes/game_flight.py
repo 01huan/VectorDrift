@@ -92,20 +92,6 @@ class GameFlightMixin:
             if self.state in (SETUP, FLIGHT):
                 self._open_pause()
             return                      # ARRIVED: Esc does nothing
-        result = self.inventory_button.handle_event(event)
-        if result == "click":
-            self.audio.play("click")
-            self.inventory_open = not getattr(self, "inventory_open", False)
-            self.inventory_popup = self.inventory_open
-            return
-        if getattr(self, "inventory_open", False):
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self.inventory_open = False
-                self.inventory_popup = False
-                return
-            # Modal: swallow other input while open.
-            if event.type in (pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
-                return
         # The run button sits inside the editor's header, so it gets the event first.
         result = self.run_button.handle_event(event)
         if result == "click":

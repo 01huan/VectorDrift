@@ -216,3 +216,19 @@ def test_basics_hides_lives_and_assist_buttons():
     scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
     scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
     assert scene.hint_popup is None and not scene.ai_popup
+
+
+def test_basics_keeps_its_buttons_hidden_and_shows_no_ability_slots():
+    _, scene = _open(0)
+    assert not scene.show_abilities                     # abilities do nothing in the tutorial
+    assert not hasattr(scene, "inventory_button")
+    assert not hasattr(scene, "prev_ship") and not hasattr(scene, "next_ship")
+    hidden = scene._hidden_buttons()
+    assert {scene.level_button, scene.lab_button, scene.ai_button} == set(hidden)
+    for button in hidden:
+        pos = button.rect.center
+        scene.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+    assert scene.manager.scene is scene                 # level button did not leave
+    assert not scene.lab_popup and scene.hint_popup is None and not scene.ai_popup
+    assert scene._hovered_ability() is None
+    _draw(scene)

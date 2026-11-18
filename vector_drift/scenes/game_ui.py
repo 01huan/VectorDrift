@@ -6,7 +6,6 @@ from dataclasses import replace
 import pygame
 
 from .. import config, render, sprites
-from ..abilities import all_abilities, charge_count
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
@@ -64,25 +63,7 @@ class GameUIMixin:
             self.hint_popup.available = self._available_coins()
             self.hint_popup.draw(surface)
         self._draw_coins(surface)
-        # Inventory icon in the upper-right corner.
-        try:
-            self.inventory_button.draw(surface)
-        except Exception:
-            pass
-        # Active skill hints below the inventory button: only skills owned right now.
-        skill_y = px(100)
-        for ability in all_abilities():
-            count = charge_count(self.session, ability.id)
-            if count <= 0:
-                continue
-            label = f"{ability.name} ({ability.key})"
-            if ability.consumable and count > 1:
-                label = f"{label} x{count}"
-            draw_text(surface, label, (config.WINDOW_W - px(14), skill_y), 13,
-                      config.TEXT, anchor="topright")
-            skill_y += px(16)
-        if getattr(self, "inventory_open", False):
-            self._draw_inventory_popup(surface)
+        self._draw_ability_tooltip(surface)
         if self.pause_menu is not None:
             self.pause_menu.draw(surface)
 
@@ -95,52 +76,6 @@ class GameUIMixin:
         self._coins_rect = draw_coins(surface, self._shown_money(),
                                       (config.WINDOW_W - px(14), px(12)), size,
                                       config.WARNING, icon=COIN_BALANCE, anchor="topright")
-
-    def _draw_inventory_popup(self, surface):
-        """Modal card listing owned items by category."""
-        shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-        shade.fill((5, 8, 18, 200))
-        surface.blit(shade, (0, 0))
-        card = pygame.Rect(0, 0, px(420), px(360))
-        card.center = (config.WINDOW_W // 2, config.WINDOW_H // 2)
-        pygame.draw.rect(surface, config.PANEL_BG, card, border_radius=px(6))
-        pygame.draw.rect(surface, config.ACCENT, card, width=max(1, px(1)), border_radius=px(6))
-        draw_text(surface, "Inventory", (card.centerx, card.y + px(22)), 26,
-                  config.TEXT, kind="bold", anchor="center")
-        session = self.session
-        y = card.y + px(64)
-        # Coins category
-        draw_text(surface, "Coins", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
-        y += px(24)
-        draw_text(surface, f"{int(session.money)} coins", (card.x + px(40), y), 15, config.TEXT)
-        y += px(30)
-        # Skins category
-        draw_text(surface, "Skins", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
-        y += px(24)
-        owned_ships = sorted(getattr(session, "owned_ships", set()) or set())
-        if not owned_ships:
-            owned_ships = ["ship01"]
-        for sid in owned_ships:
-            draw_text(surface, str(sid), (card.x + px(40), y), 15, config.TEXT)
-            y += px(20)
-        y += px(10)
-        # Active skills category
-        draw_text(surface, "Active Skills", (card.x + px(24), y), 17, config.ACCENT, kind="bold")
-        y += px(24)
-        any_skill = False
-        for ability in all_abilities():
-            count = charge_count(session, ability.id)
-            if count <= 0:
-                continue
-            any_skill = True
-            label = f"{ability.name} ({ability.key})"
-            if ability.consumable and count > 1:
-                label = f"{label} x{count}"
-            draw_text(surface, label, (card.x + px(40), y), 15, config.TEXT)
-            y += px(20)
-        if not any_skill:
-            draw_text(surface, "None", (card.x + px(40), y), 15, config.TEXT_DIM)
-            y += px(20)
 
     # ------------------------------------------------------------------ Pause menu
     def _open_pause(self):

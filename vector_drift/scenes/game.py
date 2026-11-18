@@ -24,7 +24,7 @@ from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, 
                   draw_panel_box, draw_text, icon_surface)
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
-from .base import Scene, InventoryMixin
+from .base import Scene
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
 from . import pickup_effects as pfx
@@ -46,7 +46,7 @@ from .game_layout import (
     CONTENT_W, CX, EDITOR_Y, FLIGHT, HISTORY_ALPHA, LEGEND_LABEL_Y,
     LEGEND_Y, LEVEL_ROW_Y, LOGO_W, LOGO_Y, OUTCOME_TEXT, PAD, PANNING,
     RESPAWN_EVERY_LIFE, RESUME_OUTCOMES, R, RUN_GREEN, SETUP, SHIP_BOX,
-    SHIP_LABEL_Y, SHIP_MASS_Y, SHIP_MIN_SCALE, SHIP_NAME_Y,
+    SHIP_MASS_Y, SHIP_MIN_SCALE, SHIP_NAME_Y,
     START_MARKER_RADIUS_M, STATUS_Y, TELEMETRY_ROW_H, UNBOUND_EDGE,
     ZOOM_LEVELS_AT_LAUNCH, ZOOM_LEVELS_KEPT, ZOOM_LEVELS_PER_HALVING,
     ease_in_out, fmt_clock, fmt_pair, level_zoom, pan_offsets, zoom_level,
@@ -59,6 +59,6 @@ from .game_ui import GameUIMixin
 from .game_render import GameRenderMixin
 
 
-class GameScene(InventoryMixin, GameCoreMixin, GameFlightMixin, GamePickupMixin,
+class GameScene(GameCoreMixin, GameFlightMixin, GamePickupMixin,
                GameUpdateMixin, GameUIMixin, GameRenderMixin, Scene):
     music = "level"

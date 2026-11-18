@@ -45,7 +45,7 @@ _RENDER_ERRORS = (
 )
 
 from .game_layout import (
-    CONTENT_W, CX, EDITOR_Y, FLIGHT, LAB_BTN_W, LEVEL_ROW_Y, PAD, R, RUN_GREEN,
+    BUTTONS_Y, CONTENT_W, CX, EDITOR_Y, FLIGHT, LAB_BTN_W, LEVEL_ROW_Y, PAD, R, RUN_GREEN,
     SETUP, TELEMETRY_ROW_H,
 )
 
@@ -135,7 +135,7 @@ class GameCoreMixin:
                                      color=RUN_GREEN)
         # The Lab button opens the player's saved functions (Function Lab).
         # It is created before the first validation, which refreshes it.
-        self.lab_button = Button((px(PAD), px(690), px(LAB_BTN_W), px(28)), "Lab",
+        self.lab_button = Button((px(PAD), px(BUTTONS_Y), px(LAB_BTN_W), px(28)), "Lab",
                                  style="plain", font_size=15)
         self.lab_popup = False
         self.lab_page = 0
@@ -144,12 +144,6 @@ class GameCoreMixin:
         self.lab_prev_button = Button((0, 0, px(70), px(34)), "‹", style="plain", font_size=15)
         self.lab_next_button = Button((0, 0, px(70), px(34)), "›", style="plain", font_size=15)
         self.lab_close_button = Button((0, 0, px(90), px(34)), "Close", style="plain", font_size=15)
-
-        # Inventory icon in the upper-right corner of the plot.
-        self.inventory_button = IconButton((config.WINDOW_W - px(44), px(65), px(32), px(32)),
-                                            "inventory", style="circle", color=config.TEXT)
-        self.inventory_open = False
-        self.inventory_popup = self.inventory_open
 
         self.field = ForceField()
         self.field_layer = None
@@ -188,7 +182,7 @@ class GameCoreMixin:
         self.ai_status = "idle"        # idle | solving | ready | error
         self.ai_message = ""
         self.ai_popup = False
-        self.ai_button = Button((px(PAD + LAB_BTN_W + 8), px(690), px(CONTENT_W - LAB_BTN_W - 8), px(28)),
+        self.ai_button = Button((px(PAD + LAB_BTN_W + 8), px(BUTTONS_Y), px(CONTENT_W - LAB_BTN_W - 8), px(28)),
                                 "Hint" if self.hint_mode else "AI Solver", style="plain", font_size=15)
         self.ai_apply_button = Button((0, 0, px(100), px(40)), "Apply",
                                       style="primary", font_size=15)

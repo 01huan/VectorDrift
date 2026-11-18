@@ -210,7 +210,9 @@ Each level flies its own ship and the player does not pick it: level N flies `sh
 
 The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
-Active abilities are purchased in the Shop and used during a flight with a key. Every purchase grants **one use**; remaining uses are shown in the top-right corner of the game screen during a flight and are saved with the player's profile. Only abilities the player currently owns are shown there.
+Active abilities are purchased in the Shop and used during a flight with a key. Every purchase grants **one use**; remaining uses are saved with the player's profile and shown only in the **ABILITIES** row of the game screen's left panel (there is no inventory button or window any more). The row holds all seven abilities as 34 px slots in shop order, each with its icon or letter avatar, its key in the top-left corner and the charges left in the bottom-right corner; a slot with no charge left is faded but keeps its place. Hovering a slot shows the ability's name and description. The tutorial does not show the row, since abilities do nothing there.
+
+The left panel, top to bottom: the logo and the level row; the level's ship in a small frame with its name and mass beside it; the lives and the clock; the **ABILITIES** row; the `Vector_field` editor with PROBLEMS and TELEMETRY; the longest-arrow legend; and the **Lab** and **Hint** / **AI Solver** buttons.
 
 | Ability | Key | Effect |
 |---|---|---|

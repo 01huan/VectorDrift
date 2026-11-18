@@ -182,8 +182,7 @@ def test_arrows_sit_at_the_screen_sides_centred_on_the_grid():
 
 def test_arrows_do_not_overlap_the_other_buttons():
     scene = _scene()
-    others = [scene.menu_button, scene.shop_button, scene.editor_button, scene.tutorial_button,
-              scene.inventory_button]
+    others = [scene.menu_button, scene.shop_button, scene.editor_button, scene.tutorial_button]
     for arrow in (scene.prev_arrow, scene.next_arrow):
         assert 0 <= arrow.rect.left and arrow.rect.right <= config.WINDOW_W
         for button in others:

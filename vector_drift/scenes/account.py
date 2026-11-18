@@ -8,13 +8,13 @@ from .. import config, render
 from ..config import px
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_icon_row, draw_text
-from .base import Scene, InventoryMixin
+from .base import Scene
 from .auth import _TextInput
 from ..account import community
 from ..account.integration import session_to_profile, reset_session_to_guest
 
 
-class AccountScene(InventoryMixin, Scene):
+class AccountScene(Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -35,11 +35,8 @@ class AccountScene(InventoryMixin, Scene):
         self.edit_name = False
         self.name_status = ""
         self.status = ""
-        self._init_inventory()
 
     def handle_event(self, event):
-        if self._handle_inventory_event(event):
-            return
         if self.edit_name:
             self.name_input.handle_event(event)
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -211,7 +208,6 @@ class AccountScene(InventoryMixin, Scene):
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
-        self._draw_inventory_button(surface)
         cx = config.WINDOW_W // 2
         draw_text(surface, "ACCOUNT", (cx, px(90)), 40, config.TEXT, kind="bold", anchor="center")
 
@@ -235,7 +231,6 @@ class AccountScene(InventoryMixin, Scene):
                 draw_text(surface, self.name_status, (cx, panel_rect.bottom - px(50)), 14,
                           config.WARNING, anchor="center")
             self.back_button.draw(surface)
-            self._draw_inventory_popup(surface)
             if self.status:
                 draw_text(surface, self.status, (cx, panel_rect.y + px(255)), 14,
                           config.WARNING, anchor="center")
@@ -267,4 +262,3 @@ class AccountScene(InventoryMixin, Scene):
         self.refresh_button.draw(surface)
         self.logout_button.draw(surface)
         self.change_name_button.draw(surface)
-        self._draw_inventory_popup(surface)

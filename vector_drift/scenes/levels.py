@@ -12,7 +12,7 @@ from ..level_pages import (PER_PAGE, can_next, can_prev, clamp_page, levels_on_p
 from ..level_presets import get_preset, is_dynamic_level
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_coins, draw_text, icon_surface, wrap_text
-from .base import Scene, InventoryMixin
+from .base import Scene
 
 CARDS_PER_PAGE = PER_PAGE    # 3x3 grid, every slot a level card
 COLS = 3
@@ -23,7 +23,7 @@ TUTORIAL_LABEL = "Tutorial"  # plays the story, then the tutorial screen
 # Page arrows (base px). Each "<" / ">" is a drawn chevron at a screen side,
 # vertically centred on the grid; the click area is a tall strip around it.
 # The strips (y 255..615) stay clear of Main Menu (bottom left, y >= 634) and
-# of Shop / the inventory icon (top right, y <= 97).
+# of Shop (top right, y <= 97).
 ARROW_MARGIN = 12            # gap from the screen edge to the strip
 ARROW_HIT_W, ARROW_HIT_H = 72, 360
 ARROW_W, ARROW_H = 22, 48    # the chevron itself
@@ -100,7 +100,7 @@ class PageArrow:
         surface.blit(small, small.get_rect(center=self.rect.center))
 
 
-class LevelSelectScene(InventoryMixin, Scene):
+class LevelSelectScene(Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -123,7 +123,6 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.page = restore_page(getattr(self.session, "level_select_page", None),
                                  getattr(self.session, "level_id", None), self.level_ids)
         self.hover = None
-        self._init_inventory()
         self.cards = []
         self.prev_arrow = PageArrow(-1, _arrow_rect(-1))
         self.next_arrow = PageArrow(1, _arrow_rect(1))
@@ -185,8 +184,6 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.manager.switch(FunctionLabScene(self.manager))
 
     def handle_event(self, event):
-        if self._handle_inventory_event(event):
-            return
         if event.type == pygame.MOUSEMOTION:
             self.hover = next((lid for lid, r in self.cards if r.collidepoint(event.pos)), None)
             self.prev_arrow.update_hover(event.pos)
@@ -262,8 +259,6 @@ class LevelSelectScene(InventoryMixin, Scene):
         self.lab_button.draw(surface)
         self.shop_button.draw(surface)
         self.menu_button.draw(surface)
-        self._draw_inventory_button(surface)
-        self._draw_inventory_popup(surface)
 
     @property
     def page_count(self):

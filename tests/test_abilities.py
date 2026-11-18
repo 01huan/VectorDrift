@@ -255,9 +255,7 @@ def test_use_ability_key_spends_the_charge():
     assert GameFlightMixin._use_ability_key(scene, pygame.K_F1) is False
 
 
-@pytest.mark.usefixtures("pygame_display")
-def test_hud_only_shows_owned_abilities(monkeypatch):
-    from vector_drift.scenes import game as game_module
+def _game_scene(charges):
     from vector_drift.scenes.base import SceneManager
     from vector_drift.scenes.game import GameScene
 
@@ -267,63 +265,96 @@ def test_hud_only_shows_owned_abilities(monkeypatch):
         stop_loop=lambda *a, **k: None,
     ))
     manager.session.level_id = 1
-    manager.session.fx_text = "0"
+    manager.session.fx_text = "1"
     manager.session.fy_text = "0"
-    manager.session.purchased_items = {"ability_boost"}
-    manager.session.ability_charges = {"ability_boost": 0, "ability_blink": 2}
+    manager.session.ability_charges = dict(charges)
     scene = GameScene(manager)
     manager.switch(scene)
+    return scene
+
+
+def _drawn_texts(scene, monkeypatch):
+    from vector_drift.scenes import game as game_module
 
     calls = []
     real = game_module.draw_text
 
     def spy(surface, text, *args, **kwargs):
-        calls.append(text)
+        calls.append((text, surface))
         return real(surface, text, *args, **kwargs)
 
     monkeypatch.setattr(game_module, "draw_text", spy)
-    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
-
-    prefixes = ("Boost (", "Shield Pulse (", "Magnet (", "Time Freeze (",
-                "Phase Shift (", "Retro Burn (", "Blink (")
-    labels = [c for c in calls if isinstance(c, str) and c.startswith(prefixes)]
-    assert "Blink (Q) x2" in labels
-    assert "Boost (B)" not in labels
-    assert "Magnet (M)" not in labels
+    screen = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(screen)
+    return [t for t, _s in calls], screen
 
 
 @pytest.mark.usefixtures("pygame_display")
-def test_inventory_popup_lists_only_owned_abilities(monkeypatch):
-    from vector_drift.scenes import game as game_module
-    from vector_drift.scenes.base import SceneManager
-    from vector_drift.scenes.game import GameScene
+def test_panel_shows_every_ability_slot_in_shop_order(monkeypatch):
+    from vector_drift.abilities import all_abilities
 
-    manager = SceneManager(SimpleNamespace(
-        play=lambda *a, **k: None,
-        start_loop=lambda *a, **k: None,
-        stop_loop=lambda *a, **k: None,
-    ))
-    manager.session.level_id = 1
-    manager.session.fx_text = "0"
-    manager.session.fy_text = "0"
-    manager.session.purchased_items = {"ability_boost"}
-    manager.session.ability_charges = {"ability_boost": 0, "ability_blink": 1}
-    scene = GameScene(manager)
-    manager.switch(scene)
-    scene.inventory_open = True
+    scene = _game_scene({"ability_boost": 0, "ability_blink": 2})
+    slots = scene._ability_slots()
+    assert [a.id for a, _r in slots] == [a.id for a in all_abilities()]
+    texts, _screen = _drawn_texts(scene, monkeypatch)
+    assert "ABILITIES" in texts
+    for ability in all_abilities():
+        assert ability.key in texts                     # every slot keeps its place
+    assert "2" in texts and texts.count("0") >= 6
+    # Nothing in the top-right corner any more: no skill list, no inventory.
+    assert not any(isinstance(t, str) and t.startswith("Blink (") for t in texts)
+    assert not hasattr(scene, "inventory_button")
 
-    calls = []
-    real = game_module.draw_text
 
-    def spy(surface, text, *args, **kwargs):
-        calls.append(text)
-        return real(surface, text, *args, **kwargs)
+@pytest.mark.usefixtures("pygame_display")
+def test_empty_slots_are_faded():
+    from vector_drift.scenes import game_render_hud as hud
 
-    monkeypatch.setattr(game_module, "draw_text", spy)
-    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    slot_size = (config.px(34), config.px(34))
+    alphas = []
 
-    assert "Blink (Q)" in calls
-    assert "Boost (B)" not in calls
+    class Target(pygame.Surface):
+        def blit(self, src, dest, *a, **k):
+            if src.get_size() == slot_size:
+                alphas.append(src.get_alpha())
+            return super().blit(src, dest, *a, **k)
+
+    scene = _game_scene({"ability_blink": 2})
+    scene._draw_ability_slots(Target((config.WINDOW_W, config.WINDOW_H)))
+    assert len(alphas) == 7
+    assert alphas[:6] == [hud.ABILITY_EMPTY_ALPHA] * 6    # no charge: faded, place kept
+    assert alphas[6] in (None, 255)                       # Blink (2 left) is solid
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_hovering_a_slot_shows_its_name_and_description(monkeypatch):
+    scene = _game_scene({})
+    ability, rect = scene._ability_slots()[2]             # Magnet
+    scene.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=rect.center, rel=(0, 0),
+                                          buttons=(0, 0, 0)))
+    texts, _screen = _drawn_texts(scene, monkeypatch)
+    assert f"{ability.name} ({ability.key})" in texts
+    assert any(isinstance(t, str) and t and t in ability.description for t in texts)
+    scene.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(5, 5), rel=(0, 0),
+                                          buttons=(0, 0, 0)))
+    texts, _screen = _drawn_texts(scene, monkeypatch)
+    assert f"{ability.name} ({ability.key})" not in texts
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_using_an_ability_in_flight_lowers_the_panel_count(monkeypatch):
+    from vector_drift.scenes.game_layout import FLIGHT
+
+    monkeypatch.setattr("vector_drift.account.integration.save_progress", lambda *a, **k: None)
+    scene = _game_scene({"ability_boost": 2})
+    scene._try_launch()
+    assert scene.state == FLIGHT
+    for _ in range(5):
+        scene.update(1 / 60)
+    scene.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_b, mod=0, unicode="b"))
+    assert charge_count(scene.session, "ability_boost") == 1
+    texts, _screen = _drawn_texts(scene, monkeypatch)
+    assert "1" in texts and "2" not in texts
 
 
 @pytest.mark.usefixtures("pygame_display")

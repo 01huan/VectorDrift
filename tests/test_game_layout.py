@@ -39,6 +39,24 @@ def test_fmt_pair_and_clock():
 
 
 def test_layout_constants_respect_px():
-    assert gl.SHIP_BOX.width == gl.px(110)
+    assert gl.SHIP_BOX.size == (gl.px(56), gl.px(56))
     assert gl.CONTENT_W == gl.px(320) - 2 * gl.px(20)
     assert gl.RUN_GREEN == (137, 209, 133)
+
+
+def test_seven_ability_slots_fill_the_panel_content_width():
+    rects = gl.ability_slot_rects(7)
+    assert [r.size for r in rects] == [(gl.px(34), gl.px(34))] * 7
+    assert all(b.x - a.right == gl.px(7) for a, b in zip(rects, rects[1:]))
+    assert rects[0].x == gl.px(gl.PAD)
+    assert rects[-1].right - rects[0].x == gl.px(gl.CONTENT_W) == gl.px(280)
+
+
+def test_panel_rows_run_top_to_bottom_without_overlap():
+    # ship row, lives / clock, ABILITIES header, slots, then the editor
+    assert gl.LEVEL_ROW_Y + 18 <= gl.SHIP_BOX.y / gl.config.UI_SCALE
+    assert gl.SHIP_BOX.bottom / gl.config.UI_SCALE < gl.STATUS_Y - 10
+    assert gl.STATUS_Y + 14 < gl.ABILITY_LABEL_Y - 5
+    assert gl.ABILITY_LABEL_Y + 6 <= gl.ABILITY_SLOTS_Y
+    assert gl.ABILITY_SLOTS_Y + gl.ABILITY_SLOT < gl.EDITOR_Y
+    assert gl.LEGEND_Y < gl.BUTTONS_Y

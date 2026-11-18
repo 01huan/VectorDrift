@@ -14,7 +14,7 @@ from ..ability_icons import draw_ability_icon
 from ..config import px
 from ..image_assets import COIN_BALANCE, COIN_TRADE
 from ..ui import Button, draw_coins, draw_icon_row, draw_text, get_font, wrap_text
-from .base import Scene, InventoryMixin
+from .base import Scene
 from .. import shop as shop_module
 
 # Layout constants (design coordinates on the 1280x720 layout).
@@ -40,7 +40,7 @@ def card_height(desc_lines):
             + PRICE_ROW_H + 10 + BUY_H + CARD_PAD)
 
 
-class ShopScene(InventoryMixin, Scene):
+class ShopScene(Scene):
     music = "menu"
 
     def __init__(self, manager):
@@ -56,8 +56,6 @@ class ShopScene(InventoryMixin, Scene):
         self.cards = []
         self.buy_buttons = []
         self.desc_lines = {}
-        if not hasattr(self, "inventory_button"):
-            self._init_inventory()
         self.items = shop_module.all_items()
         self._rebuild_cards()
 
@@ -103,8 +101,6 @@ class ShopScene(InventoryMixin, Scene):
         self.manager.switch(LevelSelectScene(self.manager))
 
     def handle_event(self, event):
-        if self._handle_inventory_event(event):
-            return
         if event.type == pygame.MOUSEMOTION:
             self.back_button.handle_event(event)
             for _item, btn in self.buy_buttons:
@@ -188,5 +184,3 @@ class ShopScene(InventoryMixin, Scene):
         for _item, btn in self.buy_buttons:
             btn.draw(surface)
         self.back_button.draw(surface)
-        self._draw_inventory_button(surface)
-        self._draw_inventory_popup(surface)

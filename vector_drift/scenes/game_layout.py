@@ -77,18 +77,34 @@ CONTENT_W = 320 - 2 * PAD
 LOGO_Y = 36
 LOGO_W = 220                 # logo width; its height follows the picture (~69)
 LEVEL_ROW_Y = 82
-SHIP_LABEL_Y = 124
-SHIP_BOX = R(CX - 55, 140, 110, 110)
-SHIP_NAME_Y = 270
-SHIP_MASS_Y = 292
-STATUS_Y = 330
-EDITOR_Y = 354
+# Ship row: the ship in a 56 px frame on the left, its name and mass beside it.
+SHIP_BOX = R(PAD, 106, 56, 56)
+SHIP_TEXT_X = PAD + 56 + 12
+SHIP_NAME_Y = 123
+SHIP_MASS_Y = 146
+STATUS_Y = 186               # lives + clock
+# Abilities: a small header like PROBLEMS, then one row of 7 slots,
+# 7 x 34 + 6 x 7 = 280 = CONTENT_W, in shop order.
+ABILITY_LABEL_Y = 214
+ABILITY_SLOTS_Y = 224
+ABILITY_SLOT = 34
+ABILITY_GAP = 7
+ABILITY_ICON = 22            # the icon / letter avatar inside a slot
+ABILITY_EMPTY_ALPHA = 90     # a slot with no charge left is drawn faded
+EDITOR_Y = 272
 TELEMETRY_ROW_H = 20
-LEGEND_LABEL_Y = 636
-LEGEND_Y = 662
+LEGEND_LABEL_Y = 554
+LEGEND_Y = 580
+BUTTONS_Y = 608              # Lab and Hint / AI Solver
 # The "Lab" button (the player's saved functions) next to the Hint / AI
 # Solver button at the bottom of the panel.
 LAB_BTN_W = 64
+
+
+def ability_slot_rects(count):
+    """Real-pixel rects of the ``count`` ability slots, left to right."""
+    return [R(PAD + i * (ABILITY_SLOT + ABILITY_GAP), ABILITY_SLOTS_Y, ABILITY_SLOT, ABILITY_SLOT)
+            for i in range(count)]
 
 
 def ease_in_out(p):
@@ -131,8 +147,9 @@ __all__ = [
     "CAMERA_EASE_S", "CAMERA_MARGIN_M", "UNBOUND_EDGE",
     "ZOOM_LEVELS_PER_HALVING", "ZOOM_LEVELS_AT_LAUNCH", "ZOOM_LEVELS_KEPT",
     "SHIP_MIN_SCALE", "RUN_GREEN", "PAD", "CX", "CONTENT_W", "LOGO_Y", "LOGO_W",
-    "LEVEL_ROW_Y", "SHIP_LABEL_Y", "SHIP_BOX", "SHIP_NAME_Y", "SHIP_MASS_Y",
-    "STATUS_Y", "EDITOR_Y", "TELEMETRY_ROW_H", "LEGEND_LABEL_Y", "LEGEND_Y",
-    "LAB_BTN_W",
+    "LEVEL_ROW_Y", "SHIP_BOX", "SHIP_TEXT_X", "SHIP_NAME_Y", "SHIP_MASS_Y",
+    "STATUS_Y", "ABILITY_LABEL_Y", "ABILITY_SLOTS_Y", "ABILITY_SLOT", "ABILITY_GAP",
+    "ABILITY_ICON", "ABILITY_EMPTY_ALPHA", "EDITOR_Y", "TELEMETRY_ROW_H", "LEGEND_LABEL_Y",
+    "LEGEND_Y", "BUTTONS_Y", "LAB_BTN_W", "ability_slot_rects",
     "zoom_level", "level_zoom", "R", "ease_in_out", "pan_offsets", "fmt_pair", "fmt_clock",
 ]

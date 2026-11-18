@@ -38,6 +38,7 @@ class TutorialGameScene(GameScene):
     show_lives = False
     show_assists = False
     show_level_row = False
+    show_abilities = False              # abilities do nothing here
     counts_for_progress = False         # achievements ignore this screen
 
     def __init__(self, manager, level, fx="", fy="", restore=None):
@@ -85,7 +86,7 @@ class TutorialGameScene(GameScene):
         return False
 
     def _hidden_buttons(self):
-        return (self.inventory_button, self.level_button, self.lab_button, self.ai_button)
+        return (self.level_button, self.lab_button, self.ai_button)
 
     def _refresh_buttons(self):
         super()._refresh_buttons()
