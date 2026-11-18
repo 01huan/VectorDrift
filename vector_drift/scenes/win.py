@@ -4,6 +4,7 @@ import pygame
 
 from .. import config
 from ..config import px
+from ..data import is_custom_map
 from ..image_assets import COIN_BALANCE
 from ..level_presets import is_dynamic_level
 from ..ui import draw_coins, draw_text
@@ -42,6 +43,10 @@ class WinScene(InventoryMixin, Scene):
     def _notes(self, s):
         """(text, colour) lines under the stats: why this run earned what it did."""
         if not s.get("clear_reward"):
+            if is_custom_map(self.session.level_id, self.session):
+                # Custom/community maps never pay a clear reward: saying it
+                # was "already collected" would be a lie.
+                return [("No clear reward on custom maps", config.TEXT_DIM)]
             where = "map" if is_dynamic_level(self.session.level_id) else "level"
             return [(f"Clear reward already collected for this {where}", config.TEXT_DIM)]
         return []
