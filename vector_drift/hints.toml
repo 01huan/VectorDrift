@@ -111,3 +111,25 @@ answer_note = "Any positive Fx works, as long as it is not too small to arrive i
 answers = [
   { fx = "5", fy = "0" },
 ]
+
+[level.9.section.1]
+steps = [
+  "A row of rocks blocks the straight way up to the checkpoint. Use the swirl from Level 2, turned on its side.",
+  "F = (-(y - k), x) turns the ship around the point (0, k). Put the center 1 m above the ship, at (0, -4.5): the ship swings out to the right, around the rocks, and curls back into the checkpoint.",
+]
+answer_note = "The swirl around (0, -4.5). Its mirror goes round the left side:"
+answers = [
+  { label = "Right side", fx = "-y - 4.5", fy = "x" },
+  { label = "Left side", fx = "y + 4.5", fy = "-x" },
+]
+
+[level.9.section.2]
+steps = [
+  "The planet is sealed by a ring of rocks again. The Shockwave on the left can blast a gap in the ring.",
+  "The planet is above you now, so push up with a steady Fy = 2. For left and right, use the spring from Level 3: Fx = -2(x - line) pulls the ship toward a line.",
+  "Use the slanted line x = y/2. At the start (y = -5.5) it is far to the left, so the ship is pulled left to the Shockwave. Higher up the line moves right, and the ship swings back through the gap into the planet.",
+]
+answer_note = "A steady push up, with a spring toward the line x = y/2:"
+answers = [
+  { fx = "-2x + y", fy = "2" },
+]

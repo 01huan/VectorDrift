@@ -210,8 +210,6 @@ def test_level_nine_plays_through_its_checkpoint_to_the_win():
     assert scene.total_time == pytest.approx(4.28 + 2.86, abs=0.15)
 
 
-# Needs the level 9 Hint to open the answer page; drop the xfail with the hint.
-@pytest.mark.xfail(reason="level 9 hints pending", strict=True)
 @pytest.mark.usefixtures("pygame_display")
 def test_level_nine_answer_is_paid_once_for_both_sections():
     import pygame
