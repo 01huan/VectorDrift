@@ -46,7 +46,16 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 10 | Random Drift | Procedurally generated layouts from five generation modules, merged into one to three screens (see below). |
 | 11–24 | Coming soon | Placeholder level slots. |
 
-The current fixed campaign consists of Levels **1–9**. Level **10** is the only registered procedural level in this snapshot. The random level always takes the number right after the last campaign level (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), not the last planned slot, so adding a campaign level moves it one slot along. The level selector reserves the other numbered slots for future content.
+The current fixed campaign consists of Levels **1–9**. Level **10** is the only registered procedural level in this snapshot. The random level is always shown right after the last campaign level, not in the last planned slot, so adding a campaign level moves its card one slot along. The level selector reserves the other numbered slots for future content.
+
+### Level ids and level numbers
+
+Every level has an **id** and a **number**, and they are not the same thing:
+
+- The **id** is the level's identity in saved data: best times, clear rewards, achievements, collected coins and replays are all stored by id. Once a level is released its id never changes and is never reused.
+- The **number** is only the level's place on the level select (the big number on its card, `Level N`, the `LV` label in the game panel and the replay label). Level number N flies `shipNN`.
+
+A campaign level's number is its id. The random level's id is fixed at **999** (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), and it is numbered right after the last campaign level (`level_number` in `vector_drift/data.py`), so today it shows as Level 10. Adding a campaign level moves the random level's number, not its id, so the new level starts with no saved data of its own. Editor levels use ids from 1000 up and community levels negative ids.
 
 ### Random level generation
 
@@ -207,7 +216,7 @@ The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_
 
 There are ten visual ship skins: `ship01` through `ship10`. All ten use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics.
 
-Each level flies its own ship and the player does not pick it: level N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`; the random level 10 flies `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today every level (1 to 10) has its own ship. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
+Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`; the random level, id 999, is numbered 10 and flies `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today every level (1 to 10) has its own ship. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
 
 The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
@@ -671,7 +680,7 @@ The test suite covers expression parsing/evaluation, physics and edge cases, lev
 
 ### Add or change a fixed level
 
-1. Add a `LevelSpec` to `vector_drift/data.py` and register it in `LEVELS`.
+1. Add a `LevelSpec` to the end of `LEVELS` in `vector_drift/data_levels.py`, with the next id after the last campaign level. Never renumber or reuse a released id (see [Level ids and level numbers](#level-ids-and-level-numbers)).
 2. Add the level's hint to `vector_drift/hints.toml` as `[level.N]`, including `steps`, `answer_note`, and at least one valid `Fx`/`Fy` answer. A multi-section level uses one `[level.N.section.K]` entry for every section.
 3. Run the tests. Hint-answer tests simulate the supplied formulas with the actual flight physics and expect them to reach the appropriate target.
 

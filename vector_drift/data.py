@@ -6,7 +6,7 @@ The value objects live in :mod:`vector_drift.data_models`, fixed content in
 in :mod:`vector_drift.data_public`. This module keeps the mutable registries
 and the public lookup API, and re-exports the old names for compatibility.
 
-Dynamic levels (e.g. 8) are NOT hard-coded here: their tunables and optional
+Dynamic levels (the random level, id 999) are NOT hard-coded here: their tunables and optional
 per-level templates live in level_presets.py; their layouts are generated
 fresh by random_level.py and merged into one to three screens by
 level_merge.py. get_level() routes any id in
