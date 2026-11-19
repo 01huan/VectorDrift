@@ -210,6 +210,51 @@ LEVELS = [
             SectionSpec(start=(-7.0, 0.0), target_center=(7.0, 0.0), target_radius=1.0),
         ),
     ),
+    # Chapter 2 opens here: no new element, each section reviews one from
+    # chapter 1 with a different force field. Level 9 is the first upward pan:
+    # pan (0, 11), world y -5.5 -> 5.5 (checkpoint) -> 13.5; the screens share
+    # y in [3.5, 7.5] of section 1, where only the checkpoint sits.
+    # Section 1 is level 2's swirl turned 90 deg: a row of three rocks blocks
+    # the straight way up, and F = (-y - 4.5, x) circles (0, -4.5) round the
+    # right end of the row (mirror: F = (y + 4.5, -x), round the left end).
+    # Section 2 is level 3's "steady push + spring toward a slanted line",
+    # turned to fly upward: the planet sits in level 3's ring (9 rocks, r 2.6 m
+    # round it, every 40 deg from 270 deg, sealed), and F = (-2x + y, 2) pulls
+    # the ship left to the Shockwave, which blasts the rocks at 190 and 230 deg,
+    # then back right through that gap. The two sections need different
+    # answers: section 1's swirl flies out of the map in section 2.
+    multi_section_level(
+        id=9,
+        name="Ascent",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(0.0, -5.5), target_center=(0.0, 5.5), target_radius=1.0,
+                obstacles=(
+                    ObstacleSpec(center=(-1.6, 0.0), radius=0.8),
+                    ObstacleSpec(center=(0.0, 0.0), radius=0.8),
+                    ObstacleSpec(center=(1.6, 0.0), radius=0.8),
+                ),
+            ),
+            SectionSpec(
+                start=(0.0, -5.5), target_center=(0.0, 2.5), target_radius=1.0,
+                # Neighbours ~1.78 m apart, like level 3: the gaps are narrower
+                # than the ship, so the ring is closed until the blast.
+                obstacles=(
+                    ObstacleSpec(center=(0.0, -0.1), radius=0.8),
+                    ObstacleSpec(center=(1.67, 0.51), radius=0.8),
+                    ObstacleSpec(center=(2.56, 2.05), radius=0.8),
+                    ObstacleSpec(center=(2.25, 3.8), radius=0.8),
+                    ObstacleSpec(center=(0.89, 4.94), radius=0.8),
+                    ObstacleSpec(center=(-0.89, 4.94), radius=0.8),
+                    ObstacleSpec(center=(-2.25, 3.8), radius=0.8),
+                    ObstacleSpec(center=(-2.56, 2.05), radius=0.8),
+                    ObstacleSpec(center=(-1.67, 0.51), radius=0.8),
+                ),
+                pickups=(PickupSpec(center=(-4.0, -0.5), radius=0.45, kind="shockwave"),),
+            ),
+        ),
+    ),
 ]
 
 
