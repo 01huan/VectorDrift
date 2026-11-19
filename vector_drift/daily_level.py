@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from . import config
-from .data import SHIPS, LevelSpec, ObstacleSpec
+from .data import SHIPS, LevelSpec, ObstacleSpec, PickupSpec
 from .expr_parser import parse_expression
 from .physics import Flight, ForceField, Outcome
 from .physics_core import segment_hits_circle
@@ -27,6 +27,7 @@ from .pickups import discs_overlap
 DAILY_LEVEL_NAME = "Daily Challenge"
 DAILY_SHIP = SHIPS["ship01"]
 TARGET_RADIUS = 1.0                 # same as the fixed levels
+COIN_RADIUS = 0.45                  # same as the fixed levels
 
 # Fixed offset, not zoneinfo: Windows without tzdata has no "Asia/Taipei",
 # and Taiwan has no daylight saving time.
@@ -362,7 +363,44 @@ def build_candidate(rng):
     rocks = place_rocks(rng, route)
     if rocks is None:
         return None
-    candidate = Candidate(route=route, rocks=rocks)
-    if constant_force_reaches(candidate.level()):
+    if constant_force_reaches(Candidate(route=route, rocks=rocks).level()):
         return None                     # a plain push would solve it
-    return candidate
+    coins = place_coins(rng, route, rocks)
+    if coins is None:
+        return None
+    return Candidate(route=route, rocks=rocks, coins=coins)
+
+
+# --- Coins -----------------------------------------------------------------------------
+COIN_COUNT = (1, 2)
+COIN_PATH_SPAN = (0.2, 0.9)         # coins sit on the path between these parts of t*
+COIN_SPACING = 2.0                  # m between two coins
+COIN_START_CLEARANCE = 1.5          # m from the start
+COIN_DRAWS = 50                     # path points tried per coin before the map is given up
+
+
+def coin_fits(center, route, rocks, coins):
+    """The placement rules every coin must meet (it already lies on the path)."""
+    if any(discs_overlap(center, COIN_RADIUS, rock.center, rock.radius) for rock in rocks):
+        return False
+    if any(math.dist(center, coin.center) < COIN_SPACING for coin in coins):
+        return False
+    if math.dist(center, route.start) < COIN_START_CLEARANCE:
+        return False
+    return not discs_overlap(center, COIN_RADIUS, route.target, TARGET_RADIUS)
+
+
+def place_coins(rng, route, rocks):
+    """1-2 money coins on the reference path; None when one finds no spot."""
+    k = route.target_step
+    first, last = round(COIN_PATH_SPAN[0] * k), round(COIN_PATH_SPAN[1] * k)
+    coins = []
+    for _ in range(rng.randint(*COIN_COUNT)):
+        for _ in range(COIN_DRAWS):
+            center = route.path[rng.randint(first, last)]
+            if coin_fits(center, route, rocks, coins):
+                coins.append(PickupSpec(center=center, radius=COIN_RADIUS, kind="money"))
+                break
+        else:
+            return None
+    return tuple(coins)

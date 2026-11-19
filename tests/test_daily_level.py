@@ -11,12 +11,12 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from vector_drift import config
-from vector_drift.daily_level import (CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
+from vector_drift.daily_level import (COIN_RADIUS, CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
                                       TARGET_RADIUS, TEMPLATES, daily_seed, daily_today,
                                       build_candidate, constant_force_reaches, format_linear,
                                       pick_field, pick_route, place_rocks,
                                       point_segment_distance)
-from vector_drift.data import LevelSpec, ObstacleSpec
+from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.physics_core import segment_hits_circle
@@ -268,3 +268,31 @@ def test_constant_force_check_spots_an_open_shot():
 
     assert constant_force_reaches(open_map)
     assert not constant_force_reaches(walled)
+
+
+# --- Coins ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("seeds", [range(0, 25), range(25, 50)], ids=_chunk_id)
+def test_coins_lie_on_the_reference_path(seeds):
+    built = 0
+    for seed in seeds:
+        candidate = _candidate(seed)
+        if candidate is None:
+            continue
+        built += 1
+        route, coins = candidate.route, candidate.coins
+        k = route.target_step
+        assert 1 <= len(coins) <= 2, seed
+        assert candidate.level().pickups == coins
+        for i, coin in enumerate(coins):
+            assert isinstance(coin, PickupSpec) and coin.kind == "money"
+            assert coin.radius == COIN_RADIUS == 0.45
+            on_path = range(round(0.2 * k), round(0.9 * k) + 1)
+            assert min(math.dist(coin.center, route.path[j]) for j in on_path) < 0.01, seed
+            for rock in candidate.rocks:
+                assert math.dist(coin.center, rock.center) > coin.radius + rock.radius, seed
+            assert math.dist(coin.center, route.start) >= 1.5, seed
+            assert math.dist(coin.center, route.target) > TARGET_RADIUS + coin.radius, seed
+            for other in coins[i + 1:]:
+                assert math.dist(coin.center, other.center) >= 2.0, seed
+    assert built >= len(seeds) // 2
