@@ -10,6 +10,7 @@ import math
 
 import pytest
 
+from vector_drift import config
 from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
                                section_level, section_shift)
 from vector_drift.expr_parser import parse_expression
@@ -162,3 +163,93 @@ def test_section_two_ring_is_closed_without_the_shockwave():
 @pytest.mark.parametrize("answer", [RIGHT, LEFT], ids=["right", "left"])
 def test_section_one_answers_leave_the_map_in_section_two(answer):
     assert _fly(second(), *answer).outcome is Outcome.OUT_OF_BOUNDS
+
+
+# --- the game: checkpoint, pan up, win; the answer is paid once -----------------------
+def _scene():
+    from types import SimpleNamespace
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
+                            stop_loop=lambda *a, **k: None)
+    manager = SceneManager(audio)
+    manager.session.level_id = 9
+    scene = GameScene(manager)
+    manager.switch(scene)
+    return manager, scene
+
+
+def _type(scene, fx, fy):
+    scene.editor.set_lines([fx, fy])
+    scene._on_text_change(scene.editor)
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_level_nine_plays_through_its_checkpoint_to_the_win():
+    import pygame
+
+    from vector_drift.scenes.game import ARRIVED, FLIGHT, PANNING
+
+    _, scene = _scene()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+
+    for answer, expected in ((RIGHT, PANNING), (SPRING, ARRIVED)):
+        _type(scene, *answer)
+        scene._try_launch()
+        while scene.state == FLIGHT:
+            scene.update(0.05)
+            scene.draw(surface)
+        assert scene.state == expected
+        while scene.state == PANNING:
+            scene.update(0.05)
+            scene.draw(surface)
+    assert scene.section_index == 1
+    assert scene.lives == LEVEL.lives
+    assert scene.total_time == pytest.approx(4.28 + 2.86, abs=0.15)
+
+
+# Needs the level 9 Hint to open the answer page; drop the xfail with the hint.
+@pytest.mark.xfail(reason="level 9 hints pending", strict=True)
+@pytest.mark.usefixtures("pygame_display")
+def test_level_nine_answer_is_paid_once_for_both_sections():
+    import pygame
+
+    from vector_drift.scenes.game import FLIGHT, PANNING
+
+    assert 9 not in config.FREE_ANSWER_LEVELS
+    manager, scene = _scene()
+    manager.session.money.add(25)
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+
+    def open_answer():
+        scene._open_hint()
+        popup = scene.hint_popup
+        while popup.page < popup.answer_page - 1:
+            popup.page += 1
+        scene._request_hint_answer()
+        return popup
+
+    # Section 1: asked first, with the price; paying shows the answer page.
+    popup = open_answer()
+    assert popup.confirming and popup.confirm_price is not None
+    scene._show_hint_answer(config.HINT_ANSWER_COST)
+    assert popup.on_answer_page
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+    assert 9 in manager.session.paid_answer_levels
+
+    # Through the checkpoint to section 2.
+    _type(scene, *RIGHT)
+    scene._try_launch()
+    while scene.state in (FLIGHT, PANNING):
+        scene.update(0.05)
+        scene.draw(surface)
+    assert scene.section_index == 1
+
+    # Section 2: its own answer page opens straight away, at no charge.
+    popup = open_answer()
+    assert popup.on_answer_page and not popup.confirming
+    assert popup.hint is scene.hint and scene.hint.section == 2
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
