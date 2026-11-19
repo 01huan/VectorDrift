@@ -13,9 +13,11 @@ DAILY_GENERATOR_VERSION -> the same map on every computer): it only uses a
 Pure logic: no Session, pygame or drawing.
 """
 
+import logging
 import math
+import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from . import config
 from .data import SHIPS, LevelSpec, ObstacleSpec, PickupSpec
@@ -23,6 +25,8 @@ from .expr_parser import parse_expression
 from .physics import Flight, ForceField, Outcome
 from .physics_core import segment_hits_circle
 from .pickups import discs_overlap
+
+log = logging.getLogger(__name__)
 
 DAILY_LEVEL_NAME = "Daily Challenge"
 DAILY_SHIP = SHIPS["ship01"]
@@ -404,3 +408,75 @@ def place_coins(rng, route, rocks):
         else:
             return None
     return tuple(coins)
+
+
+# --- The daily map -----------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class DailyMap:
+    """One day's map and its reference answer (``fx``, ``fy`` as typed)."""
+
+    day: date
+    seed: int
+    level: LevelSpec
+    fx: str
+    fy: str
+    template: str
+    attempts: int                       # attempts used (DAILY_MAX_ATTEMPTS for the fallback)
+    is_fallback: bool = False
+
+
+def _daily_map(day, seed, level, field, attempts, is_fallback=False):
+    return DailyMap(day=day, seed=seed, level=level, fx=field.fx, fy=field.fy,
+                    template=field.template, attempts=attempts, is_fallback=is_fallback)
+
+
+def generate_daily(day):
+    """The map of ``day`` (a datetime.date): the same everywhere, never raises.
+
+    Attempt n (from 0) builds a map from ``random.Random(daily_seed(day) *
+    1000 + n)`` and keeps it only if the reference answer, flown on the full
+    map, reaches the target. After DAILY_MAX_ATTEMPTS failed attempts, or if
+    generation breaks, the hand-checked fallback map is used.
+    """
+    seed = daily_seed(day)
+    try:
+        for n in range(config.DAILY_MAX_ATTEMPTS):
+            candidate = build_candidate(random.Random(seed * 1000 + n))
+            if candidate is None:
+                continue
+            level = candidate.level()
+            field = candidate.route.field
+            if _flies_to_target(field.force_field(), level):
+                return _daily_map(day, seed, level, field, attempts=n + 1)
+        log.warning("daily map %s: no map in %d attempts, using the fallback map",
+                    day, config.DAILY_MAX_ATTEMPTS)
+    except Exception:
+        log.exception("daily map %s: generation failed, using the fallback map", day)
+    return fallback_map(day)
+
+
+# Fallback map: F = (1, -y + 2) from (-8, -2); target = its path at step
+# FALLBACK_TARGET_STEP. Built by the generator and rounded; tests check that
+# it meets every generation rule and that its answer reaches the target.
+FALLBACK_FIELD = DailyField(template="swing", coeffs=(1, 0, 0, 2, 0, -1), fx="1", fy="-y + 2")
+FALLBACK_TARGET_STEP = 624
+FALLBACK_START = (-8.0, -2.0)
+FALLBACK_TARGET = (5.54, 0.11)
+FALLBACK_ROCKS = (
+    ObstacleSpec(center=(0.4, -1.1), radius=0.6),
+    ObstacleSpec(center=(8.7, 4.0), radius=1.0),
+    ObstacleSpec(center=(-3.6, 3.2), radius=0.6),
+    ObstacleSpec(center=(-3.1, 0.8), radius=1.0),
+)
+FALLBACK_COINS = (
+    PickupSpec(center=(-3.81, 5.88), radius=COIN_RADIUS, kind="money"),
+    PickupSpec(center=(-1.35, 5.5), radius=COIN_RADIUS, kind="money"),
+)
+
+
+def fallback_map(day):
+    """The fixed map used when ``day``'s generation fails."""
+    level = _level(FALLBACK_START, FALLBACK_TARGET, FALLBACK_ROCKS, FALLBACK_COINS)
+    return _daily_map(day, daily_seed(day), level, FALLBACK_FIELD,
+                      attempts=config.DAILY_MAX_ATTEMPTS, is_fallback=True)

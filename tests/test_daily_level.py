@@ -10,12 +10,15 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from vector_drift import config
-from vector_drift.daily_level import (COIN_RADIUS, CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
-                                      TARGET_RADIUS, TEMPLATES, daily_seed, daily_today,
-                                      build_candidate, constant_force_reaches, format_linear,
-                                      pick_field, pick_route, place_rocks,
-                                      point_segment_distance)
+from vector_drift import config, daily_level
+from vector_drift.daily_level import (COIN_RADIUS, CONSTANT_TERMS, DAILY_SHIP,
+                                      FALLBACK_TARGET_STEP, NONZERO_COEFFS, START_X, START_YS,
+                                      TARGET_RADIUS, TEMPLATES, DailyField, ReferenceRoute,
+                                      blocks_line, build_candidate, coin_fits,
+                                      constant_force_reaches, daily_seed, daily_today,
+                                      fallback_map, fly_reference, format_linear, generate_daily,
+                                      pick_field, pick_route, place_rocks, point_segment_distance,
+                                      rock_fits)
 from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics import Flight, ForceField, Outcome
@@ -296,3 +299,117 @@ def test_coins_lie_on_the_reference_path(seeds):
             for other in coins[i + 1:]:
                 assert math.dist(coin.center, other.center) >= 2.0, seed
     assert built >= len(seeds) // 2
+
+
+# --- The daily map -------------------------------------------------------------------
+
+DAY = date(2026, 11, 19)
+
+
+def _reaches(daily):
+    field = ForceField.from_exprs(parse_expression(daily.fx), parse_expression(daily.fy))
+    flight = Flight(field, DAILY_SHIP, daily.level)
+    while flight.running:
+        flight.step()
+    return flight.outcome is Outcome.REACHED
+
+
+def test_daily_map_is_a_daily_level():
+    daily = generate_daily(DAY)
+    level = daily.level
+
+    assert daily.day == DAY and daily.seed == daily_seed(DAY)
+    assert not daily.is_fallback and 1 <= daily.attempts <= config.DAILY_MAX_ATTEMPTS
+    assert level.id == config.DAILY_LEVEL_ID == 900
+    assert level.name == "Daily Challenge" and level.ship_id == "ship01"
+    assert level.time_limit == config.DAILY_TIME_LIMIT and level.lives == config.DAILY_LIVES
+    assert level.target_radius == TARGET_RADIUS
+    assert not level.holes and not level.sections
+    assert {p.kind for p in level.pickups} == {"money"}
+    assert _reaches(daily)
+
+
+def test_same_day_gives_the_same_map():
+    first, second = generate_daily(DAY), generate_daily(DAY)
+
+    assert first == second
+    assert (first.level.start, first.level.target_center, first.level.obstacles,
+            first.level.pickups, first.fx, first.fy) == (
+        second.level.start, second.level.target_center, second.level.obstacles,
+        second.level.pickups, second.fx, second.fy)
+
+
+def test_next_day_gives_another_map():
+    today, tomorrow = generate_daily(DAY), generate_daily(DAY + timedelta(days=1))
+
+    assert today.level != tomorrow.level or (today.fx, today.fy) != (tomorrow.fx, tomorrow.fy)
+    assert today.level.target_center != tomorrow.level.target_center
+
+
+def test_attempt_n_uses_its_own_seed(monkeypatch):
+    firsts = []
+
+    def failing(rng):
+        firsts.append(rng.random())
+        return None
+
+    monkeypatch.setattr(daily_level, "build_candidate", failing)
+    generate_daily(DAY)
+
+    seed = daily_seed(DAY)
+    assert firsts == [random.Random(seed * 1000 + n).random()
+                      for n in range(config.DAILY_MAX_ATTEMPTS)]
+
+
+def test_no_map_in_any_attempt_gives_the_fallback(monkeypatch, caplog):
+    monkeypatch.setattr(daily_level, "build_candidate", lambda rng: None)
+
+    with caplog.at_level("WARNING", logger="vector_drift.daily_level"):
+        daily = generate_daily(DAY)
+
+    assert daily == fallback_map(DAY)
+    assert daily.is_fallback and daily.day == DAY and daily.seed == daily_seed(DAY)
+    assert "fallback" in caplog.text
+
+
+def test_a_crashing_generator_gives_the_fallback(monkeypatch, caplog):
+    def broken(rng):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(daily_level, "build_candidate", broken)
+
+    with caplog.at_level("WARNING", logger="vector_drift.daily_level"):
+        daily = generate_daily(DAY)
+
+    assert daily == fallback_map(DAY)
+    assert "boom" in caplog.text
+
+
+def test_fallback_map_reaches_with_its_answer():
+    daily = fallback_map(DAY)
+
+    assert (daily.fx, daily.fy) == ("1", "-y + 2")
+    assert daily.level.id == config.DAILY_LEVEL_ID
+    assert _reaches(daily)
+
+
+def test_fallback_map_follows_the_generator_rules():
+    daily = fallback_map(DAY)
+    level = daily.level
+    field = DailyField(template="swing", coeffs=(1, 0, 0, 2, 0, -1), fx=daily.fx, fy=daily.fy)
+    path = fly_reference(field, level.start, FALLBACK_TARGET_STEP)
+    route = ReferenceRoute(field=field, start=level.start, target=level.target_center,
+                           target_step=FALLBACK_TARGET_STEP, path=path)
+
+    assert math.dist(path[-1], level.target_center) < 0.01
+    assert 3 <= len(level.obstacles) <= 6
+    for i, rock in enumerate(level.obstacles):
+        assert rock_fits(rock.center, rock.radius, route, level.obstacles[:i])
+    assert any(blocks_line(rock.center, rock.radius, route) for rock in level.obstacles)
+    assert not constant_force_reaches(level)
+    k = FALLBACK_TARGET_STEP
+    for i, coin in enumerate(level.pickups):
+        assert coin.kind == "money" and coin.radius == COIN_RADIUS
+        assert min(math.dist(coin.center, path[j])
+                   for j in range(round(0.2 * k), round(0.9 * k) + 1)) < 0.01
+        assert coin_fits(coin.center, route, level.obstacles, level.pickups[:i])
