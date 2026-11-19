@@ -331,7 +331,10 @@ def count(manager, key, amount=1):
 def clear(manager, *, level_id, kind, attempts, lives_left, total_time, fx, fy,
           solution_used=False, solver_used=False, resumed=False, bounces=0,
           went_off_map=False, shield_saved=False, has_rocks=False, community_key=None):
-    """A level was cleared. ``kind``: "campaign", "random", "community" or "custom"."""
+    """A level was cleared. ``kind``: "campaign", "random", "daily", "community" or "custom".
+
+    A daily clear counts only for the achievements of any kind of level.
+    """
     if not _playing(manager):
         return
     session = manager.session

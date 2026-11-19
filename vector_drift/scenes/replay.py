@@ -5,6 +5,7 @@ import pygame
 from .. import config, render
 from ..config import px
 from ..coords import Viewport
+from ..daily_level import daily_map, is_daily_level, replay_daily_day
 from ..data import (SHIPS, custom_level_from_snapshot, get_level, section_count,
                     section_level)
 from ..physics import ForceField
@@ -28,7 +29,11 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
 
     def __init__(self, manager):
         super().__init__(manager)
-        self.records = list(getattr(self.session, "replays", None) or [])
+        # A daily replay whose map cannot be rebuilt (another generator
+        # version, a broken day) is not listed.
+        self.records = [rec for rec in (getattr(self.session, "replays", None) or [])
+                        if not is_daily_level(rec.get("level_id"))
+                        or replay_daily_day(rec) is not None]
         self.index = 0 if self.records else -1
         self.player = ReplayPlayer(self.records[0] if self.records else None)
         self.paused = True
@@ -135,7 +140,9 @@ class ReplayScene(ReplayTimelineMixin, ReplayCameraMixin, ReplayRenderMixin, Sce
         except (TypeError, ValueError):
             seed = None
         snapshot = rec.get("level_snapshot")
-        if isinstance(snapshot, dict):
+        if is_daily_level(level_id):
+            full = daily_map(replay_daily_day(rec)).level
+        elif isinstance(snapshot, dict):
             full = custom_level_from_snapshot(snapshot)
         elif seed is not None:
             full = get_level(level_id, seed=seed)

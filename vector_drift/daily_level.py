@@ -492,3 +492,22 @@ def fallback_map(day):
 def daily_map(day):
     """generate_daily(day), kept in memory: Restart and Retry rebuild it at once."""
     return generate_daily(day)
+
+
+def replay_daily_day(record):
+    """The day a daily replay record was flown on, when its map can be rebuilt.
+
+    The map is rebuilt from the day, so the record must also carry the
+    DAILY_GENERATOR_VERSION it was flown with: another version would build
+    another map. None for any other record, a missing or broken day, or
+    another version.
+    """
+    if not isinstance(record, dict) or not is_daily_level(record.get("level_id")):
+        return None
+    version = record.get("daily_version")
+    if isinstance(version, bool) or version != config.DAILY_GENERATOR_VERSION:
+        return None
+    try:
+        return date.fromisoformat(record.get("daily_day"))
+    except (TypeError, ValueError):
+        return None

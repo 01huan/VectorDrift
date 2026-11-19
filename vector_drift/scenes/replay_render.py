@@ -7,6 +7,7 @@ import pygame
 
 from .. import config, sprites
 from ..config import px
+from ..daily_level import is_daily_level
 from ..data import level_number
 from . import ability_effects as afx
 from . import pickup_effects as pfx
@@ -74,10 +75,14 @@ class ReplayRenderMixin:
     def _level_label(self, rec):
         """'9 · section 2/2' on multi-section levels, just the level number otherwise.
 
+        A daily replay shows its day ("Daily 2026-11-19"), never the id 900.
+
         The number shown on the level select, not the saved id (the random
         level is saved as 999).
         """
         level_id = rec.get("level_id")
+        if is_daily_level(level_id):
+            return f"Daily {rec.get('daily_day')}"
         try:
             label = str(level_number(int(level_id)))
         except (TypeError, ValueError):

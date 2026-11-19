@@ -113,6 +113,10 @@ class ReplayRecord:
     # Which screen of a multi-section level the launch flew (0-based, like
     # data.section_level). One-screen levels and old saves are always 0.
     section_index: int = 0
+    # Daily challenge launches: the day (ISO) and the generator version the
+    # map was built with, so the replay can rebuild that exact map.
+    daily_day: Optional[str] = None
+    daily_version: Optional[int] = None
 
     def to_dict(self):
         data = {
@@ -132,6 +136,9 @@ class ReplayRecord:
         }
         if isinstance(self.level_snapshot, dict):
             data["level_snapshot"] = self.level_snapshot
+        if self.daily_day is not None or self.daily_version is not None:
+            data["daily_day"] = self.daily_day
+            data["daily_version"] = self.daily_version
         return data
 
     @staticmethod
@@ -172,6 +179,8 @@ class ReplayRecord:
             return out
 
         pickup_events_raw = data.get("pickup_events") if isinstance(data, dict) else None
+        daily_day = data.get("daily_day") if isinstance(data, dict) else None
+        daily_version = data.get("daily_version") if isinstance(data, dict) else None
         pickup_events = [
             e for e in (pickup_events_raw or []) if isinstance(e, dict)
         ] if isinstance(pickup_events_raw, (list, tuple)) else []
@@ -193,6 +202,9 @@ class ReplayRecord:
             ability_events=normalize_ability_events(
                 data.get("ability_events") if isinstance(data, dict) else None),
             section_index=section_index_from(data.get("section_index") if isinstance(data, dict) else None),
+            daily_day=daily_day if isinstance(daily_day, str) else None,
+            daily_version=(daily_version if isinstance(daily_version, int)
+                           and not isinstance(daily_version, bool) else None),
         )
 
 

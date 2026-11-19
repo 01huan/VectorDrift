@@ -344,8 +344,6 @@ class GameFlightMixin:
 
     def _store_replay(self, outcome):
         """Keep this launch in the session's replays."""
-        if is_daily_level(self.level.id):
-            return      # a replay cannot rebuild the daily map from its id alone
         try:
             from vector_drift.replay import normalize_records
             from vector_drift.account.integration import session_to_profile
@@ -372,12 +370,16 @@ class GameFlightMixin:
                 # replay rebuilds that section, not section 1.
                 "section_index": self.section_index,
             }
+            if is_daily_level(self.level.id):
+                # The replay rebuilds the map from its day, with this generator.
+                rec["daily_day"] = self.session.daily_day.isoformat()
+                rec["daily_version"] = config.DAILY_GENERATOR_VERSION
             self.session.replays = normalize_records(list(self.session.replays or []) + [rec], 10)
         except Exception:
             pass
 
     def _level_kind(self):
-        """What kind of level this is: "campaign", "random", "community" or "custom".
+        """What kind of level this is: "campaign", "random", "daily", "community" or "custom".
 
         A community level lives in its own registry (data.COMMUNITY_LEVELS), not
         in the player's own custom levels, so it has to be looked up there: a
@@ -386,6 +388,8 @@ class GameFlightMixin:
         from ..data import is_community_level, is_custom_level
 
         level_id = self.level.id
+        if is_daily_level(level_id):
+            return "daily"
         if is_dynamic_level(level_id):
             return "random"
         if is_community_level(level_id):
@@ -418,6 +422,8 @@ class GameFlightMixin:
     def _level_has_rocks(self):
         """Whether the level (any section) was built with rocks, shockwaves or not."""
         from ..data import get_level
+        if is_daily_level(self.level.id):
+            return bool(self.full_level.obstacles)      # the day's map, not a level id
         try:
             level = get_level(self.level.id, seed=self.session.random_seed) if not is_custom_map(
                 self.level.id, self.session) else self.full_level

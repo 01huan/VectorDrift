@@ -107,15 +107,6 @@ def test_back_from_daily_returns_to_the_level_select(today):
     assert back_scene_for_level(mgr.session, game) is LevelSelectScene
 
 
-def test_a_daily_launch_is_not_kept_as_a_replay(today):
-    mgr = _manager()
-    game = _enter_daily(mgr)
-    game.flight = None
-    game._replay_frames = []
-    game._store_replay("Outcome.TIMEOUT")
-    assert mgr.session.replays == []
-
-
 # --- the same map until the player leaves -------------------------------------------
 
 NEXT_DAY = date(2026, 11, 20)
