@@ -4,7 +4,7 @@ import time
 
 import pygame
 
-from .. import config, render
+from .. import config, daily_level, render
 from ..config import px
 from ..data import all_levels, is_custom_level, level_number
 from ..level_pages import (PER_PAGE, can_next, can_prev, clamp_page, levels_on_page,
@@ -143,6 +143,8 @@ class LevelSelectScene(Scene):
                                  style="plain", font_size=17)
         self.tutorial_button = Button((config.WINDOW_W - px(720), px(20), px(160), px(40)), TUTORIAL_LABEL,
                                      style="plain", font_size=17)
+        self.daily_button = Button((config.WINDOW_W - px(900), px(20), px(160), px(40)), "Daily",
+                                   style="plain", font_size=17)
         self._rebuild_cards()
 
     def _start(self, level_id):
@@ -167,6 +169,11 @@ class LevelSelectScene(Scene):
             self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
         from .game import GameScene
         self.manager.switch(GameScene(self.manager))
+
+    def _open_daily(self):
+        """The Daily button: today's map (UTC+8), kept until the player leaves it."""
+        self.session.daily_day = daily_level.daily_today()
+        self._start(config.DAILY_LEVEL_ID)
 
     def _to_menu(self):
         self.audio.play("click")
@@ -198,6 +205,7 @@ class LevelSelectScene(Scene):
             self.editor_button.handle_event(event)
             self.lab_button.handle_event(event)
             self.tutorial_button.handle_event(event)
+            self.daily_button.handle_event(event)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for lid, rect in self.cards:
                 if rect.collidepoint(event.pos):
@@ -215,6 +223,9 @@ class LevelSelectScene(Scene):
                 return
             if self.tutorial_button.handle_event(event) == "click":
                 self._open_tutorial()
+                return
+            if self.daily_button.handle_event(event) == "click":
+                self._open_daily()
                 return
             if self.lab_button.handle_event(event) == "click":
                 self._open_lab()
@@ -261,6 +272,7 @@ class LevelSelectScene(Scene):
         self.next_arrow.draw(surface)
         self._draw_page_dots(surface)
         self.tutorial_button.draw(surface)
+        self.daily_button.draw(surface)
         self.editor_button.draw(surface)
         self.lab_button.draw(surface)
         self.shop_button.draw(surface)

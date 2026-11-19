@@ -8,6 +8,7 @@ from .. import config, render, sprites
 from ..abilities import all_abilities, charge_count
 from ..ability_icons import draw_ability_icon
 from ..config import px
+from ..daily_level import is_daily_level
 from ..data import level_number
 from ..ui import draw_panel_box, get_font, wrap_text
 from . import pickup_effects as pfx
@@ -49,6 +50,12 @@ class GameHudRenderMixin:
     show_abilities = True
 
     # ------------------------------------------------------------------ left panel
+    def level_label(self):
+        """The level row's text: "LV<number>", or "DAILY" on the daily challenge."""
+        if is_daily_level(self.level.id):
+            return "DAILY"
+        return f"LV{level_number(self.level.id)}"
+
     def _draw_panel(self, surface):
         panel = pygame.Rect(0, 0, config.PANEL_W, config.WINDOW_H)
         pygame.draw.rect(surface, config.PANEL_BG, panel)
@@ -60,7 +67,7 @@ class GameHudRenderMixin:
 
         # Level row: "LV1" + level-select button (the number shown, not the id)
         if self.show_level_row:
-            draw_text(surface, f"LV{level_number(self.level.id)}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
+            draw_text(surface, self.level_label(), (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
                       kind="bold", anchor="center")
             self.level_button.draw(surface)
 

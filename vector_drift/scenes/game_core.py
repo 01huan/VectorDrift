@@ -5,11 +5,12 @@ from dataclasses import replace
 
 import pygame
 
-from .. import config, render, sprites
+from .. import config, daily_level, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
+from ..daily_level import is_daily_level
 from ..data import (DEFAULT_SHIP_ID, SHIPS, custom_level_to_snapshot, get_level,
                     is_custom_map, level_holes, level_ship_id, section_count, section_level,
                     section_shift)
@@ -199,6 +200,12 @@ class GameCoreMixin:
 
     def _load_level(self):
         """The level this scene plays (the session's level; tutorial scenes override it)."""
+        if is_daily_level(self.session.level_id):
+            # The day picked when the player pressed Daily: Restart and Retry
+            # stay on that day's map even after midnight.
+            if self.session.daily_day is None:
+                self.session.daily_day = daily_level.daily_today()
+            return daily_level.daily_map(self.session.daily_day).level
         if is_dynamic_level(self.session.level_id) or is_custom_map(self.session.level_id, self.session):
             # Same seed for the whole run: random layout (random maps) and the
             # offline AI solver both key off it, so it stays stable across

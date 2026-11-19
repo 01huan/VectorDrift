@@ -13,6 +13,7 @@ DAILY_GENERATOR_VERSION -> the same map on every computer): it only uses a
 Pure logic: no Session, pygame or drawing.
 """
 
+import functools
 import logging
 import math
 import random
@@ -46,6 +47,11 @@ def daily_today(now=None):
     if now is None:
         now = datetime.now(timezone.utc)
     return now.astimezone(DAILY_TIMEZONE).date()
+
+
+def is_daily_level(level_id):
+    """True for the daily challenge's level id."""
+    return level_id == config.DAILY_LEVEL_ID
 
 
 def daily_seed(day):
@@ -480,3 +486,9 @@ def fallback_map(day):
     level = _level(FALLBACK_START, FALLBACK_TARGET, FALLBACK_ROCKS, FALLBACK_COINS)
     return _daily_map(day, daily_seed(day), level, FALLBACK_FIELD,
                       attempts=config.DAILY_MAX_ATTEMPTS, is_fallback=True)
+
+
+@functools.lru_cache(maxsize=4)
+def daily_map(day):
+    """generate_daily(day), kept in memory: Restart and Retry rebuild it at once."""
+    return generate_daily(day)

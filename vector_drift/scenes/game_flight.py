@@ -16,6 +16,7 @@ from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
 from ..expr_parser import diagnose_expression
 from .. import achievements
 from ..hints import get_hint
+from ..daily_level import is_daily_level
 from ..level_presets import is_dynamic_level
 from ..physics import Flight, ForceField, Outcome
 from ..pickups import EXTRATIME_DURATION, extratime_bonus_steps
@@ -331,6 +332,8 @@ class GameFlightMixin:
 
     def _store_replay(self, outcome):
         """Keep this launch in the session's replays."""
+        if is_daily_level(self.level.id):
+            return      # a replay cannot rebuild the daily map from its id alone
         try:
             from vector_drift.replay import normalize_records
             from vector_drift.account.integration import session_to_profile
