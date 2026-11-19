@@ -44,3 +44,18 @@ def level_progress(total_xp: int) -> LevelProgress:
         into -= xp_to_next(level)
         level += 1
     return LevelProgress(level, into, xp_to_next(level))
+
+
+def coins_for_levels(from_level: int, to_level: int) -> int:
+    """Coins for reaching every level after ``from_level`` up to ``to_level``.
+
+    Each level from 2 up pays LEVEL_UP_COINS, and every multiple of
+    LEVEL_MILESTONE_EVERY pays LEVEL_MILESTONE_COINS on top. Nothing when
+    ``to_level <= from_level``.
+    """
+    coins = 0
+    for level in range(max(from_level, 1) + 1, to_level + 1):
+        coins += config.LEVEL_UP_COINS
+        if level % config.LEVEL_MILESTONE_EVERY == 0:
+            coins += config.LEVEL_MILESTONE_COINS
+    return coins

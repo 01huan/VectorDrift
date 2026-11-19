@@ -65,3 +65,22 @@ def test_level_progress_rejects_negative_xp():
     from vector_drift.xp import level_progress
     with pytest.raises(ValueError):
         level_progress(-1)
+
+
+# --- level-up coins -------------------------------------------------------------
+def test_coins_for_levels():
+    from vector_drift.xp import coins_for_levels
+    assert coins_for_levels(1, 9) == 50       # 8 levels x 5, plus 10 at Lv 5
+    assert coins_for_levels(1, 10) == 65
+    assert coins_for_levels(4, 5) == 15
+
+
+def test_coins_for_levels_pays_nothing_without_a_new_level():
+    from vector_drift.xp import coins_for_levels
+    assert coins_for_levels(5, 5) == 0
+    assert coins_for_levels(6, 3) == 0
+
+
+def test_coins_for_levels_never_pays_for_level_one():
+    from vector_drift.xp import coins_for_levels
+    assert coins_for_levels(0, 2) == 5
