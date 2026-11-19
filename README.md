@@ -19,6 +19,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
 - **Procedural level generation** — the random level (Level 10, right after the last campaign level) builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
+- **Daily Challenge** — one new map a day, the same for every player, built answer first so it always has a solution; coins and the clear reward pay once per day.
 - **Procedural Level Validator** — every generated map is checked before play: fast path analysis (A*, route and seal checks) plus an AI Solver probe that confirms a solution exists under the formal physics; invalid maps are regenerated automatically.
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
@@ -55,7 +56,7 @@ Every level has an **id** and a **number**, and they are not the same thing:
 - The **id** is the level's identity in saved data: best times, clear rewards, achievements, collected coins and replays are all stored by id. Once a level is released its id never changes and is never reused.
 - The **number** is only the level's place on the level select (the big number on its card, `Level N`, the `LV` label in the game panel and the replay label). Level number N flies `shipNN`.
 
-A campaign level's number is its id. The random level's id is fixed at **999** (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), and it is numbered right after the last campaign level (`level_number` in `vector_drift/data.py`), so today it shows as Level 10. Adding a campaign level moves the random level's number, not its id, so the new level starts with no saved data of its own. Editor levels use ids from 1000 up and community levels negative ids.
+A campaign level's number is its id. The random level's id is fixed at **999** (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), and it is numbered right after the last campaign level (`level_number` in `vector_drift/data.py`), so today it shows as Level 10. Adding a campaign level moves the random level's number, not its id, so the new level starts with no saved data of its own. Editor levels use ids from 1000 up and community levels negative ids. The [Daily Challenge](#daily-challenge) uses id **900** (`DAILY_LEVEL_ID`) and has no number: the game shows **Daily** (and **DAILY** in the game panel) instead.
 
 ### Random level generation
 
@@ -199,18 +200,32 @@ Opening the solver and running the search are free. The candidate formulas remai
 
 Paying to reveal a complete answer costs 10 coins; that is the only cost. Coins collected during the run still pay out, the clear reward is still granted, and the clear still sets a best time. Applying the answer resets the current section to its start/checkpoint (lives stay).
 
+## Daily Challenge
+
+The **Daily** button on the level selector opens the day's map. There is one map per day and it is the **same for every player**: it is generated from the date alone (seed `YYYYMMDD * 100 + DAILY_GENERATOR_VERSION`), so every computer builds the identical map. The day changes at midnight **Taiwan time** (UTC+8, `DAILY_UTC_OFFSET_HOURS`), whatever the computer's own time zone.
+
+- **One map until you leave:** the day is fixed when Daily is pressed. Restart, Retry Level and Replay keep playing that day's map, even after midnight, and a clear or a failed run counts for that day. Only going back to the level selector and pressing Daily again picks the new day.
+- **Coins and clear reward once per day:** each coin on the day's map pays once per day, and the first clear of the day pays the clear reward; later clears that day say "Clear reward already collected today". Both are saved, so restarting the game does not pay them again.
+- **No Hint or AI Solver:** the daily map offers neither (abilities work as usual). The button shows a check mark once today's map is cleared.
+- **Records:** each day keeps its own record (cleared, lives lost in the first clearing run, coins from the map, best total flight time). The daily map does not set a level best time.
+
+The map is built **answer first**: the generator picks a simple linear force field (swing, side swing, parabola, rotation or two axis, with coefficients such as 0.5, 1 or 2), flies it from rest from `(-8, y0)` with the game's own physics, and takes the ship's position 4–8 seconds in as the target. Fields whose path leaves the map, ends too close to the start, runs almost straight or passes through the target earlier are redrawn. Then 3–6 rocks are placed outside a safety tube around that path, at least one across the straight start-to-target line, coins are placed on the path, and a map that a constant push straight at the target can solve is rejected. Finally the reference answer is flown on the finished map; only a map it clears is used. Should every attempt fail, a fixed fallback map is played instead. So every daily map has a solution: the field it was built from.
+
+The constants are in `vector_drift/config.py`: `DAILY_LEVEL_ID`, `DAILY_GENERATOR_VERSION`, `DAILY_UTC_OFFSET_HOURS`, `DAILY_TIME_LIMIT`, `DAILY_LIVES` and `DAILY_MAX_ATTEMPTS`. Changing the generation rules means raising `DAILY_GENERATOR_VERSION`. `python tools/check_daily.py` checks a year of daily maps (fallback count, attempts, slowest day).
+
 ## Coins
 
 Coins are the game's progression currency. They are shown in the level selector, game screen, and shop. Prices the player cannot afford are shown in red.
 
 - **Coin pickups:** a coin pickup on a fixed level pays once, ever. A coin pickup on a random level pays once per generated map; entering a new map can make a new set of coins available.
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
+- **Daily Challenge:** a coin pickup on the daily map pays once per day, and the first clear of the day pays 5 coins once per day; both are saved with progress.
 - **Hint answers:** the answer page is free on **levels 1 and 2** and Level 8. On Levels 3–7 and 9 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
 - **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
 
-The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`.
+The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`. The daily map uses the same `CLEAR_REWARD`.
 
 ## Ships and Shop
 
@@ -340,7 +355,7 @@ If neither a built-in configuration nor a valid custom configuration is availabl
 
 The Replays screen is available from the main menu. The game keeps the **10 most recent launches** in the player profile.
 
-A replay record includes the level and section, selected ship, `Fx`/`Fy` expressions, outcome, and (for procedural maps) the random seed. Its recorded frames contain time, position, velocity, and force data. The record also preserves relevant pickup/obstacle state so the replay can reconstruct a run after pickups were consumed or a shockwave destroyed rocks. Wormhole transitions break the trail rather than drawing a line across the map. The active abilities used during the launch are recorded too, so the playback shows the same flashes the live game showed.
+A replay record includes the level and section, selected ship, `Fx`/`Fy` expressions, outcome, and (for procedural maps) the random seed. Its recorded frames contain time, position, velocity, and force data. The record also preserves relevant pickup/obstacle state so the replay can reconstruct a run after pickups were consumed or a shockwave destroyed rocks. A daily launch records its day and `DAILY_GENERATOR_VERSION`, shows as **Daily** with that day (for example `Daily 2026-11-19`) and is rebuilt from the day; a daily record made with another generator version is not listed, because the same day would now build another map. Wormhole transitions break the trail rather than drawing a line across the map. The active abilities used during the launch are recorded too, so the playback shows the same flashes the live game showed.
 
 Replay controls:
 
@@ -475,6 +490,7 @@ The formula editor detaches from the operating-system input method while the gam
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
 | Function Lab button | Open the Function Lab. |
 | Tutorial button | Play the opening story, then the tutorial screen. |
+| Daily button | Play today's [Daily Challenge](#daily-challenge) map (a check mark shows today's map is cleared). |
 | Replays button | Open saved launch replays. |
 
 ### In a level
@@ -599,7 +615,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, the [Daily Challenge](#daily-challenge) records, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security. A player can read/insert/update their own profile; community content is publicly readable, authenticated users can publish, and only the uploader can update or delete their own content. Usage, favorite and rating counters are maintained by security-definer database functions and triggers, and the client-submitted columns are restricted with column-level privileges, so ownership and statistics can never be written by the client. The game code also checks ownership before showing edit and delete actions.
 
@@ -621,6 +637,7 @@ VectorDrift/
 │   ├── music/                      # Menu, opening, and level music
 │   └── sounds/                     # Sound-effect slots
 ├── tools/
+│   ├── check_daily.py              # Checks a year of daily maps (run by hand)
 │   ├── make_music.py               # Music-generation utility
 │   └── make_sounds.py              # Sound-generation utility
 ├── tests/                          # Pytest suite
@@ -635,6 +652,8 @@ VectorDrift/
     ├── level_modules.py            # Generation modules: corridor, wormhole network, maze, extreme time
     ├── level_merge.py              # Merges 1-3 generated layouts into one multi-screen level
     ├── level_validator.py          # Procedural Level Validator (path analysis + AI Solver probe)
+    ├── daily_level.py              # Daily Challenge map generator (date seed, answer first)
+    ├── daily_records.py            # Daily Challenge records (one per day, saved in the profile)
     ├── expr_parser.py              # Mathematical expression parser/evaluator
     ├── function_library.py         # The Function Lab's saved functions (data model)
     ├── function_preview.py         # Shared vector-field preview and probe tracing (lab + community)

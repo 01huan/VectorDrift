@@ -45,3 +45,19 @@ def test_readme_documents_unbound():
     assert "every life" in unbound
     assert "outside the map" in unbound and "level start" in unbound
     assert "shield" in unbound.lower()
+
+
+def test_readme_documents_the_daily_challenge():
+    text = README.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "\n## Daily Challenge" in text
+    daily = text.split("## Daily Challenge", 1)[1].split("\n## ", 1)[0]
+    for name in ("DAILY_LEVEL_ID", "DAILY_GENERATOR_VERSION", "DAILY_UTC_OFFSET_HOURS",
+                 "DAILY_TIME_LIMIT", "DAILY_LIVES", "DAILY_MAX_ATTEMPTS"):
+        assert name in daily
+    assert "same for every player" in daily
+    assert "Taiwan time" in daily and "UTC+8" in daily
+    assert "answer first" in daily
+    assert "once per day" in daily
+    assert "Clear reward already collected today" in daily
+    coins = text.split("## Coins", 1)[1].split("\n## ", 1)[0]
+    assert "Daily Challenge" in coins
