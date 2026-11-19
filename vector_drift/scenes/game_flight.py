@@ -125,7 +125,7 @@ class GameFlightMixin:
             gfunc.open_popup(self)
             return
 
-        if self.ai_button.handle_event(event) == "click":
+        if self.show_answer_help and self.ai_button.handle_event(event) == "click":
             # Free to open; only the full answer costs (answer page / Reveal).
             if self.hint_mode:
                 self._open_hint()

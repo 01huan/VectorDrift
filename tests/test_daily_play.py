@@ -175,3 +175,39 @@ def test_pressing_daily_again_picks_the_new_day(today):
 
     assert mgr.session.daily_day == NEXT_DAY
     assert again.full_level == generate_daily(NEXT_DAY).level
+
+
+# --- no Hint and no AI Solver -----------------------------------------------------------
+
+def _drawn_buttons(game):
+    drawn = []
+    for name in ("ai_button", "lab_button"):
+        button = getattr(game, name)
+        button.draw = lambda surface, name=name: drawn.append(name)
+    game.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    return drawn
+
+
+def test_the_daily_map_has_no_hint_or_ai_solver(today):
+    game = _enter_daily(_manager())
+
+    assert not game.show_answer_help
+    assert game.ai_solver is None and game.ai_job is None
+    assert _drawn_buttons(game) == ["lab_button"]
+
+    _click(game, game.ai_button.rect)
+    assert game.hint_popup is None and not game.ai_popup
+
+
+def test_the_lab_still_opens_on_the_daily_map(today):
+    game = _enter_daily(_manager())
+    _click(game, game.lab_button.rect)
+    assert game.lab_popup
+
+
+def test_fixed_levels_keep_their_hint_button():
+    mgr = _manager()
+    mgr.session.level_id = 1
+    game = GameScene(mgr)
+    assert game.show_answer_help
+    assert _drawn_buttons(game) == ["ai_button", "lab_button"]
