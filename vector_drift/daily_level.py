@@ -13,12 +13,19 @@ DAILY_GENERATOR_VERSION -> the same map on every computer): it only uses a
 Pure logic: no Session, pygame or drawing.
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from . import config
+from .data import SHIPS, LevelSpec
 from .expr_parser import parse_expression
-from .physics import ForceField
+from .physics import Flight, ForceField
+from .physics_core import segment_hits_circle
+
+DAILY_LEVEL_NAME = "Daily Challenge"
+DAILY_SHIP = SHIPS["ship01"]
+TARGET_RADIUS = 1.0                 # same as the fixed levels
 
 # Fixed offset, not zoneinfo: Windows without tzdata has no "Asia/Taipei",
 # and Taiwan has no daylight saving time.
@@ -138,3 +145,110 @@ def pick_field(rng):
     a, b, c, d, e, f = TEMPLATES[name](rng)
     return DailyField(template=name, coeffs=(a, b, c, d, e, f),
                       fx=format_linear(a, b, c), fy=format_linear(d, e, f))
+
+
+# --- Reference path and target ---------------------------------------------------
+START_X = -8.0
+START_YS = (-4, -2, 0, 2, 4)
+TARGET_TIME_SPAN = (0.4, 0.8)       # t* lies in this part of the time limit
+MIN_TARGET_DISTANCE = 6.0           # m from the start
+MIN_PATH_BEND = 1.5                 # m the path must stray from the start-target line
+FIELD_REDRAWS = 100                 # field draws per attempt before the attempt fails
+_FAR_AWAY = (1e6, 1e6)              # target of the probe flight: never reached
+
+
+def _level(start, target, obstacles=(), pickups=(), time_limit=config.DAILY_TIME_LIMIT,
+           target_radius=TARGET_RADIUS, name=DAILY_LEVEL_NAME):
+    return LevelSpec(id=config.DAILY_LEVEL_ID, name=name, start=start, target_center=target,
+                     target_radius=target_radius, ship_id=DAILY_SHIP.id, time_limit=time_limit,
+                     lives=config.DAILY_LIVES, obstacles=tuple(obstacles), pickups=tuple(pickups))
+
+
+def fly_reference(field, start, steps):
+    """Positions of ``field`` flown from rest at ``start`` on an empty map.
+
+    One point per step (index = step), ``steps`` steps at most; shorter when
+    the flight left the map (its last point is then the one outside) or
+    diverged. Uses the game's own Flight and config.DT.
+    """
+    probe = _level(start, _FAR_AWAY, time_limit=steps * config.DT, target_radius=0.0)
+    flight = Flight(field.force_field(), DAILY_SHIP, probe)
+    while flight.running:
+        flight.step()
+    return tuple(flight.trail)
+
+
+def point_segment_distance(point, a, b):
+    """Distance (m) from ``point`` to the segment a-b."""
+    ax, ay = a
+    dx, dy = b[0] - ax, b[1] - ay
+    length2 = dx * dx + dy * dy
+    u = 0.0
+    if length2 > 0.0:
+        u = max(0.0, min(1.0, ((point[0] - ax) * dx + (point[1] - ay) * dy) / length2))
+    return math.hypot(point[0] - ax - u * dx, point[1] - ay - u * dy)
+
+
+def _inside_map(point, margin=0.0):
+    return (abs(point[0]) + margin <= config.WORLD_HALF_W
+            and abs(point[1]) + margin <= config.WORLD_HALF_H)
+
+
+def _enters_target_once(path, target):
+    """True if the path, once it touches the target circle, stays on it up to t*.
+
+    Touching is Flight's own segment test (target radius + hull), so a path
+    that passes through the circle, leaves and comes back is refused: the
+    real flight would already end on that first pass.
+    """
+    hit_radius = TARGET_RADIUS + DAILY_SHIP.hull_radius
+    touching = [segment_hits_circle(path[i], path[i + 1], target, hit_radius)
+                for i in range(len(path) - 1)]
+    first = touching.index(True)        # the last step always ends on the target
+    return all(touching[first:])
+
+
+@dataclass(frozen=True)
+class ReferenceRoute:
+    """The reference answer's path from the start to the target (step t*)."""
+
+    field: DailyField
+    start: tuple
+    target: tuple
+    target_step: int                    # t* in steps of config.DT
+    path: tuple                         # path[i] = position after i steps, i <= target_step
+
+
+def _target_step_range():
+    limit = config.DAILY_TIME_LIMIT / config.DT
+    return round(TARGET_TIME_SPAN[0] * limit), round(TARGET_TIME_SPAN[1] * limit)
+
+
+def _draw_route(rng):
+    """One field, start and t*; None when the rules refuse them."""
+    field = pick_field(rng)
+    start = (START_X, float(rng.choice(START_YS)))
+    step = rng.randint(*_target_step_range())
+    # Flying past t* changes nothing below, so the flight stops there.
+    path = fly_reference(field, start, step)
+    if len(path) != step + 1 or not all(_inside_map(p) for p in path):
+        return None                     # left the map before t*
+    target = path[step]
+    if not _inside_map(target, TARGET_RADIUS):
+        return None
+    if math.dist(start, target) < MIN_TARGET_DISTANCE:
+        return None
+    if max(point_segment_distance(p, start, target) for p in path) < MIN_PATH_BEND:
+        return None                     # too close to a straight line
+    if not _enters_target_once(path, target):
+        return None
+    return ReferenceRoute(field=field, start=start, target=target, target_step=step, path=path)
+
+
+def pick_route(rng, redraws=FIELD_REDRAWS):
+    """Draw fields until one gives a fair route; None after ``redraws`` tries."""
+    for _ in range(redraws):
+        route = _draw_route(rng)
+        if route is not None:
+            return route
+    return None

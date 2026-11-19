@@ -3,6 +3,7 @@
 Everything is decided by the day's seed, so these tests can pin exact days.
 """
 
+import math
 import random
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -10,9 +11,23 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from vector_drift import config
-from vector_drift.daily_level import (CONSTANT_TERMS, NONZERO_COEFFS, TEMPLATES, daily_seed,
-                                      daily_today, format_linear, pick_field)
+from vector_drift.daily_level import (CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
+                                      TARGET_RADIUS, TEMPLATES, daily_seed, daily_today,
+                                      format_linear, pick_field, pick_route,
+                                      point_segment_distance)
 from vector_drift.expr_parser import parse_expression
+from vector_drift.physics_core import segment_hits_circle
+
+HULL = DAILY_SHIP.hull_radius
+STEPS_PER_SECOND = round(1 / config.DT)
+# Seeds for the per-stage checks, in chunks so pytest -n spreads them out.
+STAGE_SEEDS = 200
+CHUNK = 20
+SEED_CHUNKS = [range(i, i + CHUNK) for i in range(0, STAGE_SEEDS, CHUNK)]
+
+
+def _chunk_id(seeds):
+    return f"seeds{seeds.start}-{seeds.stop - 1}"
 
 
 def test_today_switches_at_midnight_taiwan_time():
@@ -100,3 +115,64 @@ def test_same_seed_gives_the_same_field():
 ])
 def test_format_linear_writes_what_a_player_would_type(terms, text):
     assert format_linear(*terms) == text
+
+
+# --- Reference path and target -------------------------------------------------
+
+_ROUTES = {}
+
+
+def _route(seed):
+    """The route seed ``seed`` draws first (cached: later stages reuse it)."""
+    if seed not in _ROUTES:
+        rng = random.Random(seed)
+        _ROUTES[seed] = (pick_route(rng), rng.getstate())
+    return _ROUTES[seed]
+
+
+def _inside_map(point, margin=0.0):
+    return (abs(point[0]) + margin <= config.WORLD_HALF_W
+            and abs(point[1]) + margin <= config.WORLD_HALF_H)
+
+
+@pytest.mark.parametrize("seeds", SEED_CHUNKS, ids=_chunk_id)
+def test_routes_have_a_fair_target(seeds):
+    found = 0
+    for seed in seeds:
+        route, _ = _route(seed)
+        if route is None:
+            continue
+        found += 1
+        start, target, path, k = route.start, route.target, route.path, route.target_step
+        assert start[0] == START_X and start[1] in START_YS
+        assert 0.4 * config.DAILY_TIME_LIMIT <= k / STEPS_PER_SECOND <= 0.8 * config.DAILY_TIME_LIMIT
+        assert len(path) == k + 1 and path[0] == start and path[-1] == target
+        assert all(_inside_map(p) for p in path), seed
+        assert _inside_map(target, TARGET_RADIUS), seed
+        assert math.dist(start, target) >= 6.0, seed
+        assert max(point_segment_distance(p, start, target) for p in path) >= 1.5, seed
+        touching = [segment_hits_circle(path[i], path[i + 1], target, TARGET_RADIUS + HULL)
+                    for i in range(k)]
+        first = touching.index(True)
+        assert all(touching[first:]), f"seed {seed}: the path visits the target circle twice"
+    assert found >= len(seeds) // 2          # some seeds give up after FIELD_REDRAWS draws
+
+
+def test_route_path_is_the_reference_flight():
+    """The path is what Flight flies with the typed answer, step for step."""
+    from vector_drift.data import LevelSpec
+    from vector_drift.physics import Flight
+
+    route, _ = _route(3)
+    level = LevelSpec(id=config.DAILY_LEVEL_ID, name="probe", start=route.start,
+                      target_center=(1e6, 1e6), target_radius=0.0, ship_id=DAILY_SHIP.id,
+                      time_limit=config.DAILY_TIME_LIMIT)
+    flight = Flight(route.field.force_field(), DAILY_SHIP, level)
+    for _ in range(route.target_step):
+        flight.step()
+
+    assert tuple(flight.trail) == route.path
+
+
+def test_same_seed_gives_the_same_route():
+    assert pick_route(random.Random(11)) == pick_route(random.Random(11))
