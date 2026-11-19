@@ -227,7 +227,7 @@ class GameCoreMixin:
         One PickupState per spec for the WHOLE run of this section (all
         lives): consumed pickups and shockwave-cleared obstacles persist like
         level state until all lives are spent. No config = no pickups.
-        Exception: the RESPAWN_EVERY_LIFE kinds (unbound) come back at the
+        Exception: the RESPAWN_EVERY_LIFE kinds (unbound, shield) come back at the
         start of every life (_respawn_every_life_pickups).
         """
         from ..pickups import PickupState

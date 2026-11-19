@@ -33,7 +33,7 @@ OUTCOME_TEXT = {
 # So does a time-up off the map (an unbound ship): see GameScene._end_flight.
 RESUME_OUTCOMES = (Outcome.TIMEOUT,)
 # Pickups that come back at the start of every life (the rest stay taken).
-RESPAWN_EVERY_LIFE = ("unbound",)
+RESPAWN_EVERY_LIFE = ("unbound", "shield")
 
 START_MARKER_RADIUS_M = 0.45
 CHECKPOINT_LIFE_POP_S = 0.45  # the taken checkpoint life grows and fades out this long

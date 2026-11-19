@@ -494,7 +494,7 @@ class GameFlightMixin:
             pass
 
     def _respawn_every_life_pickups(self):
-        """A new life starts: the RESPAWN_EVERY_LIFE pickups (unbound) are back."""
+        """A new life starts: the RESPAWN_EVERY_LIFE pickups (unbound, shield) are back."""
         for p in self.pickups or ():
             if p.kind in RESPAWN_EVERY_LIFE:
                 p.consumed = False

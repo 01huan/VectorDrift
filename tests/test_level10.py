@@ -274,3 +274,40 @@ def test_level_ten_answer_is_paid_once_for_both_sections():
     assert popup.on_answer_page and not popup.confirming
     assert popup.hint is scene.hint and scene.hint.section == 2
     assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_a_missed_shield_run_in_section_two_gets_the_shield_back():
+    import pygame
+
+    from vector_drift.scenes.game import ARRIVED, FLIGHT, PANNING, SETUP
+
+    _, scene = _scene()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+
+    def launch(answer):
+        """Fly ``answer``; True if this section's Shield was taken during the flight."""
+        _type(scene, *answer)
+        scene._try_launch()
+        took_shield = False
+        while scene.state in (FLIGHT, PANNING):
+            scene.update(0.05)
+            scene.draw(surface)
+            took_shield = took_shield or any(p.consumed for p in scene.pickups)
+        return took_shield
+
+    launch(SPRING)
+    assert scene.section_index == 1
+    lives = scene.lives
+
+    # Hard right along the bottom: through the Shield, which bounces the ship off the
+    # right edge once; it flies out there the second time, so the next life starts
+    # at the checkpoint again.
+    assert launch(("8", "0"))
+    assert scene.state == SETUP and scene.lives == lives - 1
+    assert tuple(scene.launch_pos) == START
+    assert [p.consumed for p in scene.pickups] == [False]
+
+    # The next life still has its Shield, so the reference answer still wins.
+    launch(SWIRL)
+    assert scene.state == ARRIVED

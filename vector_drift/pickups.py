@@ -162,6 +162,7 @@ def shield_effect(pickup, ctx):
     Effect registry entry: signature ``(pickup, ctx) -> dict | None``.
     Pure: returns an event dict only. ``Flight._apply_pickup_events``
     applies it; safe to call with ``ctx=None`` (headless / unit tests).
+    GameScene puts shield pickups back at the start of every life.
     """
     return {"kind": "shield", "center": pickup.center, "shield_duration": pickup.shield_duration}
 

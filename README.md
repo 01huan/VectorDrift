@@ -136,7 +136,7 @@ The **Unbound** pickup opens the map edge for the rest of the current life:
 
 - For the rest of that life the ship **never goes out of bounds**: it may fly as far from the map as it likes, and the camera zooms out to keep both the map and the ship in view. The map edge itself cannot end the flight. Normal flight outcomes still apply (reaching the target, time running out, or divergence), and the player can always abort manually.
 - If the ship crosses a point of infinite force while Unbound is active, the result is **Diverged** rather than being flung out of bounds.
-- Unbound comes back at the start of **every life**. Other pickups that have already been collected stay taken until the section or level is reset.
+- Unbound comes back at the start of **every life**, and so does Shield. Other pickups that have already been collected stay taken until the section or level is reset.
 - If time runs out while the ship is **outside the map**, the next launch starts at the **level start** (or current section start), not at the off-map stopping point.
 - Unbound takes precedence over a shield at the map edge: with Unbound active, crossing the edge does not consume the shield; the shield remains available for a bumper collision.
 
@@ -146,7 +146,7 @@ The **Unbound** pickup opens the map edge for the rest of the current life:
 |---|---|
 | **Shockwave** | Emits a blast with a 3 m radius. It destroys each obstacle whose edge touches or overlaps the blast area. |
 | **Extratime** | Adds 3 seconds to the current flight's time limit. |
-| **Shield** | Lasts 3 seconds and stops the next collision during that period, whichever comes first: on a bumper the ship passes through it; on the map edge the ship bounces back (elastic, the speed is kept). Bumpers and the edge share the one shield, which is consumed by that collision. |
+| **Shield** | Lasts 3 seconds and stops the next collision during that period, whichever comes first: on a bumper the ship passes through it; on the map edge the ship bounces back (elastic, the speed is kept). Bumpers and the edge share the one shield, which is consumed by that collision. It respawns at the start of each new life. |
 | **Life** | Restores one life, up to the level's maximum. |
 | **Money** | Collects one coin, subject to the payout rules in [Coins](#coins). |
 | **Unbound** | Prevents the ship from going out of bounds for the remainder of the current life. It respawns at the start of each new life. |
