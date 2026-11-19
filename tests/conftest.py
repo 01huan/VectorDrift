@@ -75,6 +75,16 @@ def pygame_display():
     pygame.quit()
 
 
+def pytest_collection_finish(session):
+    """Move everything loaded during collection out of the collector's reach.
+
+    Modules, pygame and level data live for the whole run; freezing them keeps
+    the per-test gc.collect() below from rescanning them after every test.
+    """
+    gc.collect()
+    gc.freeze()
+
+
 @pytest.fixture(autouse=True)
 def _collect_garbage_after_test():
     """Reclaim scenes/solvers promptly so background work cannot accumulate."""
