@@ -211,6 +211,15 @@ CHECKPOINT_PAN_DURATION = 1.2       # camera pan to the next section (s, ease-in
 # list always reaches the highest real level id, whichever is larger.
 PLANNED_LEVELS = 24
 
+# --- Daily challenge ---------------------------------------------------------
+# One generated map per day, the same for every player (see daily_level.py).
+DAILY_LEVEL_ID = 900                # not a fixed id (1..), the random level (999) or editor ids (1000+)
+DAILY_GENERATOR_VERSION = 1         # bump whenever the generation rules change
+DAILY_UTC_OFFSET_HOURS = 8          # "today" is decided in Taiwan time (no DST)
+DAILY_TIME_LIMIT = 10.0             # s of simulated flight per launch
+DAILY_LIVES = 5
+DAILY_MAX_ATTEMPTS = 200            # generation attempts before the fallback map is used
+
 # --- Random levels -----------------------------------------------------------
 # All tunables live in level_presets.py (optionally with multiple templates per level).
 # Tweak difficulty or add a new random level by editing PRESETS only.
