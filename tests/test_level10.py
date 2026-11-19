@@ -186,3 +186,93 @@ def test_no_constant_push_clears_a_section(index):
         if _fly(section, f"{fx:.6f}", f"{fy:.6f}").outcome is Outcome.REACHED:
             reached.append((deg, size))
     assert reached == []
+
+
+# --- the game: checkpoint, pan up and right, win; the answer is paid once ------------
+def _scene():
+    from types import SimpleNamespace
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
+                            stop_loop=lambda *a, **k: None)
+    manager = SceneManager(audio)
+    manager.session.level_id = 10
+    scene = GameScene(manager)
+    manager.switch(scene)
+    return manager, scene
+
+
+def _type(scene, fx, fy):
+    scene.editor.set_lines([fx, fy])
+    scene._on_text_change(scene.editor)
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_level_ten_plays_through_its_checkpoint_to_the_win():
+    import pygame
+
+    from vector_drift.scenes.game import ARRIVED, FLIGHT, PANNING
+
+    _, scene = _scene()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+
+    for answer, expected in ((SPRING, PANNING), (SWIRL, ARRIVED)):
+        _type(scene, *answer)
+        scene._try_launch()
+        while scene.state == FLIGHT:
+            scene.update(0.05)
+            scene.draw(surface)
+        assert scene.state == expected
+        while scene.state == PANNING:
+            scene.update(0.05)
+            scene.draw(surface)
+    assert scene.section_index == 1
+    assert scene.lives == LEVEL.lives
+    assert scene.total_time == pytest.approx(1.62 + 3.51, abs=0.15)
+
+
+# Needs the level 10 Hint to open the answer page; drop the xfail with the hint.
+@pytest.mark.xfail(reason="level 10 hints pending", strict=True)
+@pytest.mark.usefixtures("pygame_display")
+def test_level_ten_answer_is_paid_once_for_both_sections():
+    import pygame
+
+    from vector_drift.scenes.game import FLIGHT, PANNING
+
+    assert 10 not in config.FREE_ANSWER_LEVELS
+    manager, scene = _scene()
+    manager.session.money.add(25)
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+
+    def open_answer():
+        scene._open_hint()
+        popup = scene.hint_popup
+        while popup.page < popup.answer_page - 1:
+            popup.page += 1
+        scene._request_hint_answer()
+        return popup
+
+    # Section 1: asked first, with the price; paying shows the answer page.
+    popup = open_answer()
+    assert popup.confirming and popup.confirm_price is not None
+    scene._show_hint_answer(config.HINT_ANSWER_COST)
+    assert popup.on_answer_page
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+    assert 10 in manager.session.paid_answer_levels
+
+    # Through the checkpoint to section 2.
+    _type(scene, *SPRING)
+    scene._try_launch()
+    while scene.state in (FLIGHT, PANNING):
+        scene.update(0.05)
+        scene.draw(surface)
+    assert scene.section_index == 1
+
+    # Section 2: its own answer page opens straight away, at no charge.
+    popup = open_answer()
+    assert popup.on_answer_page and not popup.confirming
+    assert popup.hint is scene.hint and scene.hint.section == 2
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
