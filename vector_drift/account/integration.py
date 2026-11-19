@@ -52,6 +52,15 @@ NEXT_CUSTOM_LEVEL_ID_KEY = "next_custom_level_id"
 # choice (local or cloud) when the two copies differ.
 ACHIEVEMENTS_KEY = "achievements"
 ACHIEVEMENT_PROGRESS_KEY = "achievement_progress"
+# Experience and player level (Session.xp_total, ...), saved the same way.
+# Like the achievements, applying a save replaces the session's with that
+# copy's.  A save without the keys (made before XP existed) and broken values
+# load as the defaults.
+XP_TOTAL_KEY = "xp_total"
+FIXED_CLEAR_COUNTS_KEY = "fixed_clear_counts"
+XP_ACHIEVEMENTS_KEY = "xp_achievements"
+XP_REWARDED_LEVEL_KEY = "xp_rewarded_level"
+XP_KEYS = (XP_TOTAL_KEY, FIXED_CLEAR_COUNTS_KEY, XP_ACHIEVEMENTS_KEY, XP_REWARDED_LEVEL_KEY)
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -95,6 +104,46 @@ def _restore_function_library(session: Any, rows: Any) -> None:
     session.function_library = library_from_rows(rows)
 
 
+def _plain_int(value: Any) -> int | None:
+    """``value`` when it is a real int (a bool is not), else None."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _xp_from_stats(stats: dict) -> tuple[int, dict, set, int]:
+    """The XP fields saved in a profile's stats, as the Session holds them.
+
+    Returns (xp_total, fixed_clear_counts, xp_achievements, xp_rewarded_level).
+    A missing or broken field gives its default; inside fixed_clear_counts and
+    xp_achievements only the broken entries are dropped.  JSON turns the
+    fixed_clear_counts keys into text, so they are read back as ints.
+    """
+    total = _plain_int(stats.get(XP_TOTAL_KEY))
+    if total is None or total < 0:
+        total = 0
+    counts = {}
+    raw_counts = stats.get(FIXED_CLEAR_COUNTS_KEY)
+    if isinstance(raw_counts, dict):
+        for key, value in raw_counts.items():
+            if isinstance(key, bool):
+                continue
+            try:
+                level_id = int(key)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            count = _plain_int(value)
+            if count is not None and count > 0:
+                counts[level_id] = count
+    raw_ids = stats.get(XP_ACHIEVEMENTS_KEY)
+    achievement_ids = ({aid for aid in raw_ids if isinstance(aid, str)}
+                       if isinstance(raw_ids, list) else set())
+    rewarded = _plain_int(stats.get(XP_REWARDED_LEVEL_KEY))
+    if rewarded is None or rewarded < 1:
+        rewarded = 1
+    return total, counts, achievement_ids, rewarded
+
+
 def _session_class():
     from vector_drift.scenes.base import Session
 
@@ -126,6 +175,10 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
         session.next_custom_level_id = 1000
     _apply_achievements(session, stats.pop(ACHIEVEMENTS_KEY, None),
                          stats.pop(ACHIEVEMENT_PROGRESS_KEY, None))
+    (session.xp_total, session.fixed_clear_counts,
+     session.xp_achievements, session.xp_rewarded_level) = _xp_from_stats(stats)
+    for key in XP_KEYS:
+        stats.pop(key, None)
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     _restore_function_library(session, stats.pop(FUNCTION_LIBRARY_KEY, None))
     imported_id = stats.pop(IMPORTED_FUNCTION_KEY, None)
@@ -308,6 +361,10 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
              SEEN_INTRO_KEY: bool(getattr(session, "seen_intro", False)),
              ACHIEVEMENTS_KEY: dict(getattr(session, "achievements", None) or {}),
              ACHIEVEMENT_PROGRESS_KEY: dict(getattr(session, "achievement_progress", None) or {}),
+             XP_TOTAL_KEY: int(getattr(session, "xp_total", 0) or 0),
+             FIXED_CLEAR_COUNTS_KEY: dict(getattr(session, "fixed_clear_counts", None) or {}),
+             XP_ACHIEVEMENTS_KEY: sorted(getattr(session, "xp_achievements", None) or ()),
+             XP_REWARDED_LEVEL_KEY: int(getattr(session, "xp_rewarded_level", 1) or 1),
              CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
              FUNCTION_LIBRARY_KEY: library_to_rows(getattr(session, "function_library", ())),
              IMPORTED_FUNCTION_KEY: getattr(session, "imported_function_id", None),
