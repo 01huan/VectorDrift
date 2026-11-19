@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from vector_drift.solver.benchmark import (
     BenchmarkCase,
     BenchmarkResult,
@@ -45,7 +43,7 @@ def test_generate_benchmark_levels_invalid():
         raise AssertionError("expected ValueError")
 
 
-def test_run_benchmark_and_result():
+def test_run_benchmark_and_result(tmp_path):
     cases = generate_benchmark_levels(n=2, level_id=RANDOM_LEVEL_ID)
     res = run_benchmark(FakeSolver(), cases, time_budget_s=1.0, simulation_budget=5)
     assert res.n_cases == 2
@@ -57,13 +55,9 @@ def test_run_benchmark_and_result():
     assert d["solver_name"] == "fake"
     assert "stability_success_rate_std" in d
     # save_json
-    dest = Path("tmp_bench.json")
-    try:
-        res.save_json(dest)
-        assert dest.exists()
-    finally:
-        if dest.exists():
-            dest.unlink()
+    dest = tmp_path / "bench.json"
+    res.save_json(dest)
+    assert dest.exists()
 
 
 def test_benchmark_result_empty_cases():

@@ -502,13 +502,11 @@ def test_try_upload_branches(monkeypatch):
     assert e6.busy is False
     assert e6.message == "Upload failed: boom"
 
-def test_save_overlap_returns_false(monkeypatch):
+def test_save_overlap_returns_false(monkeypatch, tmp_path):
     import vector_drift.data as vd
     monkeypatch.setattr(vd, "LEVELS", list(vd.LEVELS))
     monkeypatch.setattr(vd, "CUSTOM_LEVELS", dict(vd.CUSTOM_LEVELS))
-    import tempfile
-    from pathlib import Path
-    monkeypatch.setattr(lpm, "_storage_path", lambda: Path(tempfile.gettempdir()) / "guest.json")
+    monkeypatch.setattr(lpm, "_storage_path", lambda: tmp_path / "guest.json")
     editor = LevelEditorScene(_Manager())
     editor.obstacles.append({"center": (0.0, 0.0), "radius": 0.5})
     editor.obstacles.append({"center": (0.0, 0.0), "radius": 0.5})
