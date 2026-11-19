@@ -13,9 +13,12 @@ import pytest
 from vector_drift import config
 from vector_drift.daily_level import (CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
                                       TARGET_RADIUS, TEMPLATES, daily_seed, daily_today,
-                                      format_linear, pick_field, pick_route, place_rocks,
+                                      build_candidate, constant_force_reaches, format_linear,
+                                      pick_field, pick_route, place_rocks,
                                       point_segment_distance)
+from vector_drift.data import LevelSpec, ObstacleSpec
 from vector_drift.expr_parser import parse_expression
+from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.physics_core import segment_hits_circle
 
 HULL = DAILY_SHIP.hull_radius
@@ -160,9 +163,6 @@ def test_routes_have_a_fair_target(seeds):
 
 def test_route_path_is_the_reference_flight():
     """The path is what Flight flies with the typed answer, step for step."""
-    from vector_drift.data import LevelSpec
-    from vector_drift.physics import Flight
-
     route, _ = _route(3)
     level = LevelSpec(id=config.DAILY_LEVEL_ID, name="probe", start=route.start,
                       target_center=(1e6, 1e6), target_radius=0.0, ship_id=DAILY_SHIP.id,
@@ -221,3 +221,50 @@ def test_rocks_stay_outside_the_safety_tube(seeds):
         assert any(point_segment_distance(rock.center, route.start, route.target)
                    < rock.radius + HULL for rock in rocks), f"seed {seed}: nothing blocks the line"
     assert placed >= len(seeds) // 2
+
+
+# --- Constant force check ----------------------------------------------------------
+
+def _constant_flight(level, size):
+    (sx, sy), (tx, ty) = level.start, level.target_center
+    length = math.dist(level.start, level.target_center)
+    field = ForceField(c=size * (tx - sx) / length, f=size * (ty - sy) / length)
+    flight = Flight(field, DAILY_SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight.outcome
+
+
+_CANDIDATES = {}
+
+
+def _candidate(seed):
+    if seed not in _CANDIDATES:
+        _CANDIDATES[seed] = build_candidate(random.Random(seed))
+    return _CANDIDATES[seed]
+
+
+@pytest.mark.parametrize("seeds", [range(0, 25), range(25, 50)], ids=_chunk_id)
+def test_no_constant_force_solves_a_candidate(seeds):
+    built = 0
+    for seed in seeds:
+        candidate = _candidate(seed)
+        if candidate is None:
+            continue
+        built += 1
+        level = candidate.level()
+        assert level.obstacles == candidate.rocks
+        for size in (0.5, 1.0, 2.0):
+            assert _constant_flight(level, size) is not Outcome.REACHED, (seed, size)
+    assert built >= len(seeds) // 2
+
+
+def test_constant_force_check_spots_an_open_shot():
+    open_map = LevelSpec(id=config.DAILY_LEVEL_ID, name="open", start=(-8.0, 0.0),
+                         target_center=(0.0, 0.0), target_radius=1.0, ship_id=DAILY_SHIP.id)
+    walled = LevelSpec(id=config.DAILY_LEVEL_ID, name="walled", start=(-8.0, 0.0),
+                       target_center=(0.0, 0.0), target_radius=1.0, ship_id=DAILY_SHIP.id,
+                       obstacles=(ObstacleSpec(center=(-4.0, 0.0), radius=2.0),))
+
+    assert constant_force_reaches(open_map)
+    assert not constant_force_reaches(walled)

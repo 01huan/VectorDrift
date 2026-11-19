@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from . import config
 from .data import SHIPS, LevelSpec, ObstacleSpec
 from .expr_parser import parse_expression
-from .physics import Flight, ForceField
+from .physics import Flight, ForceField, Outcome
 from .physics_core import segment_hits_circle
 from .pickups import discs_overlap
 
@@ -320,3 +320,49 @@ def place_rocks(rng, route):
         else:
             return None
     return tuple(rocks)
+
+
+# --- Constant force check ------------------------------------------------------------
+CONSTANT_FORCE_SIZES = (0.5, 1.0, 2.0)  # N, pushing straight at the target
+
+
+def _flies_to_target(field, level):
+    flight = Flight(field, DAILY_SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight.outcome is Outcome.REACHED
+
+
+def constant_force_reaches(level):
+    """True if a constant force aimed at the target reaches it on ``level``."""
+    (sx, sy), (tx, ty) = level.start, level.target_center
+    length = math.dist(level.start, level.target_center)
+    ux, uy = (tx - sx) / length, (ty - sy) / length
+    return any(_flies_to_target(ForceField(c=size * ux, f=size * uy), level)
+               for size in CONSTANT_FORCE_SIZES)
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """A map being built: the reference route and what is placed around it."""
+
+    route: ReferenceRoute
+    rocks: tuple
+    coins: tuple = ()
+
+    def level(self):
+        return _level(self.route.start, self.route.target, self.rocks, self.coins)
+
+
+def build_candidate(rng):
+    """Route, rocks and checks from one rng; None when this attempt fails."""
+    route = pick_route(rng)
+    if route is None:
+        return None
+    rocks = place_rocks(rng, route)
+    if rocks is None:
+        return None
+    candidate = Candidate(route=route, rocks=rocks)
+    if constant_force_reaches(candidate.level()):
+        return None                     # a plain push would solve it
+    return candidate
