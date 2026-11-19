@@ -314,6 +314,14 @@ def profiles_equal(a: Any, b: Any) -> bool:
         # before the achievements existed counts as "none unlocked".
         stats.setdefault(ACHIEVEMENTS_KEY, {})
         stats.setdefault(ACHIEVEMENT_PROGRESS_KEY, {})
+        # The XP fields are compared as they would load: a profile saved
+        # before XP existed (or with broken values) counts as the defaults,
+        # and the count map's keys are ints whether they came from JSON or not.
+        total, counts, achievement_ids, rewarded = _xp_from_stats(stats)
+        stats[XP_TOTAL_KEY] = total
+        stats[FIXED_CLEAR_COUNTS_KEY] = counts
+        stats[XP_ACHIEVEMENTS_KEY] = sorted(achievement_ids)
+        stats[XP_REWARDED_LEVEL_KEY] = rewarded
         return stats
 
     return (
@@ -409,6 +417,10 @@ def reset_session_to_guest(session: Any) -> None:
     session.seen_intro = False          # the next Start plays the intro again
     session.achievements = {}
     session.achievement_progress = {}
+    session.xp_total = 0
+    session.fixed_clear_counts = {}
+    session.xp_achievements = set()
+    session.xp_rewarded_level = 1
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the
     # data registry (the guest profile file is already cleared by the caller).

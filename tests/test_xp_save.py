@@ -3,6 +3,7 @@
 import json
 
 from vector_drift.account.integration import (_apply_profile_stats, apply_profile_to_session,
+                                              profiles_equal, reset_session_to_guest,
                                               session_to_profile)
 from vector_drift.account.models import PlayerProfile
 from vector_drift.scenes.base import Session
@@ -109,3 +110,34 @@ def test_broken_xp_entries_are_dropped_one_by_one():
     })
     assert session.fixed_clear_counts == {1: 2, 6: 1}
     assert session.xp_achievements == {"kaboom", "hole_in_one"}
+
+
+# --- local / cloud compare and "Delete local data" -------------------------------
+def test_an_old_profile_without_xp_matches_a_new_one_with_default_xp():
+    new = session_to_profile(Session(), "u")
+    old = session_to_profile(Session(), "u")
+    for key in XP_KEYS:
+        old.stats.pop(key)
+    assert profiles_equal(new, old)
+    assert profiles_equal(old, new)
+
+
+def test_the_same_xp_matches_after_a_trip_through_json():
+    profile = session_to_profile(_session_with_xp(), "u")
+    assert profiles_equal(profile, _through_json(profile))
+
+
+def test_profiles_differ_when_the_xp_differs():
+    a = Session()
+    a.xp_total = 40
+    a.xp_achievements = {"kaboom"}
+    assert not profiles_equal(session_to_profile(a, "u"), session_to_profile(Session(), "u"))
+    b = Session()
+    b.fixed_clear_counts = {1: 1}
+    assert not profiles_equal(session_to_profile(b, "u"), session_to_profile(Session(), "u"))
+
+
+def test_reset_session_to_guest_clears_the_xp():
+    session = _session_with_xp()
+    reset_session_to_guest(session)
+    _assert_defaults(session)
