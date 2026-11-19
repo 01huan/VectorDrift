@@ -204,3 +204,47 @@ def test_the_replay_names_the_random_level_by_its_number(monkeypatch):
     number = str(level_number(RANDOM_LEVEL_ID))
     assert any(text == number or text.startswith(f"{number} · ") for text in texts)
     assert not any(text.startswith(str(RANDOM_LEVEL_ID)) for text in texts)
+
+
+# --- replays ------------------------------------------------------------------------------
+@pytest.mark.usefixtures("pygame_display")
+def test_a_random_level_replay_rebuilds_its_map_after_a_new_fixed_level():
+    """Saved as id 999 + seed, it replays the same map once another fixed level exists."""
+    from vector_drift.account.integration import session_to_profile
+    from vector_drift.account.models import PlayerProfile
+    from vector_drift.scenes.game import FLIGHT, GameScene
+    from vector_drift.scenes.replay import ReplayScene
+
+    seed = 4321
+    manager = _manager()
+    session = manager.session
+    session.level_id, session.random_seed = RANDOM_LEVEL_ID, seed
+    session.fx_text, session.fy_text = "50", "0"
+    game = GameScene(manager)
+    manager.switch(game)
+    flown = game.level
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    game._try_launch()
+    while game.state == FLIGHT:
+        game.update(0.05)
+        game.draw(surface)
+
+    record = session.replays[-1]
+    assert (record["level_id"], record["seed"], record["section_index"]) == (RANDOM_LEVEL_ID, seed, 0)
+    # Saved and loaded the way a profile is (local file or cloud row).
+    saved = PlayerProfile.from_row(session_to_profile(session, "player").to_row(), "player").replays
+
+    with _one_more_fixed_level() as new_level:
+        assert get_level(new_level.id) is new_level
+        later = _manager()
+        later.session.replays = saved
+        replay = ReplayScene(later)
+        later.switch(replay)
+
+        assert tuple(replay._start) == tuple(flown.start)
+        assert tuple(replay._target_center) == tuple(flown.target_center)
+        assert replay._target_radius == flown.target_radius
+        assert tuple(replay._obstacles) == tuple(flown.obstacles)
+        assert [(tuple(p.center), p.kind) for p in replay._pickups] == [
+            (tuple(p.center), p.kind) for p in flown.pickups]
+        replay.draw(surface)
