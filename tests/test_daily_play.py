@@ -114,3 +114,64 @@ def test_a_daily_launch_is_not_kept_as_a_replay(today):
     game._replay_frames = []
     game._store_replay("Outcome.TIMEOUT")
     assert mgr.session.replays == []
+
+
+# --- the same map until the player leaves -------------------------------------------
+
+NEXT_DAY = date(2026, 11, 20)
+
+
+def _after_midnight(today, mgr):
+    """Enter at 23:59 on DAY; the clock then moves on to 00:05 of the next day."""
+    game = _enter_daily(mgr)
+    today.set(NEXT_DAY)
+    return game
+
+
+def _restart_from_pause(mgr, game):
+    from vector_drift.scenes.pause_menu import PauseMenu
+
+    game.pause_menu = PauseMenu()
+    button = next(button for button, action in game.pause_menu.buttons() if action == "restart")
+    game.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=button.rect.center))
+    return mgr.scene
+
+
+def test_restart_after_midnight_keeps_the_day(today):
+    mgr = _manager()
+    first = _after_midnight(today, mgr)
+
+    again = _restart_from_pause(mgr, first)
+
+    assert again is not first and isinstance(again, GameScene)
+    assert mgr.session.daily_day == DAY
+    assert again.full_level == first.full_level == generate_daily(DAY).level
+
+
+@pytest.mark.parametrize("result", ["win", "fail"])
+def test_retry_after_midnight_keeps_the_day(today, result):
+    from vector_drift.scenes.fail import FailScene
+    from vector_drift.scenes.win import WinScene
+
+    mgr = _manager()
+    first = _after_midnight(today, mgr)
+    mgr.session.stats = {}
+    screen = WinScene(mgr) if result == "win" else FailScene(mgr)
+    mgr.switch(screen)
+    button = screen.replay_button if result == "win" else screen.retry_button
+
+    _click(screen, button.rect)
+
+    assert isinstance(mgr.scene, GameScene)
+    assert mgr.session.daily_day == DAY
+    assert mgr.scene.full_level == first.full_level
+
+
+def test_pressing_daily_again_picks_the_new_day(today):
+    mgr = _manager()
+    _after_midnight(today, mgr)
+
+    again = _enter_daily(mgr)
+
+    assert mgr.session.daily_day == NEXT_DAY
+    assert again.full_level == generate_daily(NEXT_DAY).level
