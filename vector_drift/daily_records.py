@@ -134,3 +134,26 @@ def take_clear_reward(session, day):
         return False
     record["clear_rewarded"] = True
     return True
+
+
+# --- results ----------------------------------------------------------------------------
+
+def add_coins(session, day, amount):
+    """Count ``amount`` coins paid by ``day``'s map pickups."""
+    get_record(session, day, create=True)["coins"] += int(amount)
+
+
+def record_clear(session, day, lives_used, total_time):
+    """``day``'s map was cleared: lives lost in that run, total flight time (s)."""
+    record = get_record(session, day, create=True)
+    record["cleared"] = True
+    if record["first_clear_lives_used"] is None:
+        record["first_clear_lives_used"] = int(lives_used)
+    if record["best_time"] is None or total_time < record["best_time"]:
+        record["best_time"] = float(total_time)
+    return record
+
+
+def record_fail(session, day):
+    """A run on ``day``'s map ended without a clear: the day gets a record, nothing more."""
+    return get_record(session, day, create=True)

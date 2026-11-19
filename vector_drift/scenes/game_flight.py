@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pygame
 
-from .. import config, render, sprites
+from .. import config, daily_records, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
@@ -269,6 +269,9 @@ class GameFlightMixin:
         reason = OUTCOME_TEXT[outcome]
         achievements.flight_ended(self.manager, outcome.name, self.lives)
         if self.lives <= 0:
+            if is_daily_level(self.level.id):
+                daily_records.record_fail(self.session, self.session.daily_day)
+                self._persist()
             self.audio.play("game_over")
             self.session.stats = {"reason": reason, "attempts": self.attempts}
             from .fail import FailScene
@@ -318,13 +321,22 @@ class GameFlightMixin:
             pass
 
     def _record_clear(self):
-        """The level is cleared: clear reward, community stat, best time, save."""
+        """The level is cleared: clear reward, community stat, best time, save.
+
+        The daily map writes its day's record instead of session.records.
+        """
         self._pay_clear_reward()
         self._record_community_stat("clear")
         self._record_function_usage(True)
-        best = self.session.records.get(self.level.id)
-        if best is None or self.total_time < best:
-            self.session.records[self.level.id] = self.total_time
+        if is_daily_level(self.level.id):
+            # The day's own record keeps the best time, not session.records.
+            daily_records.record_clear(self.session, self.session.daily_day,
+                                       lives_used=self.level.lives - self.lives,
+                                       total_time=self.total_time)
+        else:
+            best = self.session.records.get(self.level.id)
+            if best is None or self.total_time < best:
+                self.session.records[self.level.id] = self.total_time
         from vector_drift.account.integration import save_progress
 
         save_progress(self.manager.account, self.session)

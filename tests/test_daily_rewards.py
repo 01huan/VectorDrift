@@ -13,6 +13,7 @@ from vector_drift.account.models import PlayerProfile
 from vector_drift.daily_level import daily_map
 from vector_drift.daily_records import get_record
 from vector_drift.scenes.base import SceneManager
+from vector_drift.scenes.fail import FailScene
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.win import WinScene
 
@@ -172,3 +173,84 @@ def test_a_clear_after_midnight_counts_for_the_day_entered(clock):
 
     assert get_record(manager.session, DAY)["clear_rewarded"]
     assert get_record(manager.session, NEXT_DAY) is None
+
+
+# --- the day's record -------------------------------------------------------------------
+
+
+def _miss(scene):
+    """A launch straight off the left edge: one life lost."""
+    lives = scene.lives
+    _fly(scene, "-100", "0")
+    assert scene.lives == lives - 1 or isinstance(scene.manager.scene, FailScene)
+
+
+def test_a_first_clear_fills_the_record():
+    manager = _manager()
+    scene = _daily(manager)
+    coins = len(_coins(scene))
+
+    _win(scene)
+
+    record = get_record(manager.session, DAY)
+    assert record["cleared"] is True
+    assert record["first_clear_lives_used"] == 0
+    assert record["best_time"] == pytest.approx(manager.session.stats["total_time"])
+    assert record["coins"] == coins
+    assert record["answer_used"] is False
+    assert config.DAILY_LEVEL_ID not in manager.session.records
+
+
+def test_lives_used_counts_only_the_clearing_run():
+    manager = _manager()
+    scene = _daily(manager)
+    for _ in range(config.DAILY_LIVES):
+        _miss(scene)
+    assert isinstance(manager.scene, FailScene)
+
+    retry = _daily(manager)
+    _miss(retry)
+    _miss(retry)
+    _win(retry)
+
+    assert get_record(manager.session, DAY)["first_clear_lives_used"] == 2
+
+
+def test_later_clears_keep_the_first_lives_and_the_best_time():
+    manager = _manager()
+    scene = _daily(manager)
+    _miss(scene)
+    _win(scene)
+    slow = get_record(manager.session, DAY)["best_time"]
+
+    _win(_daily(manager))
+    record = get_record(manager.session, DAY)
+    assert record["first_clear_lives_used"] == 1
+    assert record["best_time"] < slow
+
+    fast = record["best_time"]
+    scene = _daily(manager)
+    _miss(scene)
+    _win(scene)
+    assert get_record(manager.session, DAY)["best_time"] == fast
+
+
+def test_a_failed_day_only_creates_the_record():
+    manager = _manager()
+    scene = _daily(manager)
+    for _ in range(config.DAILY_LIVES):
+        _miss(scene)
+
+    record = get_record(manager.session, DAY)
+    assert record is not None and record["cleared"] is False
+    assert record["first_clear_lives_used"] is None and record["best_time"] is None
+
+
+def test_coins_count_when_paid_even_without_a_clear():
+    manager = _manager()
+    scene = _daily(manager)
+    coin = _coins(scene)[0]
+    _collect(scene, coin)
+    _collect(_daily(manager), coin)     # the same coin again pays nothing
+
+    assert get_record(manager.session, DAY)["coins"] == 1

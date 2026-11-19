@@ -5,11 +5,12 @@ from dataclasses import replace
 
 import pygame
 
-from .. import config, render, sprites
+from .. import config, daily_records, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
+from ..daily_level import is_daily_level
 from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
                     is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
@@ -149,6 +150,8 @@ class GamePickupMixin:
                     self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
+                    if is_daily_level(self.level.id):
+                        daily_records.add_coins(self.session, self.session.daily_day, amount)
                     self._save_progress()
                     manager = getattr(self, "manager", None)
                     if manager is not None:
