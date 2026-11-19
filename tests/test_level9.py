@@ -5,14 +5,17 @@ side); section 2 reviews level 3's shockwave (a ring of rocks round the
 planet, opened by one blast).
 """
 
+import dataclasses
 import math
 
 import pytest
 
 from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
                                section_level, section_shift)
+from vector_drift.expr_parser import parse_expression
 from vector_drift.level_presets import RANDOM_LEVEL_ID, is_dynamic_level
-from vector_drift.pickups import discs_overlap
+from vector_drift.physics import Flight, ForceField, Outcome
+from vector_drift.pickups import SHOCKWAVE_BLAST_RADIUS, discs_overlap, obstacles_hit_by_blast
 
 LEVEL = get_level(9)
 SHIP = SHIPS[LEVEL.ship_id]
@@ -101,3 +104,61 @@ def test_level_select_lists_level_nine_and_the_random_level_after_it():
     assert cards[9] is LEVEL
     assert RANDOM_LEVEL_ID == 10 and is_dynamic_level(10)
     assert "ship10" in SHIPS
+
+
+# --- reference answers and near misses --------------------------------------------------
+# Section 1: level 2's swirl turned on its side, round (0, -4.5), right or left of the rocks.
+RIGHT = ("-y - 4.5", "x")
+LEFT = ("y + 4.5", "-x")
+# Section 2: a steady push up with level 3's spring toward the slanted line x = y/2.
+SPRING = ("-2x + y", "2")
+BLASTED = {(-2.56, 2.05), (-1.67, 0.51)}
+
+
+def _fly(level, fx, fy):
+    field = ForceField.from_exprs(parse_expression(fx), parse_expression(fy))
+    flight = Flight(field, SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight
+
+
+def _blasted(level, flight):
+    return {o.center for o in level.obstacles} - {o.center for o in flight.obstacle_specs}
+
+
+@pytest.mark.parametrize("answer", [RIGHT, LEFT], ids=["right", "left"])
+def test_section_one_swirls_round_the_rocks_into_the_checkpoint(answer):
+    flight = _fly(first(), *answer)
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.time == pytest.approx(4.28, abs=0.05)
+
+
+def test_section_two_takes_the_shockwave_through_the_ring():
+    section = second()
+    flight = _fly(section, *SPRING)
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.time == pytest.approx(2.86, abs=0.05)
+    assert {p.center for p in flight.pickups if p.consumed} == {SHOCKWAVE}
+    assert _blasted(section, flight) == BLASTED
+
+
+def test_the_shockwave_blasts_exactly_two_ring_rocks():
+    _, destroyed = obstacles_hit_by_blast(SHOCKWAVE, SHOCKWAVE_BLAST_RADIUS, second().obstacles)
+    assert {o.center for o in destroyed} == BLASTED
+
+
+def test_section_one_cannot_just_push_straight_up():
+    assert _fly(first(), "0", "5").outcome is not Outcome.REACHED
+
+
+def test_section_two_ring_is_closed_without_the_shockwave():
+    bare = dataclasses.replace(second(), pickups=())
+    assert _fly(bare, *SPRING).outcome is not Outcome.REACHED
+
+
+@pytest.mark.parametrize("answer", [RIGHT, LEFT], ids=["right", "left"])
+def test_section_one_answers_leave_the_map_in_section_two(answer):
+    assert _fly(second(), *answer).outcome is Outcome.OUT_OF_BOUNDS
