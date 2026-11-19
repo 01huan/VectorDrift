@@ -190,7 +190,7 @@ CLEAR_REWARD = 5                    # coins for reaching the target, once per fi
 # Only clears and achievements give XP. The k-th clear of one source gives
 # max(1, base // k) (see xp.xp_for_clear).
 XP_FIXED_LEVEL_BASE = {             # fixed level id -> XP for its first clear
-    1: 100, 2: 120, 3: 140, 4: 160, 5: 180, 6: 200, 7: 220, 8: 240, 9: 260,
+    1: 100, 2: 120, 3: 140, 4: 160, 5: 180, 6: 200, 7: 220, 8: 240, 9: 260, 10: 280,
 }
 XP_RANDOM_MAP = 150                 # XP for the first clear of each random map
 XP_PER_ACHIEVEMENT = 40             # XP per achievement (hidden ones too)

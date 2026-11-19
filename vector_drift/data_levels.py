@@ -261,6 +261,65 @@ LEVELS = [
             ),
         ),
     ),
+    # The first diagonal pan: pan (14, 9), world (-7, -4.5) -> (7, 4.5)
+    # (checkpoint) -> (13.5, 9). The screens share x in [4, 10], y in
+    # [1.5, 7.5] of section 1, where only the checkpoint sits. No coins: the
+    # coin ids of a multi-section level do not carry the section number yet.
+    # Section 1 is level 4's recipe, "steady push + spring toward a slanted
+    # line", with level 4's full-height wall at x = 2 and a wormhole across
+    # it. The black hole sits straight above the start, the white hole right
+    # of the wall, so "start -> black hole" (up) and "white hole ->
+    # checkpoint" (up and right) point very different ways and no
+    # constant-direction push gets through. F = (2, -1.5x - 3y) swings the
+    # ship up into the black hole and on from the white hole to the
+    # checkpoint.
+    # Section 2 is level 7's swirl: an L-shaped wall (row y = 1, column
+    # x = 2) seals the top-right corner with the map edges, so the ship takes
+    # the Shield below first and passes through one rock of the wall's row.
+    # F = (-y - 2.5, x + 6) circles (-6, -2.5) through the Shield and the
+    # rock at (5.1, 1). The two sections need different answers: section 1's
+    # field flies out of the map in section 2.
+    multi_section_level(
+        id=10,
+        name="Shortcut",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(-7.0, -4.5), target_center=(7.0, 4.5), target_radius=1.0,
+                # Level 4's wall: 1.6 m apart, both ends past the map edges.
+                obstacles=(
+                    ObstacleSpec(center=(2.0, -7.0), radius=0.8),
+                    ObstacleSpec(center=(2.0, -5.4), radius=0.8),
+                    ObstacleSpec(center=(2.0, -3.8), radius=0.8),
+                    ObstacleSpec(center=(2.0, -2.2), radius=0.8),
+                    ObstacleSpec(center=(2.0, -0.6), radius=0.8),
+                    ObstacleSpec(center=(2.0, 1.0), radius=0.8),
+                    ObstacleSpec(center=(2.0, 2.6), radius=0.8),
+                    ObstacleSpec(center=(2.0, 4.2), radius=0.8),
+                    ObstacleSpec(center=(2.0, 5.8), radius=0.8),
+                    ObstacleSpec(center=(2.0, 7.4), radius=0.8),
+                ),
+                holes=(HoleSpec.from_centers((-7.0, 1.5), (4.0, -1.0), 0.5),),
+            ),
+            SectionSpec(
+                start=(-7.0, -4.5), target_center=(6.5, 4.5), target_radius=1.0,
+                # 1.55 m apart, like level 7's column: neighbours overlap.
+                obstacles=(
+                    ObstacleSpec(center=(2.0, 1.0), radius=0.8),
+                    ObstacleSpec(center=(3.55, 1.0), radius=0.8),
+                    ObstacleSpec(center=(5.1, 1.0), radius=0.8),
+                    ObstacleSpec(center=(6.65, 1.0), radius=0.8),
+                    ObstacleSpec(center=(8.2, 1.0), radius=0.8),
+                    ObstacleSpec(center=(9.75, 1.0), radius=0.8),
+                    ObstacleSpec(center=(2.0, 2.55), radius=0.8),
+                    ObstacleSpec(center=(2.0, 4.1), radius=0.8),
+                    ObstacleSpec(center=(2.0, 5.65), radius=0.8),
+                    ObstacleSpec(center=(2.0, 7.2), radius=0.8),
+                ),
+                pickups=(PickupSpec(center=(0.0, -4.5), radius=0.45, kind="shield"),),
+            ),
+        ),
+    ),
 ]
 
 

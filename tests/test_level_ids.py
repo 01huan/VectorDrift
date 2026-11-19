@@ -71,9 +71,11 @@ def test_fixed_ids_start_at_one_and_have_no_gaps():
 
 def test_the_random_level_has_a_fixed_id_and_is_numbered_after_the_campaign():
     assert RANDOM_LEVEL_ID == 999 and is_dynamic_level(RANDOM_LEVEL_ID)
-    assert level_number(RANDOM_LEVEL_ID) == _last_fixed_id() + 1 == 10
-    assert default_ship_id(RANDOM_LEVEL_ID) == "ship10" and "ship10" in SHIPS
-    assert [level_number(level.id) for level in all_levels()] == list(range(1, 11))
+    assert level_number(RANDOM_LEVEL_ID) == _last_fixed_id() + 1 == 11
+    # Level number N flies shipNN when that ship is made, else ship01.
+    expected = "ship11" if "ship11" in SHIPS else "ship01"
+    assert default_ship_id(RANDOM_LEVEL_ID) == expected
+    assert [level_number(level.id) for level in all_levels()] == list(range(1, 12))
 
 
 def test_a_fixed_level_is_numbered_by_its_id():

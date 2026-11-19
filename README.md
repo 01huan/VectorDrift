@@ -18,7 +18,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Function Lab** — write a force function of your own, watch the field it produces, choose where the probe starts, give it a name, save it in your library and import it into the normal levels.
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
-- **Procedural level generation** — the random level (Level 10, right after the last campaign level) builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
+- **Procedural level generation** — the random level (Level 11, right after the last campaign level) builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
 - **Daily Challenge** — one new map a day, the same for every player, built answer first so it always has a solution; coins and the clear reward pay once per day.
 - **Procedural Level Validator** — every generated map is checked before play: fast path analysis (A*, route and seal checks) plus an AI Solver probe that confirms a solution exists under the formal physics; invalid maps are regenerated automatically.
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
@@ -44,10 +44,11 @@ The level selector displays 24 planned level slots. A displayed slot is not nece
 | 7 | First Shield | A column of bumpers seals the middle, leaving narrow slits at the top and bottom edges; two Shield pickups let the ship pass through the wall or bounce off the edge round it. The ship flies right to left. |
 | 8 | New Horizon | A two-section level connected by a checkpoint. |
 | 9 | Ascent | Two sections, the first upward pan; section 1 reviews bouncing round rocks, section 2 reviews the shockwave. |
-| 10 | Random Drift | Procedurally generated layouts from five generation modules, merged into one to three screens (see below). |
-| 11–24 | Coming soon | Placeholder level slots. |
+| 10 | Shortcut | Two sections, the first diagonal pan; section 1 reviews the wormhole, section 2 reviews the shield. |
+| 11 | Random Drift | Procedurally generated layouts from five generation modules, merged into one to three screens (see below). |
+| 12–24 | Coming soon | Placeholder level slots. |
 
-The current fixed campaign consists of Levels **1–9**. Level **10** is the only registered procedural level in this snapshot. The random level is always shown right after the last campaign level, not in the last planned slot, so adding a campaign level moves its card one slot along. The level selector reserves the other numbered slots for future content.
+The current fixed campaign consists of Levels **1–10**. Level **11** is the only registered procedural level in this snapshot. The random level is always shown right after the last campaign level, not in the last planned slot, so adding a campaign level moves its card one slot along. The level selector reserves the other numbered slots for future content.
 
 ### Level ids and level numbers
 
@@ -56,11 +57,11 @@ Every level has an **id** and a **number**, and they are not the same thing:
 - The **id** is the level's identity in saved data: best times, clear rewards, achievements, collected coins and replays are all stored by id. Once a level is released its id never changes and is never reused.
 - The **number** is only the level's place on the level select (the big number on its card, `Level N`, the `LV` label in the game panel and the replay label). Level number N flies `shipNN`.
 
-A campaign level's number is its id. The random level's id is fixed at **999** (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), and it is numbered right after the last campaign level (`level_number` in `vector_drift/data.py`), so today it shows as Level 10. Adding a campaign level moves the random level's number, not its id, so the new level starts with no saved data of its own. Editor levels use ids from 1000 up and community levels negative ids. The [Daily Challenge](#daily-challenge) uses id **900** (`DAILY_LEVEL_ID`) and has no number: the game shows **Daily** (and **DAILY** in the game panel) instead.
+A campaign level's number is its id. The random level's id is fixed at **999** (`RANDOM_LEVEL_ID` in `vector_drift/level_presets.py`), and it is numbered right after the last campaign level (`level_number` in `vector_drift/data.py`), so today it shows as Level 11. Adding a campaign level moves the random level's number, not its id, so the new level starts with no saved data of its own. Editor levels use ids from 1000 up and community levels negative ids. The [Daily Challenge](#daily-challenge) uses id **900** (`DAILY_LEVEL_ID`) and has no number: the game shows **Daily** (and **DAILY** in the game panel) instead.
 
 ### Random level generation
 
-The random level (Level 10) is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering the random level as a new run generates a new seed and layout.
+The random level (Level 11) is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering the random level as a new run generates a new seed and layout.
 
 The modules:
 
@@ -154,7 +155,7 @@ Pickup collision is checked along the ship's movement segment, so a fast ship ca
 
 ## Checkpoints
 
-The current multi-section campaign levels are Level 8, **New Horizon**, and Level 9, **Ascent**, which contain two sections each. New Horizon pans to the right; Ascent pans up. The same multi-section data model can represent levels with additional sections.
+The current multi-section campaign levels are Level 8, **New Horizon**, Level 9, **Ascent**, and Level 10, **Shortcut**, which contain two sections each. New Horizon pans to the right; Ascent pans up; Shortcut pans diagonally, up and to the right. The same multi-section data model can represent levels with additional sections.
 
 - The target of every section except the last is a checkpoint, shown as a white square/portal rather than the final planet.
 - Reaching a checkpoint advances to the next section, pans the camera, and restores one life, capped at the level's maximum.
@@ -175,12 +176,13 @@ Current hint coverage is:
 
 - Levels 1–7: one hint per level.
 - Levels 8 and 9: one hint for each of their two sections.
+- Level 10: its hint is still to be written.
 
-The answer page is free on **levels 1 and 2**, and on **level 8**. On Levels 3–7 and 9, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
+The answer page is free on **levels 1 and 2**, and on **level 8**. On Levels 3–7, 9 and 10, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
 
 ### Offline AI Solver for random and custom levels
 
-The random level (Level 10) and player-created/custom levels use the AI Solver instead of authored hints. The solver also works on community levels.
+The random level (Level 11) and player-created/custom levels use the AI Solver instead of authored hints. The solver also works on community levels.
 
 The current implementation uses **Particle Swarm Optimization (PSO)**. It searches a parameterized family of force fields, evaluates candidates with the same `Flight` physics used by gameplay, and regards a candidate as a solution only if the simulated flight actually reaches the target (`Outcome.REACHED`). Search runs in the background and does not require a network connection.
 
@@ -220,7 +222,7 @@ Coins are the game's progression currency. They are shown in the level selector,
 - **Coin pickups:** a coin pickup on a fixed level pays once, ever. A coin pickup on a random level pays once per generated map; entering a new map can make a new set of coins available.
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
 - **Daily Challenge:** a coin pickup on the daily map pays once per day, and the first clear of the day pays 5 coins once per day; both are saved with progress.
-- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 8. On Levels 3–7 and 9 it costs 10 coins after confirmation, once per level per game launch.
+- **Hint answers:** the answer page is free on **levels 1 and 2** and Level 8. On Levels 3–7, 9 and 10 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
 - **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
@@ -231,7 +233,7 @@ The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_
 
 There are ten visual ship skins: `ship01` through `ship10`. All ten use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics.
 
-Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`; the random level, id 999, is numbered 10 and flies `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today every level (1 to 10) has its own ship. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
+Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today every campaign level (1 to 10) has its own ship, while the random level, id 999, is numbered 11 and flies `ship01` until `ship11` is made. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
 
 The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
