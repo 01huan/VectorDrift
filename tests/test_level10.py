@@ -5,6 +5,7 @@ slanted line); section 2 reviews the Shield with level 7's swirl (an L-shaped
 wall, passed through one rock).
 """
 
+import dataclasses
 import math
 
 import pytest
@@ -12,7 +13,9 @@ import pytest
 from vector_drift import config
 from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
                                section_level, section_shift)
+from vector_drift.expr_parser import parse_expression
 from vector_drift.level_presets import is_dynamic_level
+from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.pickups import discs_overlap
 
 LEVEL = get_level(10)
@@ -118,3 +121,68 @@ def test_nothing_sits_in_a_rock(index):
 def test_level_select_lists_level_ten():
     cards = {lv.id: lv for lv in all_levels()}
     assert cards[10] is LEVEL
+
+
+# --- reference answers and near misses --------------------------------------------------
+# Section 1: level 4's steady push plus a spring toward the line y = -x/2 (k = 3).
+SPRING = ("2", "-1.5x - 3y")
+# Section 2: level 7's swirl round (-6, -2.5), through the Shield and one rock.
+SWIRL = ("-y - 2.5", "x + 6")
+SHIELDED_ROCK = (5.1, 1.0)
+
+
+def _fly(level, fx, fy):
+    field = ForceField.from_exprs(parse_expression(fx), parse_expression(fy))
+    flight = Flight(field, SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight
+
+
+def test_section_one_swings_through_the_wormhole_into_the_checkpoint():
+    flight = _fly(first(), *SPRING)
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.teleports == 1
+    assert flight.time == pytest.approx(1.62, abs=0.05)
+
+
+def test_section_two_takes_the_shield_through_the_wall():
+    flight = _fly(second(), *SWIRL)
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.time == pytest.approx(3.51, abs=0.05)
+    assert {p.center for p in flight.pickups if p.consumed} == {SHIELD}
+    used = [e["center"] for e in flight.pickup_events if e["kind"] == "shield_used"]
+    assert used == [SHIELDED_ROCK]
+
+
+def test_section_one_cannot_just_push_straight_up():
+    flight = _fly(first(), "0", "5")
+    assert flight.teleports == 1                       # into the black hole ...
+    assert flight.outcome is not Outcome.REACHED       # ... and straight up out of the white one
+
+
+def test_section_two_wall_is_closed_without_the_shield():
+    bare = dataclasses.replace(second(), pickups=())
+    assert _fly(bare, *SWIRL).outcome is not Outcome.REACHED
+
+
+def test_section_one_answer_leaves_the_map_in_section_two():
+    assert _fly(second(), *SPRING).outcome is Outcome.OUT_OF_BOUNDS
+
+
+# Every 5 deg at four strengths (288 pushes); checked every 1 deg when the level was made.
+CONSTANT_PUSHES = [(deg, size) for deg in range(0, 360, 5) for size in (1, 2, 4, 8)]
+
+
+@pytest.mark.parametrize("index", [0, 1], ids=["section1", "section2"])
+def test_no_constant_push_clears_a_section(index):
+    section = section_level(LEVEL, index)
+    reached = []
+    for deg, size in CONSTANT_PUSHES:
+        fx = size * math.cos(math.radians(deg))
+        fy = size * math.sin(math.radians(deg))
+        if _fly(section, f"{fx:.6f}", f"{fy:.6f}").outcome is Outcome.REACHED:
+            reached.append((deg, size))
+    assert reached == []
