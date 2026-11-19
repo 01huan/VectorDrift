@@ -21,14 +21,15 @@ def _manager(tutorial):
 
 def _report_everything(manager):
     flight = SimpleNamespace(bounces=9, teleports=1, flings=1, unbound=True)
+    ach.launched(manager)
+    ach.count(manager, ach.BOUNCES, 30)
     ach.clear(manager, level_id=1, kind="campaign", attempts=1, lives_left=1, total_time=1.0,
-              fx="sin(1)", fy="0", resumed=True)
+              fx="1", fy="0", resumed=True, bounces=9, went_off_map=True, shield_saved=True,
+              has_rocks=True)
     ach.flight_ended(manager, "OUT_OF_BOUNDS", 0)
-    ach.in_flight(manager, flight, off_map=True)
-    ach.pickup_event(manager, {"kind": "shockwave", "destroyed": [(0, 0)]})
-    ach.pickup_event(manager, {"kind": "shield_used"})
+    ach.in_flight(manager, flight)
+    ach.pickup_event(manager, {"kind": "shockwave", "destroyed": [(0, 0), (1, 0), (2, 0)]})
     ach.ability_used(manager, "boost")
-    ach.checkpoint_reached(manager)
 
 
 def test_every_report_is_ignored_on_a_tutorial_screen():
@@ -42,8 +43,9 @@ def test_the_same_reports_count_outside_the_tutorial():
     manager = _manager(tutorial=False)
     _report_everything(manager)
     unlocked = set(manager.session.achievements)
-    assert {"we_have_liftoff", "hole_in_one", "kaboom", "not_a_scratch", "halfway_there",
-            "houston", "thinking_outside_the_box"} <= unlocked
+    assert {"beginners_luck.1", "not_today_gravity.1", "faster_than_light.4", "bounce_house.1",
+            "chain_reaction", "pinball_wizard", "not_a_scratch", "thinking_outside_the_box",
+            "keep_it_constant", "fashionably_late", "houston", "divide_by_zero"} <= unlocked
     assert manager.session.achievement_progress
 
 

@@ -333,17 +333,17 @@ def test_section_pan_progress_eases_from_zero_to_one():
 
 
 # --- achievements ------------------------------------------------------------------
-def test_reaching_a_checkpoint_unlocks_halfway_there():
+def test_a_launch_to_a_checkpoint_counts_for_frequent_flyer():
     scene = _scene()
     _fly(scene)
     assert scene.state == PANNING
-    assert "halfway_there" in scene.manager.session.achievements
+    assert scene.manager.session.achievement_progress.get("launches") == 1
 
 
-def test_a_checkpoint_in_a_tutorial_screen_unlocks_nothing(monkeypatch):
-    """Tutorial screens (counts_for_progress False) never earn halfway_there."""
+def test_a_checkpoint_in_a_tutorial_screen_counts_nothing(monkeypatch):
+    """Tutorial screens (counts_for_progress False) count no launches."""
     scene = _scene()
     monkeypatch.setattr(type(scene), "counts_for_progress", False, raising=False)
     _fly(scene)
     assert scene.state == PANNING
-    assert "halfway_there" not in scene.manager.session.achievements
+    assert "launches" not in scene.manager.session.achievement_progress

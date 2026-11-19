@@ -143,11 +143,11 @@ def test_the_random_record_does_not_complete_the_campaign(next_fixed_level):
             manager.session.records[level_id] = 5.0
     manager.session.records[RANDOM_LEVEL_ID] = RANDOM_BEST
     ach.check_state(manager)
-    assert not ach.is_unlocked(manager.session, "home_sweet_home")
+    assert not ach.is_unlocked(manager.session, "home_sweet_home.4")     # tier IV: every level
 
     manager.session.records[next_fixed_level.id] = 6.0
     ach.check_state(manager)
-    assert ach.is_unlocked(manager.session, "home_sweet_home")
+    assert ach.is_unlocked(manager.session, "home_sweet_home.4")
 
 
 @pytest.mark.usefixtures("pygame_display")

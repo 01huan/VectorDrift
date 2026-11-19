@@ -2,6 +2,8 @@
 
 Icons are code-drawn per category until a picture exists: drop
 assets/images/achievements/<achievement id>.png in and it is used instead.
+A tiered achievement's icon gets a frame in its tier's metal (bronze,
+silver, gold, platinum).
 
 ToastStack is owned by the SceneManager, so a popup shows over any scene:
 it slides up from the bottom edge, stays a few seconds and slides back
@@ -14,7 +16,7 @@ from pathlib import Path
 import pygame
 
 from .. import config
-from ..achievements import ACHIEVEMENTS, FAILURE, MECHANICS, PROGRESS, SKILL
+from ..achievements import ACHIEVEMENTS, FAILURE, MECHANICS, PROGRESS, SKILL, display_name
 from ..config import px
 from ..image_assets import AssetSpec, load_image, register
 from ..ui import draw_text, get_font
@@ -28,6 +30,7 @@ CATEGORY_COLORS = {
     FAILURE: (235, 95, 95),
 }
 LOCKED_COLOR = (78, 88, 116)
+TIER_COLORS = ((205, 127, 70), (196, 206, 222), (246, 204, 70), (150, 236, 246))   # I-IV
 
 for _a in ACHIEVEMENTS:
     register(AssetSpec(f"achievement.{_a.id}", Path(f"achievements/{_a.id}.png")))
@@ -67,13 +70,15 @@ def _glyph(surface, category, c, r, color):
                                              (c - r * 0.45, c - r * 0.05)])
 
 
-def _render_icon(achievement, size, locked, hidden):
+def _render_icon(achievement, size, locked, hidden, tier=0):
     big = size * SS
     surf = pygame.Surface((big, big), pygame.SRCALPHA)
     color = LOCKED_COLOR if locked else CATEGORY_COLORS.get(achievement.category, config.ACCENT)
+    frame = TIER_COLORS[tier - 1] if tier and not locked else color
     bg = tuple(round(v * 0.22) for v in color)
     pygame.draw.rect(surf, (*bg, 255), (0, 0, big, big), border_radius=big // 6)
-    pygame.draw.rect(surf, color, (0, 0, big, big), width=max(2, big // 24), border_radius=big // 6)
+    width = max(2, big // (12 if tier and not locked else 24))
+    pygame.draw.rect(surf, frame, (0, 0, big, big), width=width, border_radius=big // 6)
     c, r = big / 2, big * 0.3
     if hidden:
         font = pygame.font.SysFont("segoeuisemibold,arial", round(big * 0.6), bold=True)
@@ -84,8 +89,11 @@ def _render_icon(achievement, size, locked, hidden):
     return pygame.transform.smoothscale(surf, (size, size))
 
 
-def draw_icon(surface, rect, achievement, locked=False, hidden=False):
-    """The achievement's picture if one exists, else its category icon."""
+def draw_icon(surface, rect, achievement, locked=False, hidden=False, tier=0):
+    """The achievement's picture if one exists, else its category icon.
+
+    ``tier`` (1-4) frames a tiered achievement's icon in that tier's metal.
+    """
     rect = pygame.Rect(rect)
     img = None if (locked and hidden) else load_image(f"achievement.{achievement.id}", size_px=rect.size)
     if img is not None:
@@ -93,10 +101,13 @@ def draw_icon(surface, rect, achievement, locked=False, hidden=False):
             img = img.copy()
             img.fill((90, 90, 90, 255), special_flags=pygame.BLEND_RGBA_MULT)
         surface.blit(img, img.get_rect(center=rect.center))
+        if tier and not locked:
+            pygame.draw.rect(surface, TIER_COLORS[tier - 1], rect, width=max(2, rect.w // 12),
+                             border_radius=rect.w // 6)
         return
-    key = (achievement.id, rect.w, locked, hidden)
+    key = (achievement.id, rect.w, locked, hidden, tier)
     if key not in _icon_cache:
-        _icon_cache[key] = _render_icon(achievement, rect.w, locked, hidden)
+        _icon_cache[key] = _render_icon(achievement, rect.w, locked, hidden, tier)
     surface.blit(_icon_cache[key], rect)
 
 
@@ -115,27 +126,27 @@ def _ease(x):
 
 class ToastStack:
     def __init__(self):
-        self.shown = []                 # [[achievement, seconds shown]]
-        self.waiting = []
+        self.shown = []                 # [[achievement, tier, seconds shown]]
+        self.waiting = []               # [(achievement, tier)]
 
-    def push(self, achievement):
-        self.waiting.append(achievement)
+    def push(self, achievement, tier=0):
+        self.waiting.append((achievement, tier))
         self._fill()
 
     def _fill(self):
         while self.waiting and len(self.shown) < MAX_SHOWN:
-            self.shown.append([self.waiting.pop(0), 0.0])
+            self.shown.append([*self.waiting.pop(0), 0.0])
 
     def update(self, dt):
         for toast in self.shown:
-            toast[1] += dt
-        self.shown = [t for t in self.shown if t[1] < 2 * SLIDE_S + HOLD_S]
+            toast[2] += dt
+        self.shown = [t for t in self.shown if t[2] < 2 * SLIDE_S + HOLD_S]
         self._fill()
 
     def draw(self, surface):
         w, h = px(TOAST_W), px(TOAST_H)
         x = config.WINDOW_W - px(TOAST_MARGIN) - w
-        for i, (achievement, t) in enumerate(self.shown):
+        for i, (achievement, tier, t) in enumerate(self.shown):
             rest_y = config.WINDOW_H - px(TOAST_MARGIN) - h - i * (h + px(TOAST_GAP))
             if t < SLIDE_S:
                 shown = _ease(t / SLIDE_S)
@@ -150,10 +161,10 @@ class ToastStack:
             surface.blit(panel, card)
             pygame.draw.rect(surface, config.PANEL_EDGE, card, width=max(1, px(1)), border_radius=px(4))
             icon = pygame.Rect(card.x + px(12), card.y + px(12), h - px(24), h - px(24))
-            draw_icon(surface, icon, achievement)
+            draw_icon(surface, icon, achievement, tier=tier)
             tx = icon.right + px(12)
             draw_text(surface, "ACHIEVEMENT UNLOCKED", (tx, card.y + px(16)), 11, config.TEXT_DIM, kind="bold")
+            name = display_name(achievement, tier)
             room = card.right - px(12) - tx
-            size = next((s for s in NAME_SIZES if get_font(s, "bold").size(achievement.name)[0] <= room),
-                        NAME_SIZES[-1])
-            draw_text(surface, achievement.name, (tx, card.y + px(34)), size, config.TEXT, kind="bold")
+            size = next((s for s in NAME_SIZES if get_font(s, "bold").size(name)[0] <= room), NAME_SIZES[-1])
+            draw_text(surface, name, (tx, card.y + px(34)), size, config.TEXT, kind="bold")

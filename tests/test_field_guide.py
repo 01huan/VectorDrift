@@ -183,11 +183,13 @@ def test_the_clips_change_no_achievements_or_counters():
 
 
 def test_the_same_clips_would_earn_achievements_outside_the_tutorial(monkeypatch):
-    """Shows the check above is real: counted play would unlock hole_in_one, kaboom, ..."""
+    """Shows the check above is real: counted play would count black holes and rocks blown up."""
+    from vector_drift import achievements as ach
     monkeypatch.setattr(GuideDemoScene, "counts_for_progress", True)
     mgr = _manager()
     _play_every_clip(mgr)
-    assert {"hole_in_one", "kaboom", "not_a_scratch"} <= set(mgr.session.achievements)
+    progress = mgr.session.achievement_progress
+    assert progress.get(ach.TELEPORTS, 0) > 0 and progress.get(ach.ROCKS_DESTROYED, 0) > 0
 
 
 def test_the_clips_change_no_coins_records_replays_or_saves(monkeypatch):

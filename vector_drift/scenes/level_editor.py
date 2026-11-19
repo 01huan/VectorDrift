@@ -711,8 +711,6 @@ class LevelEditorScene(Scene):
         self.session.custom_levels.append(spec)
         self.session.custom_level_ids.add(spec.id)
         save_progress(self.manager.account, self.session)
-        from ..achievements import unlock
-        unlock(self.manager, "built_different")
         # 若該關卡曾上傳到社區，同步更新名稱與內容，讓公開卡片保持一致。
         # 同步是盡力而為：失敗（例如離峰時段名稱衝突、斷線）會吞掉，
         # 下次上傳前或下次存檔時還能再試。

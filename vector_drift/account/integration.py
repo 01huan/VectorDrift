@@ -6,6 +6,7 @@ account subsystem stays usable (and testable) without importing pygame scenes.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -242,11 +243,14 @@ def _apply_achievements(session: Any, saved: Any, saved_progress: Any) -> None:
             for key, value in saved_progress.items():
                 if isinstance(value, bool):
                     continue
-                if isinstance(value, (int, float)):
-                    try:
-                        progress[key] = int(value)
-                    except (TypeError, ValueError, OverflowError):
+                if isinstance(value, int):
+                    progress[key] = value
+                elif isinstance(value, float):
+                    # Counters come back from JSON as floats sometimes; a best
+                    # time is a real float and keeps its fraction.
+                    if not math.isfinite(value):
                         continue
+                    progress[key] = int(value) if value.is_integer() else value
                 elif isinstance(value, (list, tuple, set, frozenset)):
                     items = set()
                     for item in value:

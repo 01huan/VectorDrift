@@ -510,11 +510,13 @@ def test_popup_demos_count_for_nothing():
 
 
 def test_the_same_demos_would_count_outside_the_tutorial(monkeypatch):
-    """Shows the check above is real: counted, the clips unlock hole_in_one, kaboom, ..."""
+    """Shows the check above is real: counted, the clips count black holes and rocks blown up."""
+    from vector_drift import achievements as ach
     monkeypatch.setattr(TutorialScene, "counts_for_progress", True)
     mgr, scene = _open()
     _watch_every_demo(scene)
-    assert {"hole_in_one", "kaboom", "not_a_scratch"} <= set(mgr.session.achievements)
+    progress = mgr.session.achievement_progress
+    assert progress.get(ach.TELEPORTS, 0) > 0 and progress.get(ach.ROCKS_DESTROYED, 0) > 0
 
 
 def test_the_help_card_points_at_the_list():

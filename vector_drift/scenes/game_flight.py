@@ -228,8 +228,11 @@ class GameFlightMixin:
         self._trail_count = 0
         self._bounces_heard = 0
         self._teleports_heard = 0
+        self._went_off_map = False      # this flight left the map (Thinking Outside the Box)
+        self._shield_saved = False      # a shield took a hit this flight (Not a Scratch)
         self._replay_teleports = 0
         self.state = FLIGHT
+        achievements.launched(self.manager)
         self._record_replay_frame(self.flight)
         self._record_community_stat("play")
         self._record_function_usage(False)
@@ -251,7 +254,6 @@ class GameFlightMixin:
         self.total_time += self.flight.time
         if outcome is Outcome.REACHED and not self.on_last_section:
             self._reach_checkpoint()
-            achievements.checkpoint_reached(self.manager)
             return
         if outcome is Outcome.REACHED:
             self.state = ARRIVED
@@ -391,7 +393,28 @@ class GameFlightMixin:
             fx=lines[0].strip() or "0", fy=lines[1].strip() or "0",
             solution_used=self.solution_used,
             solver_used=kind == "random" and self._ai_revealed(),
-            resumed=self.resumed)
+            resumed=self.resumed,
+            bounces=getattr(self.flight, "bounces", 0),
+            went_off_map=getattr(self, "_went_off_map", False),
+            shield_saved=getattr(self, "_shield_saved", False),
+            has_rocks=self._level_has_rocks(),
+            community_key=self._community_key())
+
+    def _level_has_rocks(self):
+        """Whether the level (any section) was built with rocks, shockwaves or not."""
+        from ..data import get_level
+        try:
+            level = get_level(self.level.id, seed=self.session.random_seed) if not is_custom_map(
+                self.level.id, self.session) else self.full_level
+        except Exception:               # noqa: BLE001 - fall back to what is on screen
+            level = self.full_level
+        sections = getattr(level, "sections", ()) or ()
+        return bool(getattr(level, "obstacles", ()) or any(s.obstacles for s in sections))
+
+    def _community_key(self):
+        """A community level's lasting identity: its remote row, not the local id."""
+        from ..data import community_remote_id
+        return community_remote_id(self.level.id) or self.level.id
 
     def _clear_history(self):
         """Drop the dimmed earlier legs (pixels and world points)."""

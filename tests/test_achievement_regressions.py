@@ -56,7 +56,7 @@ def test_clearing_a_community_level_unlocks_space_tourist():
     manager.session.level_source = "community"
     scene = GameScene(manager)
     scene._report_clear()
-    assert ach.is_unlocked(manager.session, "space_tourist")
+    assert ach.is_unlocked(manager.session, "space_tourist.1")
     # A community level is not a campaign level: it must not count towards
     # the campaign clean clears ("Look Ma, No Hints").
     assert ach.CLEAN_CLEARS not in manager.session.achievement_progress

@@ -52,17 +52,23 @@ class GamePickupMixin:
     def _play_flight_sounds(self):
         """Bounce off a rock / pass through a black hole since the last frame."""
         flight = self.flight
+        manager = getattr(self, "manager", None)     # mixin tests use a bare scene
         bounces = getattr(flight, "bounces", 0)
         if bounces > self._bounces_heard:
+            if manager is not None:
+                achievements.count(manager, achievements.BOUNCES, bounces - self._bounces_heard)
             self._bounces_heard = bounces
             self.audio.play("bounce")
         teleports = getattr(flight, "teleports", 0)
         if teleports > self._teleports_heard:
+            if manager is not None:
+                achievements.count(manager, achievements.TELEPORTS, teleports - self._teleports_heard)
             self._teleports_heard = teleports
             self.audio.play("warp")
-        manager = getattr(self, "manager", None)     # mixin tests use a bare scene
+        if getattr(flight, "unbound", False) and self._off_map(flight):
+            self._went_off_map = True
         if manager is not None:
-            achievements.in_flight(manager, flight, off_map=self._off_map(flight))
+            achievements.in_flight(manager, flight)
 
     def _drain_pickup_events(self):
         """Sync scene state and play sounds for new pickup events (once each).
@@ -146,6 +152,9 @@ class GamePickupMixin:
                     self.money = self.session.money
                     self._run_coins.append((key, amount))
                     self._save_progress()
+                    manager = getattr(self, "manager", None)
+                    if manager is not None:
+                        achievements.count(manager, achievements.COINS)
                 try:
                     self.audio.play("money")
                 except Exception:  # noqa: BLE001 - sfx slot is optional
@@ -158,6 +167,7 @@ class GamePickupMixin:
                 except Exception:  # noqa: BLE001 - sfx slot is optional
                     log.debug("unbound sfx skipped", exc_info=True)
             elif event.get("kind") == "shield_used":
+                self._shield_saved = True
                 # The protection broke on a bumper (the ship still passes it) or on the map edge (the ship bounced back).
                 try:
                     self.audio.play("shield_break")
