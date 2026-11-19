@@ -92,6 +92,21 @@ def _placeholder(preset):
     )
 
 
+def level_number(level_id):
+    """The number the player sees for a level: its slot on the level select.
+
+    A level's id is its identity in saves (best time, clear reward,
+    achievements, replays) and never changes; its number is only its place
+    and may move. A fixed level's number is its id. Dynamic levels (the
+    random level, id RANDOM_LEVEL_ID = 999) come right after the last fixed
+    level, in id order. Any other id (custom, community) is its own number.
+    """
+    if is_dynamic_level(level_id):
+        last_fixed = max((level.id for level in LEVELS), default=0)
+        return last_fixed + 1 + dynamic_ids().index(level_id)
+    return level_id
+
+
 def all_levels():
     """Static levels + one placeholder per registered dynamic preset."""
     seen = {lv.id for lv in LEVELS}
@@ -284,7 +299,7 @@ def get_level(level_id, seed=None):
 __all__ = [
     "ShipSpec", "ObstacleSpec", "PickupSpec", "LevelSpec", "SectionSpec",
     "HoleSpec", "SHIPS", "LEVELS", "CUSTOM_LEVELS", "COMMUNITY_LEVELS",
-    "all_levels", "get_level",
+    "all_levels", "get_level", "level_number",
     "register_custom_level", "is_custom_level", "community_level_id",
     "clean_level_name", "unique_level_name",
     "register_community_level", "is_community_level", "is_custom_map",

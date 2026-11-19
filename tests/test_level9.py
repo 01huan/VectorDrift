@@ -11,8 +11,8 @@ import math
 import pytest
 
 from vector_drift import config
-from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
-                               section_level, section_shift)
+from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, level_number,
+                               section_count, section_level, section_shift)
 from vector_drift.expr_parser import parse_expression
 from vector_drift.level_presets import RANDOM_LEVEL_ID, is_dynamic_level
 from vector_drift.physics import Flight, ForceField, Outcome
@@ -103,7 +103,7 @@ def test_nothing_sits_in_a_rock(index):
 def test_level_select_lists_level_nine_and_the_random_level_after_it():
     cards = {lv.id: lv for lv in all_levels()}
     assert cards[9] is LEVEL
-    assert RANDOM_LEVEL_ID == 10 and is_dynamic_level(10)
+    assert level_number(RANDOM_LEVEL_ID) == 10 and is_dynamic_level(RANDOM_LEVEL_ID)
     assert "ship10" in SHIPS
 
 

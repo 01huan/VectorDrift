@@ -190,12 +190,15 @@ def test_dynamic_registry_contains_the_merged_random_level_only():
 
 
 def test_the_random_level_comes_right_after_the_last_campaign_level():
-    """Not the last planned slot: the card right after the fixed levels."""
-    from vector_drift.data import LEVELS, all_levels
+    """Not the last planned slot: the card right after the fixed levels.
+
+    Its id stays RANDOM_LEVEL_ID; only the number shown moves along.
+    """
+    from vector_drift.data import LEVELS, all_levels, level_number
 
     last_campaign = max(level.id for level in LEVELS)
-    assert RANDOM_LEVEL_ID == last_campaign + 1
-    assert RANDOM_LEVEL_ID < config.PLANNED_LEVELS
+    assert level_number(RANDOM_LEVEL_ID) == last_campaign + 1
+    assert level_number(RANDOM_LEVEL_ID) < config.PLANNED_LEVELS
     assert [level.id for level in all_levels()][-1] == RANDOM_LEVEL_ID
 
 

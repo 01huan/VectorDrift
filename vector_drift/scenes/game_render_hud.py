@@ -8,6 +8,7 @@ from .. import config, render, sprites
 from ..abilities import all_abilities, charge_count
 from ..ability_icons import draw_ability_icon
 from ..config import px
+from ..data import level_number
 from ..ui import draw_panel_box, get_font, wrap_text
 from . import pickup_effects as pfx
 from .game_layout import (
@@ -57,9 +58,9 @@ class GameHudRenderMixin:
         if not sprites.draw_logo(surface, (cx, px(LOGO_Y)), px(LOGO_W)):
             draw_text(surface, "VECTOR DRIFT", (cx, px(LOGO_Y)), 26, config.TEXT, kind="bold", anchor="center")
 
-        # Level row: "LV1" + level-select button
+        # Level row: "LV1" + level-select button (the number shown, not the id)
         if self.show_level_row:
-            draw_text(surface, f"LV{self.level.id}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
+            draw_text(surface, f"LV{level_number(self.level.id)}", (px(CX - 26), px(LEVEL_ROW_Y)), 22, config.TEXT,
                       kind="bold", anchor="center")
             self.level_button.draw(surface)
 

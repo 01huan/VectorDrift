@@ -7,6 +7,7 @@ import pygame
 
 from .. import config, sprites
 from ..config import px
+from ..data import level_number
 from . import ability_effects as afx
 from . import pickup_effects as pfx
 from .replay_data import START_MARKER_RADIUS_M, trail_strokes
@@ -71,8 +72,16 @@ class ReplayRenderMixin:
         return bool(frames) and self.player.index >= len(frames) - 1
 
     def _level_label(self, rec):
-        """'9 · section 2/2' on multi-section levels, just the level number otherwise."""
-        label = str(rec.get("level_id"))
+        """'9 · section 2/2' on multi-section levels, just the level number otherwise.
+
+        The number shown on the level select, not the saved id (the random
+        level is saved as 999).
+        """
+        level_id = rec.get("level_id")
+        try:
+            label = str(level_number(int(level_id)))
+        except (TypeError, ValueError):
+            label = str(level_id)
         if self._section_total > 1:
             label += f" · section {self._section_index + 1}/{self._section_total}"
         return label

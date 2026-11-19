@@ -199,8 +199,10 @@ def ship_unlocked(ship, level_id=None, session=None, owned=None):
 
 
 def default_ship_id(level_id=None, session=None):
-    """The ship level ``level_id`` flies: level N flies shipNN.
+    """The ship level ``level_id`` flies: level number N flies shipNN.
 
+    N is the number shown on the level select (data.level_number), not the
+    id: the random level (id 999) flies the ship of the slot it sits in.
     A level whose ship is not made yet (shipNN not in SHIPS), and anything
     that is not a level number, flies ship01. ``session`` is unused (kept
     for callers). Community and custom levels: data.level_ship_id.
@@ -211,6 +213,8 @@ def default_ship_id(level_id=None, session=None):
         return DEFAULT_SHIP_ID
     if isinstance(level_id, bool) or number != level_id:
         return DEFAULT_SHIP_ID
+    from .data import level_number      # lazy: data imports this module
+    number = level_number(number)
     ship_id = f"ship{number:02d}"
     return ship_id if number >= 1 and ship_id in SHIPS else DEFAULT_SHIP_ID
 

@@ -6,7 +6,7 @@ import pygame
 
 from .. import config, render
 from ..config import px
-from ..data import all_levels, is_custom_level
+from ..data import all_levels, is_custom_level, level_number
 from ..level_pages import (PER_PAGE, can_next, can_prev, clamp_page, levels_on_page,
                            page_count, restore_page, wheel_step)
 from ..level_presets import get_preset, is_dynamic_level
@@ -116,8 +116,14 @@ class LevelSelectScene(Scene):
             lv.id for lv in all_levels()
             if not is_custom_level(lv.id) and lv.id not in custom_ids
         ]
-        highest = max(max(base_level_ids, default=0), config.PLANNED_LEVELS)
-        self.level_ids = list(range(1, highest + 1))
+        # Cards go by the number shown (data.level_number), not the id: the
+        # random level's id is 999, its card sits after the last fixed level.
+        # level_ids lists the card keys in that order: a level's id, or the
+        # slot number itself for a "Coming soon" placeholder.
+        by_number = {level_number(lid): lid for lid in base_level_ids}
+        highest = max(max(by_number, default=0), config.PLANNED_LEVELS)
+        self.level_ids = [by_number.get(n, n) for n in range(1, highest + 1)]
+        self.level_numbers = {key: n for n, key in enumerate(self.level_ids, start=1)}
         # Back on the page the player left, or on the page of the level they
         # played on to (level_pages.restore_page).
         self.page = restore_page(getattr(self.session, "level_select_page", None),
@@ -335,7 +341,8 @@ class LevelSelectScene(Scene):
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, line_w, border_radius=px(6))
             lock = icon_surface("lock", px(34), config.TEXT_FAINT)
             surface.blit(lock, lock.get_rect(center=(rect.centerx, rect.y + px(52))))
-            draw_text(surface, f"Level {lid}", (rect.centerx, rect.y + px(94)), 16, config.TEXT_FAINT,
+            draw_text(surface, f"Level {self.level_numbers.get(lid, lid)}", (rect.centerx, rect.y + px(94)),
+                      16, config.TEXT_FAINT,
                       kind="bold", anchor="center")
             draw_text(surface, "Coming soon", (rect.centerx, rect.y + px(118)), 13, config.TEXT_FAINT,
                       anchor="center")
@@ -345,7 +352,8 @@ class LevelSelectScene(Scene):
         pygame.draw.rect(surface, config.EDITOR_LINE_HL if hover else config.PANEL_BG, rect, border_radius=px(6))
         pygame.draw.rect(surface, config.ACCENT if hover else config.EDITOR_BORDER, rect,
                          max(2, px(2)) if hover else line_w, border_radius=px(6))
-        draw_text(surface, str(lid), (rect.x + px(18), rect.y + px(10)), 44, config.TEXT, kind="bold")
+        draw_text(surface, str(self.level_numbers.get(lid, lid)), (rect.x + px(18), rect.y + px(10)), 44,
+                  config.TEXT, kind="bold")
         name_y, status_y = rect.y + px(78), rect.y + px(116)
         lines, size = [], 13
         if is_dynamic_level(lid):

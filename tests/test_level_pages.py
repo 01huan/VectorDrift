@@ -7,7 +7,7 @@ import pytest
 
 from vector_drift import config
 from vector_drift.config import px
-from vector_drift.data import all_levels
+from vector_drift.data import all_levels, level_number
 from vector_drift.level_pages import WHEEL_COOLDOWN
 from vector_drift.scenes import levels as levels_module
 from vector_drift.scenes.base import SceneManager
@@ -46,12 +46,12 @@ def _grid_cells():
 
 
 def _walk_pages(scene):
-    """Visit every page with the ">" arrow; return the level ids on each page."""
+    """Visit every page with the ">" arrow; return the level numbers shown on each page."""
     cells = _grid_cells()
     pages = []
     while True:
         assert [r.topleft for _, r in scene.cards] == cells[:len(scene.cards)]  # slots in order
-        pages.append([lid for lid, _ in scene.cards])
+        pages.append([scene.level_numbers[lid] for lid, _ in scene.cards])
         if not scene.next_arrow.enabled:
             return pages
         _click(scene, scene.next_arrow.rect.center)
@@ -77,7 +77,7 @@ def _wheel(scene, y, now, monkeypatch):
 
 # --- every slot is a level -------------------------------------------------------------
 def test_real_levels_show_up_to_the_planned_count():
-    highest = max(lv.id for lv in all_levels())
+    highest = max(level_number(lv.id) for lv in all_levels())
     pages = _walk_pages(_scene())
     _assert_covers(pages, max(highest, config.PLANNED_LEVELS))
 

@@ -11,11 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .data_levels import LEVELS
-
-# The random level sits right after the last campaign level (not at the end
-# of the planned level slots), so adding a campaign level moves it along.
-RANDOM_LEVEL_ID = max(level.id for level in LEVELS) + 1
+# The random level's id is its identity in saves (best time, achievements,
+# replays) and never changes. Where it is shown is a separate number:
+# data.level_number puts it right after the last campaign level, so adding a
+# campaign level moves its card along without handing the new level its
+# saves. Fixed ids count up from 1 and editor ids start at 1000, so 999 is
+# free.
+RANDOM_LEVEL_ID = 999
 
 
 @dataclass(frozen=True)
