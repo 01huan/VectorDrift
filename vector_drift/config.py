@@ -186,6 +186,20 @@ FREE_ANSWER_LEVELS = (1, 2, 8)      # fixed levels whose Hint answer page is fre
 HINT_ANSWER_COST = 10               # coins for the Hint answer page on other fixed levels
 CLEAR_REWARD = 5                    # coins for reaching the target, once per fixed level / random map
 
+# --- Experience and player levels ------------------------------------------
+# Only clears and achievements give XP. The k-th clear of one source gives
+# max(1, base // k) (see xp.xp_for_clear).
+XP_FIXED_LEVEL_BASE = {             # fixed level id -> XP for its first clear
+    1: 100, 2: 120, 3: 140, 4: 160, 5: 180, 6: 200, 7: 220, 8: 240, 9: 260,
+}
+XP_RANDOM_MAP = 150                 # XP for the first clear of each random map
+XP_PER_ACHIEVEMENT = 40             # XP per achievement (hidden ones too)
+XP_LEVEL_FIRST = 100                # XP from Lv 1 to Lv 2
+XP_LEVEL_STEP = 50                  # each further level needs this much more
+LEVEL_UP_COINS = 5                  # coins for every level reached
+LEVEL_MILESTONE_EVERY = 5           # every multiple of this level ...
+LEVEL_MILESTONE_COINS = 10          # ... pays these extra coins
+
 # --- Gameplay ------------------------------------------------------------
 MAX_EXPR_LEN = 1000
 BANNER_DURATION = 1.8               # life-lost banner (s)
