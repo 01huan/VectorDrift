@@ -612,6 +612,7 @@ VectorDrift/
 ├── run.sh                          # One-click Linux/macOS launcher (same steps as run.bat)
 ├── run.command                     # macOS double-click wrapper that runs run.sh
 ├── requirements.txt                # Runtime and test dependencies
+├── requirements-dev.txt            # Development extras (pytest-xdist for parallel tests)
 ├── .env.example                    # Optional Supabase configuration template
 ├── docs/
 │   └── supabase_schema.sql         # Supabase tables, triggers, and RLS policies
@@ -675,6 +676,8 @@ Install the dependencies first, then run:
 ```bash
 python -m pytest tests
 ```
+
+To run the tests in parallel, install the development dependencies with `python -m pip install -r requirements-dev.txt` and run `python -m pytest tests -n 8`.
 
 The test suite covers expression parsing/evaluation, physics and edge cases, level definitions and generation, pickups, hints, checkpoints, replay reconstruction, custom/community levels, account/profile integration, solver behavior, UI interactions, and README rules.
 
