@@ -413,3 +413,17 @@ def test_fallback_map_follows_the_generator_rules():
         assert min(math.dist(coin.center, path[j])
                    for j in range(round(0.2 * k), round(0.9 * k) + 1)) < 0.01
         assert coin_fits(coin.center, route, level.obstacles, level.pickups[:i])
+
+
+# --- Thirty days in a row --------------------------------------------------------------
+
+SOLVABLE_FROM = date(2026, 11, 19)
+SOLVABLE_DAYS = 30
+
+
+def test_daily_maps_for_30_days_are_solvable():
+    for offset in range(SOLVABLE_DAYS):
+        day = SOLVABLE_FROM + timedelta(days=offset)
+        daily = generate_daily(day)
+        assert not daily.is_fallback, f"{day} needed the fallback map"
+        assert _reaches(daily), f"{day}: Fx = {daily.fx}, Fy = {daily.fy} misses"
