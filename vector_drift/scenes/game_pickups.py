@@ -134,18 +134,16 @@ class GamePickupMixin:
                     log.debug("life sfx skipped", exc_info=True)
             elif event.get("kind") == "money":
                 # Each coin pays once: once ever on a fixed level, once per
-                # map on a random level.  After a reveal coins pay nothing
+                # map on a random level, once per day on the daily map.  After a reveal coins pay nothing
                 # and stay collectable for a later run.
                 key = self._coin_key(event.get("center"))
-                collected = self._collected_coins()
                 if is_custom_map(self.level.id, self.session):
                     # Custom/community maps pay no coins (by design): the
                     # coin is not banked, saved as collected or counted as
                     # earned, so it stays collectable on every run.
                     # (The sound below still plays.)
                     pass
-                elif key not in collected:
-                    collected.add(key)
+                elif self._claim_coin(key):
                     amount = event.get("amount", 1)
                     self.session.money.add(amount)
                     self._add_pickup_fx(self._money_fx, event, amount)   # only coins paid

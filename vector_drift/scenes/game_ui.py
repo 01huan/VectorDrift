@@ -5,11 +5,12 @@ from dataclasses import replace
 
 import pygame
 
-from .. import config, render, sprites
+from .. import config, daily_records, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
 from ..coords import Viewport, fit_zoom
+from ..daily_level import is_daily_level
 from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
                     is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
@@ -228,16 +229,33 @@ class GameUIMixin:
 
     # ------------------------------------------------------------------ Coins
     def _coin_key(self, center):
-        """A coin's identity: its level on fixed levels, its map on random ones."""
+        """A coin's identity: its level on fixed levels, its map on random ones.
+
+        On the daily map it is just its center: the day's record keeps them.
+        """
+        if is_daily_level(self.level.id):
+            return tuple(center)
         if is_dynamic_level(self.level.id):
             return (self.level.id, self.session.random_seed, tuple(center))
         return (self.level.id, tuple(center))
 
     def _collected_coins(self):
-        """Keys of coins already paid out (fixed: saved; random: this launch)."""
+        """Keys of coins already paid out (fixed, daily: saved; random: this launch)."""
+        if is_daily_level(self.level.id):
+            return daily_records.taken_coins(self.session, self.session.daily_day)
         if is_dynamic_level(self.level.id):
             return self.session.collected_random_coins
         return self.session.collected_money_pickups
+
+    def _claim_coin(self, key):
+        """Mark the coin ``key`` paid; False when it was paid before."""
+        if is_daily_level(self.level.id):
+            return daily_records.take_coin(self.session, self.session.daily_day, key)
+        collected = self._collected_coins()
+        if key in collected:
+            return False
+        collected.add(key)
+        return True
 
     def _available_coins(self):
         """Balance the player can spend on a reveal: the full current balance.
@@ -259,7 +277,7 @@ class GameUIMixin:
         self._save_progress()
 
     def _pay_clear_reward(self):
-        """Reaching the target pays once per fixed level (saved) or random map.
+        """Reaching the target pays once per fixed level (saved), random map or day (daily).
 
         The clear reward is paid regardless of whether an answer was revealed;
         revealing an answer only costs its price.
@@ -267,13 +285,17 @@ class GameUIMixin:
         self._clear_reward = 0
         if is_custom_map(self.level.id, self.session):
             return
-        if is_dynamic_level(self.level.id):
-            paid, key = self.session.clear_rewarded_maps, (self.level.id, self.session.random_seed)
+        if is_daily_level(self.level.id):
+            if not daily_records.take_clear_reward(self.session, self.session.daily_day):
+                return
         else:
-            paid, key = self.session.clear_rewarded_levels, self.level.id
-        if key in paid:
-            return
-        paid.add(key)
+            if is_dynamic_level(self.level.id):
+                paid, key = self.session.clear_rewarded_maps, (self.level.id, self.session.random_seed)
+            else:
+                paid, key = self.session.clear_rewarded_levels, self.level.id
+            if key in paid:
+                return
+            paid.add(key)
         self._clear_reward = config.CLEAR_REWARD
         self.session.money.add(self._clear_reward)
         self.money = self.session.money

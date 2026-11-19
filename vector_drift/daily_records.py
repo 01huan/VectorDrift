@@ -107,3 +107,30 @@ def records_from_saved(raw):
 def records_to_saved(records):
     """A copy of ``records`` for the profile (no shared lists with the Session)."""
     return records_from_saved(records)
+
+
+# --- coins and the clear reward ----------------------------------------------------
+
+def taken_coins(session, day):
+    """Centers (x, y) of the coins already paid on ``day``."""
+    record = get_record(session, day)
+    return {tuple(point) for point in record["coins_taken"]} if record else set()
+
+
+def take_coin(session, day, center):
+    """Mark the coin at ``center`` paid on ``day``; False if it was paid before."""
+    point = [float(center[0]), float(center[1])]
+    record = get_record(session, day, create=True)
+    if point in record["coins_taken"]:
+        return False
+    record["coins_taken"].append(point)
+    return True
+
+
+def take_clear_reward(session, day):
+    """Mark ``day``'s clear reward paid; False if it was paid before."""
+    record = get_record(session, day, create=True)
+    if record["clear_rewarded"]:
+        return False
+    record["clear_rewarded"] = True
+    return True
