@@ -50,6 +50,11 @@ class Session:
     player_key: str | None = None   # local id of this player (community statistics); saved
     achievements: dict = field(default_factory=dict)          # achievement id -> ISO time unlocked (saved)
     achievement_progress: dict = field(default_factory=dict)  # counters toward achievements (saved)
+    # --- experience and player level (all saved; see xp.py) ----------------
+    xp_total: int = 0                                         # all XP ever gained
+    fixed_clear_counts: dict = field(default_factory=dict)    # fixed level id -> clears so far
+    xp_achievements: set = field(default_factory=set)         # achievement ids that paid their XP
+    xp_rewarded_level: int = 1                                # highest level whose coins were paid
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None
