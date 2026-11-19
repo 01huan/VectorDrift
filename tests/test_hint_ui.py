@@ -14,6 +14,7 @@ from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
 from vector_drift.scenes.win import WinScene
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -106,7 +107,7 @@ def test_fixed_levels_show_hint_and_never_start_the_solver(level_id, no_solver):
     assert no_solver == []
 
 
-@pytest.mark.parametrize("level_id", [8])
+@pytest.mark.parametrize("level_id", [RANDOM_LEVEL_ID])
 def test_random_levels_keep_the_ai_solver(level_id, no_solver):
     scene = _scene(level_id)
     _draw(scene)
@@ -380,7 +381,7 @@ def _texts_drawn(scene, monkeypatch):
 
 
 def test_answer_settings_live_in_config():
-    assert config.FREE_ANSWER_LEVELS == (1, 2, 9)
+    assert config.FREE_ANSWER_LEVELS == (1, 2, 8)
     assert config.HINT_ANSWER_COST == 10
 
 

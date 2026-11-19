@@ -11,6 +11,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+from .data_levels import LEVELS
+
+# The random level sits right after the last campaign level (not at the end
+# of the planned level slots), so adding a campaign level moves it along.
+RANDOM_LEVEL_ID = max(level.id for level in LEVELS) + 1
+
 
 @dataclass(frozen=True)
 class ValidationProfile:
@@ -106,8 +112,8 @@ class RandomPreset:
             raise ValueError("random-level templates cannot contain nested templates")
 
 
-_PRESET_8_TEMPLATE_1 = RandomPreset(
-    level_id=8,
+_RANDOM_TEMPLATE_1 = RandomPreset(
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift I",
     ship_id="ship01",
     time_limit=10.0,
@@ -138,8 +144,8 @@ _PRESET_8_TEMPLATE_1 = RandomPreset(
 )
 
 
-_PRESET_8_TEMPLATE_2 = RandomPreset(
-    level_id=8,
+_RANDOM_TEMPLATE_2 = RandomPreset(
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift II",
     time_limit=12.0,
     lives=3,
@@ -162,8 +168,8 @@ _PRESET_8_TEMPLATE_2 = RandomPreset(
     card_blurb="Denser maze, smaller target; shockwaves, extratime and shields",
 )
 
-_PRESET_8_WORMHOLE = RandomPreset(
-    level_id=8,
+_RANDOM_WORMHOLE = RandomPreset(
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift III",
     generator="wormhole_network",
     time_limit=12.0,
@@ -188,8 +194,8 @@ _PRESET_8_WORMHOLE = RandomPreset(
     card_blurb="Wormhole gates: chain the black holes through sealed sectors",
 )
 
-_PRESET_8_MAZE = RandomPreset(
-    level_id=8,
+_RANDOM_MAZE = RandomPreset(
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift IV",
     generator="maze",
     time_limit=15.0,
@@ -208,8 +214,8 @@ _PRESET_8_MAZE = RandomPreset(
     card_blurb="A sealed maze; find the hidden route to the planet",
 )
 
-_PRESET_8_EXTREME_TIME = RandomPreset(
-    level_id=8,
+_RANDOM_EXTREME_TIME = RandomPreset(
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift V",
     generator="extreme_time",
     time_limit=0.50,
@@ -230,16 +236,16 @@ _PRESET_8_EXTREME_TIME = RandomPreset(
     card_blurb="Extreme time: a fast slalom against the clock",
 )
 
-PRESET_8 = replace(
-    _PRESET_8_TEMPLATE_2,
+RANDOM_PRESET = replace(
+    _RANDOM_TEMPLATE_2,
     name="Random Drift",  # the card name; templates carry their own flavour names
-    templates=(_PRESET_8_TEMPLATE_1, _PRESET_8_TEMPLATE_2, _PRESET_8_WORMHOLE,
-               _PRESET_8_MAZE, _PRESET_8_EXTREME_TIME),
+    templates=(_RANDOM_TEMPLATE_1, _RANDOM_TEMPLATE_2, _RANDOM_WORMHOLE,
+               _RANDOM_MAZE, _RANDOM_EXTREME_TIME),
     max_sections=3,
     card_blurb="One to three merged screens per visit: wormhole gates, maze, extreme time",
 )
 
-PRESETS = {8: PRESET_8}
+PRESETS = {RANDOM_LEVEL_ID: RANDOM_PRESET}
 
 
 def get_preset(level_id):

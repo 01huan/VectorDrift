@@ -14,6 +14,7 @@ from vector_drift.scenes.win import WinScene
 from vector_drift.solver.interface import SimulationSpec, SolveResult
 from vector_drift.image_assets import COIN_TRADE
 from vector_drift.ui import coin_price_parts
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -35,7 +36,7 @@ def _manager(coins=0):
 
 
 def _scene(manager, seed=123):
-    manager.session.level_id = 8
+    manager.session.level_id = RANDOM_LEVEL_ID
     manager.session.random_seed = seed
     scene = GameScene(manager)
     manager.switch(scene)
@@ -44,7 +45,7 @@ def _scene(manager, seed=123):
 
 def _found(scene):
     """Pretend the background solver has found an answer."""
-    scene.ai_result = SolveResult(solver_name="pso", solver_version="1", level_id=8,
+    scene.ai_result = SolveResult(solver_name="pso", solver_version="1", level_id=RANDOM_LEVEL_ID,
                                   level_seed=None, success=True, best_score=1.8,
                                   best=SimulationSpec(template="t", fx_text=FX, fy_text=FY))
 
@@ -203,7 +204,7 @@ def _fly_to_the_last_screen(scene, seconds=2.0):
 
 def test_a_win_after_the_reveal_still_records_best_time(monkeypatch):
     manager = _manager(coins=10)
-    manager.session.records[8] = 99.0
+    manager.session.records[RANDOM_LEVEL_ID] = 99.0
     scene = _scene(manager)
     _open(scene)
     _reveal(scene)
@@ -216,7 +217,7 @@ def test_a_win_after_the_reveal_still_records_best_time(monkeypatch):
             break
         scene.update(1 / 60)
     assert isinstance(manager.scene, WinScene)
-    assert manager.session.records[8] == 2.0 * screens
+    assert manager.session.records[RANDOM_LEVEL_ID] == 2.0 * screens
     assert manager.session.stats["solution_used"] is True
 
     texts = []

@@ -1,4 +1,4 @@
-"""Tests for presets, rules, and Level 8 (extensibility)."""
+"""Tests for presets, rules, and the random level (extensibility)."""
 
 import math
 from dataclasses import replace
@@ -6,7 +6,8 @@ from dataclasses import replace
 from vector_drift import config
 from vector_drift.data import get_level
 from vector_drift.level_presets import (
-    PRESET_8,
+    RANDOM_LEVEL_ID,
+    RANDOM_PRESET,
     RandomPreset,
     dynamic_ids,
     get_preset,
@@ -53,7 +54,7 @@ def test_endpoints_keep_distance_L():
         level = generate_random_level(seed=seed)
         assert (
             math.dist(level.start, level.target_center)
-            >= min(t.min_start_target_dist for t in PRESET_8.templates)
+            >= min(t.min_start_target_dist for t in RANDOM_PRESET.templates)
         )
 
 
@@ -73,12 +74,12 @@ def test_corridor_keeps_configured_clearance():
     for seed in range(20):
         level, _, segments = generate_with_corridor(seed=seed)
         assert corridor_clearance(level, segments) >= (
-            min(t.corridor_clearance for t in PRESET_8.templates) - 1e-9
+            min(t.corridor_clearance for t in RANDOM_PRESET.templates) - 1e-9
         )
 
 
 def test_counts_radii_and_world_bounds():
-    corridor_templates = [t for t in PRESET_8.templates if t.generator == "corridor"]
+    corridor_templates = [t for t in RANDOM_PRESET.templates if t.generator == "corridor"]
     for seed in range(20):
         level, report = generate_random_level(seed=seed, return_report=True)
         if report.generator == "corridor":
@@ -96,8 +97,8 @@ def test_counts_radii_and_world_bounds():
 
 
 def test_same_seed_same_layout_via_get_level():
-    a = get_level(8, seed=123)
-    b = get_level(8, seed=123)
+    a = get_level(RANDOM_LEVEL_ID, seed=123)
+    b = get_level(RANDOM_LEVEL_ID, seed=123)
     assert a.start == b.start
     assert a.target_center == b.target_center
     assert [(o.center, o.radius) for o in a.obstacles] == [
@@ -107,8 +108,8 @@ def test_same_seed_same_layout_via_get_level():
 
 def test_level_spec_fields():
     level = generate_random_level(seed=7)
-    assert level.id == PRESET_8.level_id
-    assert level.name == PRESET_8.name
+    assert level.id == RANDOM_PRESET.level_id
+    assert level.name == RANDOM_PRESET.name
     screens = _screens(level)
     first = screens[0]
     # The level's own screen fields mirror its first screen, which comes
@@ -118,7 +119,7 @@ def test_level_spec_fields():
     assert any(
         (first.ship_id, first.target_radius, first.time_limit)
         == (template.ship_id, template.target_radius, template.time_limit)
-        for template in PRESET_8.templates
+        for template in RANDOM_PRESET.templates
     )
     # The lives are shared by the whole run (one screen's budget).
     assert level.lives == screens[0].lives
@@ -180,28 +181,38 @@ def test_random_level_selects_one_complete_template_per_generation():
     assert outcomes == {(11.0, 0, ("life",)), (17.0, 1, ())}
 
 
-# --- extensibility: presets / Level 8 / custom rules -------------------
+# --- extensibility: presets / random level / custom rules -------------------
 
-def test_dynamic_registry_contains_merged_level_8_only():
-    assert dynamic_ids() == (8,)
-    assert not is_dynamic_level(7) and is_dynamic_level(8)
+def test_dynamic_registry_contains_the_merged_random_level_only():
+    assert dynamic_ids() == (RANDOM_LEVEL_ID,)
+    assert not is_dynamic_level(8) and is_dynamic_level(RANDOM_LEVEL_ID)
     assert not is_dynamic_level(1)
 
 
-def test_level8_contains_the_original_corridor_templates():
-    generators = [t.generator for t in get_preset(8).templates]
+def test_the_random_level_comes_right_after_the_last_campaign_level():
+    """Not the last planned slot: the card right after the fixed levels."""
+    from vector_drift.data import LEVELS, all_levels
+
+    last_campaign = max(level.id for level in LEVELS)
+    assert RANDOM_LEVEL_ID == last_campaign + 1
+    assert RANDOM_LEVEL_ID < config.PLANNED_LEVELS
+    assert [level.id for level in all_levels()][-1] == RANDOM_LEVEL_ID
+
+
+def test_random_level_contains_the_original_corridor_templates():
+    generators = [t.generator for t in get_preset(RANDOM_LEVEL_ID).templates]
     assert generators.count("corridor") == 2
     assert set(generators) == {"corridor", "wormhole_network", "maze",
                                "extreme_time"}
-    p7, p8 = [t for t in get_preset(8).templates if t.generator == "corridor"]
+    p7, p8 = [t for t in get_preset(RANDOM_LEVEL_ID).templates if t.generator == "corridor"]
     assert (p8.num_obstacles, p8.target_radius) != (p7.num_obstacles, p7.target_radius)
-    lv8 = generate_random_level(8, seed=7)
-    assert lv8.id == 8
-    assert lv8.name == PRESET_8.name
+    lv8 = generate_random_level(RANDOM_LEVEL_ID, seed=7)
+    assert lv8.id == RANDOM_LEVEL_ID
+    assert lv8.name == RANDOM_PRESET.name
 
 
-def test_level8_ships_all_modules():
-    generators = {t.generator for t in get_preset(8).templates}
+def test_random_level_ships_all_modules():
+    generators = {t.generator for t in get_preset(RANDOM_LEVEL_ID).templates}
     assert generators == {"corridor", "wormhole_network", "maze",
                           "extreme_time"}
 
@@ -211,11 +222,11 @@ def test_the_bomb_theme_is_not_part_of_the_random_rotation():
     from vector_drift.level_presets import get_preset
     from vector_drift.level_modules import GENERATORS
 
-    assert "bomb" not in {t.generator for t in get_preset(8).templates}
+    assert "bomb" not in {t.generator for t in get_preset(RANDOM_LEVEL_ID).templates}
     # The module itself still exists (custom presets may use it).
     assert "bomb" in GENERATORS
     for seed in range(20):
-        _, report = generate_random_level(8, seed=seed, return_report=True)
+        _, report = generate_random_level(RANDOM_LEVEL_ID, seed=seed, return_report=True)
         assert "bomb" not in report.metrics["modules"]
 
 
@@ -224,7 +235,7 @@ def test_the_bomb_theme_is_not_part_of_the_random_rotation():
 def test_random_levels_use_every_kind_of_pickup():
     kinds = set()
     for seed in range(30):
-        level = generate_random_level(8, seed=seed, run_solver=False)
+        level = generate_random_level(RANDOM_LEVEL_ID, seed=seed, run_solver=False)
         for screen in _screens(level):
             kinds.update(p.kind for p in screen.pickups)
     assert kinds == {"shockwave", "extratime", "shield", "life", "money",
@@ -235,7 +246,7 @@ def test_random_levels_place_the_unbound_pickup():
     unbound = 0
     screens = 0
     for seed in range(30):
-        level = generate_random_level(8, seed=seed, run_solver=False)
+        level = generate_random_level(RANDOM_LEVEL_ID, seed=seed, run_solver=False)
         for screen in _screens(level):
             screens += 1
             unbound += any(p.kind == "unbound" for p in screen.pickups)
@@ -246,21 +257,21 @@ def test_random_levels_place_the_unbound_pickup():
 def test_random_levels_keep_the_pickups_in_proportion_to_the_obstacles():
     """Too few pickups make a screen dull, too many make it trivial."""
     for seed in range(30):
-        level = generate_random_level(8, seed=seed, run_solver=False)
+        level = generate_random_level(RANDOM_LEVEL_ID, seed=seed, run_solver=False)
         for screen in _screens(level):
             assert screen.pickups, "a screen without any pickup is dull"
             assert len(screen.pickups) <= 12, "too many pickups in one screen"
 
 
-def test_level8_layout_respects_own_preset():
-    preset = get_preset(8)
+def test_random_level_layout_respects_own_preset():
+    preset = get_preset(RANDOM_LEVEL_ID)
     corridor = [t for t in preset.templates if t.generator == "corridor"]
     assert corridor
     for template in corridor:
         single_template_preset = replace(preset, templates=(template,))
         for seed in range(5):
             level, _, segments = generate_with_corridor(
-                seed=seed, level_id=8, preset=single_template_preset
+                seed=seed, level_id=RANDOM_LEVEL_ID, preset=single_template_preset
             )
             assert template.num_obstacles_min <= len(level.obstacles) <= template.num_obstacles_max
             for ob in level.obstacles:

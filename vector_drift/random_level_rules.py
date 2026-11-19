@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from . import config
 from .data import ObstacleSpec
-from .level_presets import get_preset
+from .level_presets import RANDOM_LEVEL_ID, get_preset
 from .physics_core import segment_hits_circle
 
 
@@ -37,7 +37,7 @@ def _rand_point(rng, margin):
     return (x, y)
 
 
-def _preset_or_default(preset=None, level_id=8):
+def _preset_or_default(preset=None, level_id=RANDOM_LEVEL_ID):
     return preset if preset is not None else get_preset(level_id)
 
 

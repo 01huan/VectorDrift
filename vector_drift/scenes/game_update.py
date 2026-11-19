@@ -102,7 +102,7 @@ class GameUpdateMixin:
         flight the key changes with every pickup taken and on the pan to the
         next section; restarting there started a new pool of worker
         processes (one per CPU) each time while the cancelled ones were
-        still shutting down, and on Level 8 the stacked pools ran the
+        still shutting down, and on the random level the stacked pools ran the
         machine out of memory. The job for the launch state keeps running
         through the flight; a changed state is solved once back in SETUP.
         """

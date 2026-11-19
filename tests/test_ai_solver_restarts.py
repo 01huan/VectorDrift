@@ -3,7 +3,7 @@
 Every restart starts a new solve with its own pool of worker processes (one
 per CPU) while the cancelled one is still shutting down. Restarting on every
 pickup taken in flight and on the pan to the next section stacked several
-pools on Level 8 and ran the machine out of memory. The answer is only
+pools on the random level and ran the machine out of memory. The answer is only
 usable in SETUP, so the solver restarts there, once per new state.
 """
 
@@ -13,6 +13,7 @@ import pytest
 
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import FLIGHT, SETUP, GameScene
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -21,7 +22,7 @@ def _scene(seed=123):
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.level_id = 8
+    manager.session.level_id = RANDOM_LEVEL_ID
     manager.session.random_seed = seed
     scene = GameScene(manager)
     manager.switch(scene)

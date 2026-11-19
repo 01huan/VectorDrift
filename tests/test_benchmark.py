@@ -7,6 +7,7 @@ from vector_drift.solver.benchmark import (
     run_benchmark,
 )
 from vector_drift.solver.interface import SolveResult, SimulationSpec
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 
 class FakeSolver:
@@ -29,9 +30,9 @@ class FakeSolver:
 
 
 def test_generate_benchmark_levels():
-    cases = generate_benchmark_levels(n=2, level_id=8)
+    cases = generate_benchmark_levels(n=2, level_id=RANDOM_LEVEL_ID)
     assert len(cases) == 2
-    assert all(c.level_id == 8 for c in cases)
+    assert all(c.level_id == RANDOM_LEVEL_ID for c in cases)
     assert cases[0].seed != cases[1].seed
 
 
@@ -45,7 +46,7 @@ def test_generate_benchmark_levels_invalid():
 
 
 def test_run_benchmark_and_result():
-    cases = generate_benchmark_levels(n=2, level_id=8)
+    cases = generate_benchmark_levels(n=2, level_id=RANDOM_LEVEL_ID)
     res = run_benchmark(FakeSolver(), cases, time_budget_s=1.0, simulation_budget=5)
     assert res.n_cases == 2
     assert res.successes == 2

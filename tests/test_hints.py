@@ -125,7 +125,7 @@ def test_answer_label_is_optional():
 
 
 # --- multi-section levels: [level.N.section.K] ----------------------------------------
-MULTI_ID = next(lv.id for lv in LEVELS if lv.sections)      # level 9, two sections
+MULTI_ID = next(lv.id for lv in LEVELS if lv.sections)      # level 8, two sections
 
 
 def _sections(*numbers, **fields):

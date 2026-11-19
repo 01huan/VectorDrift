@@ -1,4 +1,4 @@
-"""Level 9 New Horizon, and the overlap rule for every multi-section level."""
+"""Level 8 New Horizon, and the overlap rule for every multi-section level."""
 
 import pytest
 
@@ -13,11 +13,11 @@ HALF_W, HALF_H = config.WORLD_HALF_W, config.WORLD_HALF_H
 MULTI = [lv for lv in LEVELS if lv.sections]
 
 
-# --- level 9 --------------------------------------------------------------------
-def test_level_nine_is_a_fixed_two_section_level():
-    level = get_level(9)
+# --- level 8 --------------------------------------------------------------------
+def test_level_eight_is_a_fixed_two_section_level():
+    level = get_level(8)
     assert level.name == "New Horizon"
-    assert not is_dynamic_level(9)
+    assert not is_dynamic_level(8)
     assert section_count(level) == 2
     first, second = section_level(level, 0), section_level(level, 1)
     for section in (first, second):
@@ -28,26 +28,26 @@ def test_level_nine_is_a_fixed_two_section_level():
     assert section_shift(level, 0) == (14.0, 0.0)          # world x: -7 -> 7 -> 21
 
 
-def test_level_nine_matches_level_one_where_it_should():
-    one, nine = get_level(1), get_level(9)
-    assert nine.ship_id == one.ship_id
-    assert nine.lives == one.lives
-    for section in nine.sections:
+def test_level_eight_matches_level_one_where_it_should():
+    one, eight = get_level(1), get_level(8)
+    assert eight.ship_id == one.ship_id
+    assert eight.lives == one.lives
+    for section in eight.sections:
         assert section.target_radius == one.target_radius
 
 
-def test_level_nine_is_on_the_level_select():
-    assert 9 in {lv.id for lv in all_levels()}
+def test_level_eight_is_on_the_level_select():
+    assert 8 in {lv.id for lv in all_levels()}
 
 
 def test_no_random_preset_takes_a_fixed_level_id():
-    assert 9 not in dynamic_ids() and 9 not in PRESETS
+    assert 8 not in dynamic_ids() and 8 not in PRESETS
     fixed = {lv.id for lv in LEVELS}
     assert not fixed & set(dynamic_ids())
 
 
 @pytest.mark.usefixtures("pygame_display")
-def test_level_nine_plays_through_checkpoint_to_the_win():
+def test_level_eight_plays_through_checkpoint_to_the_win():
     from types import SimpleNamespace
 
     import pygame
@@ -58,7 +58,7 @@ def test_level_nine_plays_through_checkpoint_to_the_win():
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.level_id = 9
+    manager.session.level_id = 8
     manager.session.fx_text, manager.session.fy_text = "5", "0"
     scene = GameScene(manager)
     manager.switch(scene)
@@ -144,7 +144,7 @@ def test_nothing_but_the_checkpoint_sits_where_sections_overlap(level):
 
 
 def test_there_is_a_multi_section_level_to_check():
-    assert [lv.id for lv in MULTI] == [9]
+    assert [lv.id for lv in MULTI] == [8]
 
 
 def test_the_overlap_check_catches_props_from_either_side():
@@ -183,7 +183,7 @@ def test_the_overlap_check_follows_diagonal_pans():
 
 
 @pytest.mark.usefixtures("pygame_display")
-def test_level_nine_answer_is_free_after_the_usual_question():
+def test_level_eight_answer_is_free_after_the_usual_question():
     from types import SimpleNamespace
 
     import pygame
@@ -191,11 +191,11 @@ def test_level_nine_answer_is_free_after_the_usual_question():
     from vector_drift.scenes.base import SceneManager
     from vector_drift.scenes.game import GameScene
 
-    assert 9 in config.FREE_ANSWER_LEVELS
+    assert 8 in config.FREE_ANSWER_LEVELS
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)
     manager = SceneManager(audio)
-    manager.session.level_id = 9
+    manager.session.level_id = 8
     scene = GameScene(manager)
     manager.switch(scene)
     scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))

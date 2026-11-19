@@ -13,6 +13,7 @@ from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.menu import MenuScene
 from vector_drift.solver import PSOConfig, run_solver_async
 from vector_drift.solver import pso as pso_module
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -24,7 +25,7 @@ def _manager():
 
 
 def _random_scene(manager):
-    manager.session.level_id = 8
+    manager.session.level_id = RANDOM_LEVEL_ID
     manager.session.random_seed = 123
     scene = GameScene(manager)
     manager.switch(scene)

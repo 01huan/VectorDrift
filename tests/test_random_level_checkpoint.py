@@ -9,6 +9,7 @@ from vector_drift.physics import Outcome
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import ARRIVED, PANNING, SETUP, GameScene
 from vector_drift.scenes.win import WinScene
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -35,7 +36,7 @@ def _manager():
 
 
 def _scene(manager, seed):
-    manager.session.level_id = 8
+    manager.session.level_id = RANDOM_LEVEL_ID
     manager.session.random_seed = seed
     scene = GameScene(manager)
     manager.switch(scene)
@@ -61,10 +62,10 @@ def _reach_the_target(scene):
 def _multi_screen_seed():
     """A seed whose random map is made of more than one screen."""
     from vector_drift.level_merge import generate_merged_layout
-    from vector_drift.level_presets import PRESET_8
+    from vector_drift.level_presets import RANDOM_PRESET
 
     for seed in range(60):
-        if len(generate_merged_layout(seed, PRESET_8).sections) > 1:
+        if len(generate_merged_layout(seed, RANDOM_PRESET).sections) > 1:
             return seed
     raise AssertionError("no multi-screen random map found")
 

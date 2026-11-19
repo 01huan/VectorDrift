@@ -12,6 +12,7 @@ from vector_drift.scenes.game import ARRIVED, FLIGHT, SETUP, GameScene
 from vector_drift.scenes.levels import LevelSelectScene
 from vector_drift.scenes.menu import MenuScene
 from vector_drift.scenes.win import WinScene
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -56,7 +57,7 @@ def _launch(scene, fx="1", fy="0"):
 # --- Task 1: Esc closes the AI Solver popup ------------------------------------------
 
 def test_esc_closes_the_ai_solver_popup():
-    scene = _scene(8, seed=123)
+    scene = _scene(RANDOM_LEVEL_ID, seed=123)
     scene._on_ai_click()
     assert scene.ai_popup
 
@@ -65,7 +66,7 @@ def test_esc_closes_the_ai_solver_popup():
 
 
 def test_esc_closes_the_ai_solver_popup_during_flight_without_aborting():
-    scene = _scene(8, seed=123)
+    scene = _scene(RANDOM_LEVEL_ID, seed=123)
     _launch(scene, "0.1", "0")
     lives = scene.lives
     scene._on_ai_click()
@@ -182,7 +183,7 @@ def test_abort_flight_is_only_offered_during_a_flight():
     assert scene.lives == lives - 1
 
 
-@pytest.mark.parametrize("level_id, seed", [(2, None), (8, 4321)])
+@pytest.mark.parametrize("level_id, seed", [(2, None), (RANDOM_LEVEL_ID, 4321)])
 def test_restart_replays_the_level_with_full_lives_and_the_same_formulas(level_id, seed):
     manager = _manager()
     scene = _scene(level_id, manager, seed=seed)
@@ -206,7 +207,7 @@ def test_restart_replays_the_level_with_full_lives_and_the_same_formulas(level_i
 @pytest.mark.parametrize("action, target", [("levels", LevelSelectScene), ("menu", MenuScene)])
 def test_levels_and_main_menu_leave_and_stop_the_solver(action, target, solver_stops):
     manager = _manager()
-    scene = _scene(8, manager, seed=99)
+    scene = _scene(RANDOM_LEVEL_ID, manager, seed=99)
     scene.update(1 / 60)                            # starts the background solve
     _key(scene, pygame.K_ESCAPE)
     _press(scene, action)

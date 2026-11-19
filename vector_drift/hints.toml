@@ -92,7 +92,7 @@ answers = [
   { label = "Bottom Shield", fx = "y", fy = "6 - x" },
 ]
 
-[level.9.section.1]
+[level.8.section.1]
 steps = [
   "The checkpoint is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
   "Push only to the right: make Fx positive and keep Fy = 0. A constant force gives constant acceleration (F = ma).",
@@ -102,7 +102,7 @@ answers = [
   { fx = "5", fy = "0" },
 ]
 
-[level.9.section.2]
+[level.8.section.2]
 steps = [
   "The planet is straight to your right, on the same line as the ship (y = 0). The ship starts at rest, so it moves the way the force pushes it.",
   "Push only to the right: make Fx positive and keep Fy = 0. A constant force gives constant acceleration (F = ma).",

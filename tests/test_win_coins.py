@@ -9,6 +9,7 @@ from vector_drift import config
 from vector_drift.image_assets import COIN_TRADE
 from vector_drift.scenes import base, win
 from vector_drift.scenes.base import SceneManager
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
@@ -54,7 +55,7 @@ def test_solution_used_no_longer_warns(monkeypatch):
     assert not any("no coins" in t for t in texts)
 
 
-@pytest.mark.parametrize("level_id, where", [(1, "level"), (8, "map")])
+@pytest.mark.parametrize("level_id, where", [(1, "level"), (RANDOM_LEVEL_ID, "map")])
 def test_reward_already_collected_is_explained(monkeypatch, level_id, where):
     _scene, texts, _coins = _shown(monkeypatch, level_id, coins_earned=0, clear_reward=0)
     assert f"Clear reward already collected for this {where}" in texts

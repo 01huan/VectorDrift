@@ -14,11 +14,12 @@ from vector_drift.level_modules import (
     generate_layout,
     known_modules,
 )
-from vector_drift.level_presets import PRESET_8, RandomPreset
+from vector_drift.level_presets import RANDOM_PRESET, RandomPreset
 from vector_drift.level_validator import validate_level
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 from dataclasses import replace
 
-TEMPLATES = {t.generator: t for t in PRESET_8.templates}
+TEMPLATES = {t.generator: t for t in RANDOM_PRESET.templates}
 
 ALL_MODULES = ("corridor", "extreme_time", "wormhole_network", "maze", "bomb")
 
@@ -28,7 +29,7 @@ ROTATION_MODULES = ("corridor", "extreme_time", "wormhole_network", "maze")
 # The bomb theme is not part of the rotation any more, but the module itself
 # still works: this preset keeps it covered.
 BOMB = RandomPreset(
-    level_id=8,
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift Bomb",
     generator="bomb",
     time_limit=10.0,
@@ -47,13 +48,13 @@ TEMPLATES["bomb"] = BOMB
 
 def _module_layout(module, seed):
     template = TEMPLATES[module]
-    preset = replace(template, templates=(), name=PRESET_8.name)
+    preset = replace(template, templates=(), name=RANDOM_PRESET.name)
     return generate_layout(seed, preset)
 
 
 def _validate(module, seed, **kwargs):
     template = TEMPLATES[module]
-    preset = replace(template, templates=(), name=PRESET_8.name)
+    preset = replace(template, templates=(), name=RANDOM_PRESET.name)
     layout = _module_layout(module, seed)
     args = dict(preset=preset, route=layout.route, segments=layout.segments,
                 teleports=layout.teleports, walls=layout.walls,
@@ -72,8 +73,8 @@ def test_every_module_builds_a_valid_layout():
         for seed in (1, 7, 42):
             layout = _module_layout(module, seed)
             assert layout.module == module
-            assert layout.level.id == 8
-            assert layout.level.name == PRESET_8.name
+            assert layout.level.id == RANDOM_LEVEL_ID
+            assert layout.level.name == RANDOM_PRESET.name
             # The module must guarantee a route exists by construction.
             assert layout.segments or layout.route
 
@@ -160,7 +161,7 @@ def test_extreme_time_route_winds_more_than_the_direct_line():
     assert report.ok
 
 
-def test_level8_offers_every_module():
+def test_random_level_offers_every_module():
     seen = set()
     for seed in range(40):
         _, report = generate_random_level_seeded(seed)
@@ -172,7 +173,7 @@ def test_level8_offers_every_module():
 
 def generate_random_level_seeded(seed):
     from vector_drift.random_level import generate_random_level
-    return generate_random_level(8, seed=seed, run_solver=False,
+    return generate_random_level(RANDOM_LEVEL_ID, seed=seed, run_solver=False,
                                  return_report=True)
 
 
@@ -182,7 +183,7 @@ def test_unknown_module_is_rejected():
         generate_layout(1, preset)
 
 
-def test_get_level_level8_uses_generation():
-    level = get_level(8, seed=4242)
-    assert level.id == 8
+def test_get_level_random_level_uses_generation():
+    level = get_level(RANDOM_LEVEL_ID, seed=4242)
+    assert level.id == RANDOM_LEVEL_ID
     assert level.obstacles is not None

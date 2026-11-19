@@ -68,7 +68,7 @@ def drawn(monkeypatch):
 # --- saving ----------------------------------------------------------------------------
 def test_a_launch_in_section_two_is_saved_with_its_section():
     manager = _manager()
-    manager.session.level_id = 9
+    manager.session.level_id = 8
     manager.session.fx_text, manager.session.fy_text = "5", "0"
     scene = GameScene(manager)
     manager.switch(scene)
@@ -85,7 +85,7 @@ def test_a_launch_in_section_two_is_saved_with_its_section():
         scene.update(0.05)
 
     (rec,) = manager.session.replays
-    assert rec["level_id"] == 9 and rec["section_index"] == 1
+    assert rec["level_id"] == 8 and rec["section_index"] == 1
 
 
 def test_one_screen_launches_are_saved_as_section_zero():
@@ -102,8 +102,8 @@ def test_one_screen_launches_are_saved_as_section_zero():
 
 # --- replaying -------------------------------------------------------------------------
 def test_a_section_two_record_replays_over_section_two():
-    scene = _replay(_record(9, section_index=1))
-    second = section_level(get_level(9), 1)
+    scene = _replay(_record(8, section_index=1))
+    second = section_level(get_level(8), 1)
     assert scene._section_index == 1
     assert scene._start == second.start == (-7.0, 0.0)
     assert scene._target_center == second.target_center == (7.0, 0.0)
@@ -154,7 +154,7 @@ def test_playback_does_not_interpolate_through_a_wormhole():
 
 
 def test_section_one_aims_at_a_checkpoint(drawn):
-    scene = _replay(_record(9, section_index=0))
+    scene = _replay(_record(8, section_index=0))
     scene.draw(_surface())
     vp = scene._viewport
     assert drawn["checkpoint"] == [(vp.to_screen(7.0, 0.0), SHIPS["ship02"])]
@@ -164,7 +164,7 @@ def test_section_one_aims_at_a_checkpoint(drawn):
 
 
 def test_section_two_starts_on_a_checkpoint_and_aims_at_the_planet(drawn):
-    scene = _replay(_record(9, section_index=1))
+    scene = _replay(_record(8, section_index=1))
     scene.draw(_surface())
     vp = scene._viewport
     assert drawn["checkpoint"] == [(vp.to_screen(-7.0, 0.0), SHIPS["ship02"])]   # the record's ship
@@ -173,7 +173,7 @@ def test_section_two_starts_on_a_checkpoint_and_aims_at_the_planet(drawn):
 
 
 def test_the_checkpoint_life_is_gone_once_the_replay_reaches_it(drawn):
-    scene = _replay(_record(9, section_index=0, outcome="Outcome.REACHED"))
+    scene = _replay(_record(8, section_index=0, outcome="Outcome.REACHED"))
     scene.player.seek(2)
     scene.draw(_surface())
     assert drawn["checkpoint"] and drawn["life"] == []
@@ -181,14 +181,14 @@ def test_the_checkpoint_life_is_gone_once_the_replay_reaches_it(drawn):
 
 @pytest.mark.parametrize("bad", [5, -1, "2", None, 1.0])
 def test_a_bad_section_index_replays_section_one(bad, drawn):
-    scene = _replay(_record(9, section_index=bad))
+    scene = _replay(_record(8, section_index=bad))
     scene.draw(_surface())
     assert scene._section_index == 0
     assert drawn["target"] == [] and drawn["checkpoint"]           # section 1: checkpoint target
 
 
 def test_a_record_without_section_index_replays_section_one():
-    rec = _record(9)
+    rec = _record(8)
     del rec["section_index"]
     scene = _replay(rec)
     scene.draw(_surface())
@@ -200,9 +200,9 @@ def test_the_level_row_names_the_section(monkeypatch):
     real = replay_module.draw_text
     monkeypatch.setattr(replay_module, "draw_text",
                         lambda surface, text, *a, **k: (texts.append(text), real(surface, text, *a, **k))[1])
-    scene = _replay(_record(9, section_index=1), _record(1))
+    scene = _replay(_record(8, section_index=1), _record(1))
     scene.draw(_surface())
-    assert "9 · section 2/2" in texts
+    assert "8 · section 2/2" in texts
 
     texts.clear()
     scene._load(1)
@@ -211,7 +211,7 @@ def test_the_level_row_names_the_section(monkeypatch):
 
 
 def test_prev_next_switch_between_sections():
-    scene = _replay(_record(9, section_index=1), _record(9, section_index=0))
+    scene = _replay(_record(8, section_index=1), _record(8, section_index=0))
     assert scene._section_index == 1
     scene._load(1)
     assert scene._section_index == 0
@@ -260,6 +260,6 @@ def test_every_section_of_every_level_replays_over_the_right_screen(level_id, se
 
 def test_the_case_list_covers_every_level_and_section():
     ids = {p.id for p in _cases()}
-    assert "level9-section2" in ids and "level1-section1" in ids
+    assert "level8-section2" in ids and "level1-section1" in ids
     assert len(ids) == sum(section_count(get_level(c.id, seed=SEED) if is_dynamic_level(c.id)
                                          else get_level(c.id)) for c in all_levels())

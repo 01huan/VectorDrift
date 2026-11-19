@@ -9,7 +9,8 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 from dataclasses import replace
 
 from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec, get_level
-from vector_drift.level_presets import PRESET_8, RandomPreset
+from vector_drift.level_presets import RANDOM_PRESET, RandomPreset
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 from vector_drift.level_validator import (
     ValidationCheck,
     ValidationReport,
@@ -19,7 +20,7 @@ from vector_drift.level_validator import (
 # The bomb theme is not part of the random level rotation any more; this
 # preset keeps the bomb-only checks covered.
 BOMB = RandomPreset(
-    level_id=8,
+    level_id=RANDOM_LEVEL_ID,
     name="Random Drift Bomb",
     generator="bomb",
     time_limit=10.0,
@@ -173,7 +174,7 @@ def test_generator_retries_after_validation_failure(monkeypatch):
         return report
 
     monkeypatch.setattr(lv, "validate_level", flaky)
-    level, report = generate_random_level(8, seed=123, run_solver=False,
+    level, report = generate_random_level(RANDOM_LEVEL_ID, seed=123, run_solver=False,
                                           return_report=True)
     assert state["n"] >= 2
     assert report.ok
@@ -195,7 +196,7 @@ def test_generator_returns_best_candidate_when_validation_never_passes(monkeypat
         return report
 
     monkeypatch.setattr(lv, "validate_level", never)
-    level, report = generate_random_level(8, seed=123,
+    level, report = generate_random_level(RANDOM_LEVEL_ID, seed=123,
                                           require_solver=True,
                                           return_report=True)
     assert level is not None
@@ -206,8 +207,8 @@ def test_generator_returns_best_candidate_when_validation_never_passes(monkeypat
 def test_broken_wormhole_wall_gap_is_rejected():
     from vector_drift.level_modules import generate_layout
 
-    template = [t for t in PRESET_8.templates if t.generator == "wormhole_network"][0]
-    preset = replace(template, templates=(), name=PRESET_8.name)
+    template = [t for t in RANDOM_PRESET.templates if t.generator == "wormhole_network"][0]
+    preset = replace(template, templates=(), name=RANDOM_PRESET.name)
     layout = generate_layout(5, preset)
     level = layout.level
     # Blow a gap in the first wall: drop every other wall rock.
@@ -226,7 +227,7 @@ def test_broken_wormhole_wall_gap_is_rejected():
 
 
 def test_bomb_level_needs_blastable_ring():
-    preset = replace(BOMB, templates=(), name=PRESET_8.name)
+    preset = replace(BOMB, templates=(), name=RANDOM_PRESET.name)
     from vector_drift.level_modules import generate_layout
     layout = generate_layout(5, preset)
     report = _validate(layout.level, preset=preset, route=layout.route,

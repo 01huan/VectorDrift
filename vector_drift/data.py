@@ -228,7 +228,7 @@ def is_community_level(level_id):
 def level_ship_id(level_id, session=None):
     """The ship a level flies; the player does not pick it.
 
-    Campaign level N (the random level 8 too) flies shipNN, or ship01 while
+    Campaign level N (the random level too) flies shipNN, or ship01 while
     that ship is not in SHIPS yet. Community and custom levels fly ship01.
     """
     if is_community_level(level_id) or is_custom_map(level_id, session):
