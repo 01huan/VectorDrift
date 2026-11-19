@@ -13,7 +13,7 @@ import pytest
 from vector_drift import config
 from vector_drift.daily_level import (CONSTANT_TERMS, DAILY_SHIP, NONZERO_COEFFS, START_X, START_YS,
                                       TARGET_RADIUS, TEMPLATES, daily_seed, daily_today,
-                                      format_linear, pick_field, pick_route,
+                                      format_linear, pick_field, pick_route, place_rocks,
                                       point_segment_distance)
 from vector_drift.expr_parser import parse_expression
 from vector_drift.physics_core import segment_hits_circle
@@ -176,3 +176,48 @@ def test_route_path_is_the_reference_flight():
 
 def test_same_seed_gives_the_same_route():
     assert pick_route(random.Random(11)) == pick_route(random.Random(11))
+
+
+# --- Rocks -----------------------------------------------------------------------
+
+_ROCKS = {}
+
+
+def _rocks(seed):
+    """(route, rocks) of seed ``seed``; rocks come from the same rng after the route."""
+    if seed not in _ROCKS:
+        route, state = _route(seed)
+        rocks = None
+        if route is not None:
+            rng = random.Random()
+            rng.setstate(state)
+            rocks = place_rocks(rng, route)
+        _ROCKS[seed] = (route, rocks)
+    return _ROCKS[seed]
+
+
+def _path_distance(point, path):
+    return min(point_segment_distance(point, path[i], path[i + 1]) for i in range(len(path) - 1))
+
+
+@pytest.mark.parametrize("seeds", SEED_CHUNKS, ids=_chunk_id)
+def test_rocks_stay_outside_the_safety_tube(seeds):
+    placed = 0
+    for seed in seeds:
+        route, rocks = _rocks(seed)
+        if rocks is None:
+            continue
+        placed += 1
+        assert 3 <= len(rocks) <= 6, seed
+        for i, rock in enumerate(rocks):
+            r = rock.radius
+            assert r in (0.6, 0.8, 1.0)
+            assert _path_distance(rock.center, route.path) >= r + HULL + 0.6, seed
+            assert _inside_map(rock.center, r), seed
+            assert math.dist(rock.center, route.start) >= r + 1.5, seed
+            assert math.dist(rock.center, route.target) >= r + 1.5, seed
+            for other in rocks[i + 1:]:
+                assert math.dist(rock.center, other.center) > r + other.radius, seed
+        assert any(point_segment_distance(rock.center, route.start, route.target)
+                   < rock.radius + HULL for rock in rocks), f"seed {seed}: nothing blocks the line"
+    assert placed >= len(seeds) // 2

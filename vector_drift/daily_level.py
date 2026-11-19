@@ -18,10 +18,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from . import config
-from .data import SHIPS, LevelSpec
+from .data import SHIPS, LevelSpec, ObstacleSpec
 from .expr_parser import parse_expression
 from .physics import Flight, ForceField
 from .physics_core import segment_hits_circle
+from .pickups import discs_overlap
 
 DAILY_LEVEL_NAME = "Daily Challenge"
 DAILY_SHIP = SHIPS["ship01"]
@@ -252,3 +253,70 @@ def pick_route(rng, redraws=FIELD_REDRAWS):
         if route is not None:
             return route
     return None
+
+
+# --- Rocks -------------------------------------------------------------------------
+ROCK_COUNT = (3, 6)
+ROCK_RADII = (0.6, 0.8, 1.0)
+ROCK_PATH_CLEARANCE = 0.6           # m between a rock (plus hull) and the reference path
+ENDPOINT_CLEARANCE = 1.5            # m between a rock's edge and the start / target center
+PLACEMENT_DRAWS = 300               # candidate spots per rock before the map is given up
+
+
+def blocks_line(center, radius, route):
+    """True if a rock here stops a ship flying straight from start to target."""
+    return (point_segment_distance(center, route.start, route.target)
+            < radius + DAILY_SHIP.hull_radius)
+
+
+def rock_fits(center, radius, route, rocks):
+    """The placement rules every rock must meet."""
+    if not _inside_map(center, radius):
+        return False
+    if (math.dist(center, route.start) < radius + ENDPOINT_CLEARANCE
+            or math.dist(center, route.target) < radius + ENDPOINT_CLEARANCE):
+        return False
+    if any(discs_overlap(center, radius, rock.center, rock.radius) for rock in rocks):
+        return False
+    clearance = radius + DAILY_SHIP.hull_radius + ROCK_PATH_CLEARANCE
+    return all(point_segment_distance(center, route.path[i], route.path[i + 1]) >= clearance
+               for i in range(len(route.path) - 1))
+
+
+def _blocker_spot(rng, radius, route):
+    """A random spot whose rock would block the start-target line."""
+    (sx, sy), (tx, ty) = route.start, route.target
+    length = math.dist(route.start, route.target)
+    nx, ny = -(ty - sy) / length, (tx - sx) / length
+    u = rng.random()
+    reach = radius + DAILY_SHIP.hull_radius
+    offset = rng.uniform(-reach, reach)
+    return sx + u * (tx - sx) + offset * nx, sy + u * (ty - sy) + offset * ny
+
+
+def _open_spot(rng, radius):
+    return (rng.uniform(-config.WORLD_HALF_W + radius, config.WORLD_HALF_W - radius),
+            rng.uniform(-config.WORLD_HALF_H + radius, config.WORLD_HALF_H - radius))
+
+
+def place_rocks(rng, route):
+    """3-6 rocks outside the path's safety tube, the first across the straight line.
+
+    None when a rock finds no spot in PLACEMENT_DRAWS tries.
+    """
+    rocks = []
+    for index in range(rng.randint(*ROCK_COUNT)):
+        for _ in range(PLACEMENT_DRAWS):
+            radius = rng.choice(ROCK_RADII)
+            if index == 0:
+                center = _blocker_spot(rng, radius, route)
+                if not blocks_line(center, radius, route):
+                    continue
+            else:
+                center = _open_spot(rng, radius)
+            if rock_fits(center, radius, route, rocks):
+                rocks.append(ObstacleSpec(center=center, radius=radius))
+                break
+        else:
+            return None
+    return tuple(rocks)
