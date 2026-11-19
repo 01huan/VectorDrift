@@ -175,8 +175,7 @@ Fixed levels use hand-written, step-by-step hints loaded from `vector_drift/hint
 Current hint coverage is:
 
 - Levels 1–7: one hint per level.
-- Levels 8 and 9: one hint for each of their two sections.
-- Level 10: its hint is still to be written.
+- Levels 8–10: one hint for each of their two sections.
 
 The answer page is free on **levels 1 and 2**, and on **level 8**. On Levels 3–7, 9 and 10, opening the answer page costs 10 coins after confirmation. A paid answer is charged once per level per game launch; later views during that launch do not charge again. Applying a displayed answer fills both formula fields and resets the current section to its start/checkpoint. Paying for the answer is the only cost: coins collected during the run, the clear reward, and the best time all count as usual.
 

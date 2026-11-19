@@ -133,3 +133,25 @@ answer_note = "A steady push up, with a spring toward the line x = y/2:"
 answers = [
   { fx = "-2x + y", fy = "2" },
 ]
+
+[level.10.section.1]
+steps = [
+  "A wall of rocks seals x = 2 from top to bottom. The only way across is the wormhole: its black hole sits straight above the ship, at (-7, 1.5).",
+  "Use the spring from Level 4: Fy = -k(y - line) pulls the ship toward a line, and a steady Fx = 2 pushes it right. Take the line y = -x/2: at the start it is far above the ship, so the ship swings up into the black hole.",
+  "The same field keeps working after the teleport. The ship leaves the white hole (4, -1) still moving up, and a stiff spring, k = 3, makes the swing peak right at the checkpoint.",
+]
+answer_note = "A spring toward the line y = -x/2 with k = 3, and a steady push to the right:"
+answers = [
+  { fx = "2", fy = "-1.5x - 3y" },
+]
+
+[level.10.section.2]
+steps = [
+  "The planet sits in the top-right corner, sealed by an L-shaped wall of rocks. Grab the Shield below first: for 3 seconds it lets you pass through one rock.",
+  "Use the swirl from Level 7: F = (-(y - k), x - h) turns the ship around the point (h, k). Put the center 1 m right of the ship and 2 m above it, at (-6, -2.5).",
+  "The ship swings out to the right along the bottom, through the Shield, then curls up through the bottom of the wall into the planet while the Shield is still on.",
+]
+answer_note = "The swirl around (-6, -2.5):"
+answers = [
+  { fx = "-y - 2.5", fy = "x + 6" },
+]
