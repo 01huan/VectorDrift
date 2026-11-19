@@ -6,6 +6,7 @@ import pygame
 
 from .. import config, daily_level, render
 from ..config import px
+from ..daily_records import get_record
 from ..data import all_levels, is_custom_level, level_number
 from ..level_pages import (PER_PAGE, can_next, can_prev, clamp_page, levels_on_page,
                            page_count, restore_page, wheel_step)
@@ -175,6 +176,25 @@ class LevelSelectScene(Scene):
         self.session.daily_day = daily_level.daily_today()
         self._start(config.DAILY_LEVEL_ID)
 
+    def daily_check_rect(self):
+        """Where the Daily button shows today's clear (a check mark), else None.
+
+        "Today" is asked again on every call, so the mark goes away at
+        midnight (UTC+8) even while the level select stays open.
+        """
+        record = get_record(self.session, daily_level.daily_today())
+        if not record or not record["cleared"]:
+            return None
+        size = px(16)
+        rect = pygame.Rect(0, 0, size, size)
+        rect.midleft = (self.daily_button.rect.x + px(14), self.daily_button.rect.centery)
+        return rect
+
+    def _draw_daily_check(self, surface):
+        rect = self.daily_check_rect()
+        if rect is not None:
+            surface.blit(icon_surface("check", rect.w, config.SUCCESS), rect)
+
     def _to_menu(self):
         self.audio.play("click")
         from .menu import MenuScene
@@ -273,6 +293,7 @@ class LevelSelectScene(Scene):
         self._draw_page_dots(surface)
         self.tutorial_button.draw(surface)
         self.daily_button.draw(surface)
+        self._draw_daily_check(surface)
         self.editor_button.draw(surface)
         self.lab_button.draw(surface)
         self.shop_button.draw(surface)

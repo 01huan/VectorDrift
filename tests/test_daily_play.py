@@ -8,6 +8,7 @@ import pytest
 
 from vector_drift import config, daily_level
 from vector_drift.daily_level import daily_map, generate_daily
+from vector_drift.daily_records import get_record
 from vector_drift.scenes.base import SceneManager
 from vector_drift.scenes.game import GameScene
 from vector_drift.scenes.levels import LevelSelectScene
@@ -202,3 +203,37 @@ def test_fixed_levels_keep_their_hint_button():
     game = GameScene(mgr)
     assert game.show_answer_help
     assert _drawn_buttons(game) == ["ai_button", "lab_button"]
+
+
+
+# --- today's clear on the button ---------------------------------------------------------
+
+def _level_select_after(today, cleared_day):
+    mgr = _manager()
+    if cleared_day is not None:
+        get_record(mgr.session, cleared_day, create=True)["cleared"] = True
+    scene = LevelSelectScene(mgr)
+    mgr.switch(scene)
+    return scene
+
+
+def test_daily_button_has_no_check_before_today_s_clear(today):
+    scene = _level_select_after(today, None)
+    assert scene.daily_check_rect() is None
+    get_record(scene.session, DAY, create=True)        # played, not cleared
+    assert scene.daily_check_rect() is None
+
+
+def test_daily_button_shows_a_check_once_today_is_cleared(today):
+    scene = _level_select_after(today, DAY)
+
+    check = scene.daily_check_rect()
+
+    assert check is not None and scene.daily_button.rect.contains(check)
+    scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+
+
+def test_yesterday_s_clear_does_not_check_today(today):
+    scene = _level_select_after(today, DAY)
+    today.set(date(2026, 11, 20))
+    assert scene.daily_check_rect() is None
