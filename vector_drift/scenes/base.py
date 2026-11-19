@@ -55,6 +55,8 @@ class Session:
     fixed_clear_counts: dict = field(default_factory=dict)    # fixed level id -> clears so far
     xp_achievements: set = field(default_factory=set)         # achievement ids that paid their XP
     xp_rewarded_level: int = 1                                # highest level whose coins were paid
+    # --- daily challenge (see daily_records.py) ----------------------------
+    daily_records: dict = field(default_factory=dict)         # "YYYY-MM-DD" -> that day's record (saved)
     # --- account (optional, Supabase) -------------------------------------
     user_id: str | None = None
     email: str | None = None

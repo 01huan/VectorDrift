@@ -62,6 +62,10 @@ FIXED_CLEAR_COUNTS_KEY = "fixed_clear_counts"
 XP_ACHIEVEMENTS_KEY = "xp_achievements"
 XP_REWARDED_LEVEL_KEY = "xp_rewarded_level"
 XP_KEYS = (XP_TOTAL_KEY, FIXED_CLEAR_COUNTS_KEY, XP_ACHIEVEMENTS_KEY, XP_REWARDED_LEVEL_KEY)
+# Daily challenge records (Session.daily_records), saved the same way. Like
+# the achievements, applying a save replaces the session's with that copy's;
+# a save without the key (made before the daily challenge) has none.
+DAILY_RECORDS_KEY = "daily_records"
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -180,6 +184,8 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
      session.xp_achievements, session.xp_rewarded_level) = _xp_from_stats(stats)
     for key in XP_KEYS:
         stats.pop(key, None)
+    from ..daily_records import records_from_saved
+    session.daily_records = records_from_saved(stats.pop(DAILY_RECORDS_KEY, None))
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
     _restore_function_library(session, stats.pop(FUNCTION_LIBRARY_KEY, None))
     imported_id = stats.pop(IMPORTED_FUNCTION_KEY, None)
@@ -326,6 +332,9 @@ def profiles_equal(a: Any, b: Any) -> bool:
         stats[FIXED_CLEAR_COUNTS_KEY] = counts
         stats[XP_ACHIEVEMENTS_KEY] = sorted(achievement_ids)
         stats[XP_REWARDED_LEVEL_KEY] = rewarded
+        # Daily records compare as they would load: none saved means none.
+        from ..daily_records import records_from_saved
+        stats[DAILY_RECORDS_KEY] = records_from_saved(stats.get(DAILY_RECORDS_KEY))
         return stats
 
     return (
@@ -367,6 +376,7 @@ def apply_best_profile(session: Any, cloud_profile: Any, user_id: str, email: st
 
 def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
     from vector_drift.function_library import library_to_rows
+    from vector_drift.daily_records import records_to_saved
 
     stats = {**(session.stats or {}),
              CLEAR_REWARDED_KEY: sorted(getattr(session, "clear_rewarded_levels", ()) or ()),
@@ -377,6 +387,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
              FIXED_CLEAR_COUNTS_KEY: dict(getattr(session, "fixed_clear_counts", None) or {}),
              XP_ACHIEVEMENTS_KEY: sorted(getattr(session, "xp_achievements", None) or ()),
              XP_REWARDED_LEVEL_KEY: int(getattr(session, "xp_rewarded_level", 1) or 1),
+             DAILY_RECORDS_KEY: records_to_saved(getattr(session, "daily_records", None) or {}),
              CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
              FUNCTION_LIBRARY_KEY: library_to_rows(getattr(session, "function_library", ())),
              IMPORTED_FUNCTION_KEY: getattr(session, "imported_function_id", None),
@@ -425,6 +436,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.fixed_clear_counts = {}
     session.xp_achievements = set()
     session.xp_rewarded_level = 1
+    session.daily_records = {}
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the
     # data registry (the guest profile file is already cleared by the caller).
