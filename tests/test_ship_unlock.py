@@ -6,24 +6,28 @@ import pytest
 
 from vector_drift import data_models
 from vector_drift.data import SHIPS, ShipSpec, default_ship_id, level_ship_id
+from vector_drift.level_presets import RANDOM_LEVEL_ID
 from vector_drift.scenes.base import SceneManager
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 
-def test_ships_01_to_10_share_the_same_physics():
-    assert list(SHIPS) == [f"ship{n:02d}" for n in range(1, 11)]
+def test_ships_01_to_15_and_daybreak_share_the_same_physics():
+    # ship01-15 for the levels, daybreak for the daily challenge (test_daily_ship).
+    assert list(SHIPS) == [f"ship{n:02d}" for n in range(1, 16)] + ["daybreak"]
     for sid, ship in SHIPS.items():
-        assert (ship.id, ship.name, ship.mass, ship.hull_radius) == (sid, sid, 1.0, 0.2)
+        name = "Daybreak" if sid == "daybreak" else sid
+        assert (ship.id, ship.name, ship.mass, ship.hull_radius) == (sid, name, 1.0, 0.2)
 
 
 def test_level_n_flies_ship_n():
-    for n in range(1, 11):                       # level 10 does not exist yet: ship10 waits for it
+    for n in range(1, 12):
         assert level_ship_id(n) == f"ship{n:02d}"
+    assert level_ship_id(RANDOM_LEVEL_ID) == "ship12"   # the random level is numbered 12
 
 
 def test_levels_whose_ship_is_not_made_yet_fly_ship01():
-    for n in (11, 12, 24):                       # ship11+ are not in SHIPS (yet)
+    for n in (16, 24):                           # ship16+ are not in SHIPS (yet)
         assert f"ship{n:02d}" not in SHIPS
         assert level_ship_id(n) == "ship01"
     for odd in (None, 0, -3, "x", 2.5, True):
@@ -32,9 +36,9 @@ def test_levels_whose_ship_is_not_made_yet_fly_ship01():
 
 def test_a_new_ship_in_ships_is_flown_by_its_level(monkeypatch):
     ships = dict(SHIPS)
-    ships["ship11"] = ShipSpec(id="ship11", name="ship11", mass=1.0, hull_radius=0.2)
+    ships["ship16"] = ShipSpec(id="ship16", name="ship16", mass=1.0, hull_radius=0.2)
     monkeypatch.setattr(data_models, "SHIPS", ships)
-    assert level_ship_id(11) == "ship11"
+    assert level_ship_id(16) == "ship16"
 
 
 def test_custom_and_community_levels_fly_ship01(monkeypatch):
@@ -55,12 +59,13 @@ class Quiet:
 def game_on(manager, level_id):
     from vector_drift.scenes.game import GameScene
     manager.session.level_id = level_id
-    if level_id == 8:
+    if level_id in (8, RANDOM_LEVEL_ID):
         manager.session.random_seed = 123
     return GameScene(manager)
 
 
-@pytest.mark.parametrize("level_id, ship_id", [(n, f"ship{n:02d}") for n in range(1, 10)])
+@pytest.mark.parametrize("level_id, ship_id",
+                         [(n, f"ship{n:02d}") for n in range(1, 12)] + [(RANDOM_LEVEL_ID, "ship12")])
 def test_game_flies_the_levels_ship_with_no_arrows(level_id, ship_id):
     scene = game_on(SceneManager(Quiet()), level_id)
     assert scene.ship.id == ship_id

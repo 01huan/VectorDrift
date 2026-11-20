@@ -111,7 +111,7 @@ def test_play_starts_today_s_map(today):
     assert mgr.session.random_seed is None
     assert (mgr.session.fx_text, mgr.session.fy_text) == ("", "")       # a fresh editor
     assert game.full_level == generate_daily(DAY).level
-    assert game.ship.id == "ship01"
+    assert game.ship.id == "daybreak"
 
 
 def test_play_picks_the_day_when_pressed(today):

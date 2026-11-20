@@ -167,10 +167,13 @@ def multi_section_level(id, name, ship_id, sections, lives=5):
 # The shown name is the id until the team picks real names. Fixed level N
 # flies shipNN (default_ship_id); to add a ship, add its picture and its
 # entry here: the level with its number switches to it on its own.
+# The daily challenge flies its own ship, Daybreak (daily_level.DAILY_SHIP);
+# its id is not shipNN, so no level number ever picks it.
 SHIPS = {
     f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2)
-    for n in range(1, 11)
+    for n in range(1, 16)
 }
+SHIPS["daybreak"] = ShipSpec(id="daybreak", name="Daybreak", mass=1.0, hull_radius=0.2)
 DEFAULT_SHIP_ID = "ship01"
 
 

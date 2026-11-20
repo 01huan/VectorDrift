@@ -101,7 +101,7 @@ The player edits the two components of the force field, checks the field preview
 \mathbf{a}(x,y) = \frac{\mathbf{F}(x,y)}{m}
 \]
 
-All ten ship skins use the same physical values: **1 kg mass** and **0.2 m hull radius**. A skin changes appearance, not handling.
+All sixteen ship skins (the fifteen level ships and the daily challenge's Daybreak) use the same physical values: **1 kg mass** and **0.2 m hull radius**. A skin changes appearance, not handling.
 
 The simulation uses a fixed **1/120-second** physics step and semi-implicit Euler integration. The application renders at up to 60 frames per second. The default visible world spans approximately `x = -10..10 m` and `y = -7.5..7.5 m`.
 
@@ -211,6 +211,7 @@ The **Daily** button on the level selector opens the **Daily Challenge page** (b
 - **Coins and clear reward once per day:** each coin on the day's map pays once per day, and the first clear of the day pays the clear reward; later clears that day say "Clear reward already collected today". Both are saved, so restarting the game does not pay them again.
 - **Reference answer:** the **Answer** button in the game panel (where fixed levels have Hint; there is no AI Solver) shows the force field the day's map was built from. The first time on a day it asks "Show today's answer for 10 coins? (You have N)" (`DAILY_ANSWER_COST`); with fewer coins it only says how many are needed. The answer is paid **once per day**: that day's answer stays free afterwards, also after restarting the game. Paying is the only cost: coins, the clear reward, the day's record and XP all count as usual, and the day's record notes that the answer was used. Like Hint, Answer also works during a flight (the flight stops without costing a life), showing the answer resets the map to its start (lives stay), and **Apply** fills both formulas. Abilities work as usual.
 - **XP and streaks:** a clear gives XP; the day's first clear gets a streak bonus for the days cleared in a row, and the Mission Complete screen shows it (for example "Streak bonus +60 (3 days)"). See [Experience and Levels](#experience-and-levels).
+- **Ship:** the daily challenge always flies its own ship, **Daybreak** (`assets/images/ships/daybreak.png`, id `daybreak`). Replays keep the ship they were flown with, so older daily replays still show `ship01`.
 - **Records:** each day keeps its own record (cleared, lives lost in the first clearing run, coins from the map, best total flight time, whether the answer was used, and how many clears gave XP). The daily map does not set a level best time.
 
 ### The Daily Challenge page
@@ -262,9 +263,9 @@ The constants are in `vector_drift/config.py`: `XP_FIXED_LEVEL_BASE`, `XP_RANDOM
 
 ## Ships and Shop
 
-There are ten visual ship skins: `ship01` through `ship10`. All ten use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics.
+There are sixteen visual ship skins: `ship01` through `ship15` for the levels, and **Daybreak** (id `daybreak`, `ships/daybreak.png`) for the daily challenge. All sixteen use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics. The level ships' shown name is their id; Daybreak's is `Daybreak`.
 
-Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today campaign levels 1 to 10 have their own ships, level 11 flies `ship01` until `ship11` is made, and the random level, id 999, is numbered 12 and flies `ship01` until `ship12` is made. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
+Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 11 `ship11`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today campaign levels 1 to 11 have their own ships, the random level, id 999, is numbered 12 and flies `ship12`, and `ship13` to `ship15` wait for levels 13 to 15. Community and custom levels always fly `ship01`. The daily challenge always flies Daybreak (`DAILY_SHIP` in `vector_drift/daily_level.py`); its id is not `shipNN`, so no level number picks it. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
 
 The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
