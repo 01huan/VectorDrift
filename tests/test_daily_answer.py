@@ -190,3 +190,85 @@ def test_the_popup_is_modal():
     _press_answer(scene)
     _click(scene, scene.lab_button.rect)
     assert not scene.lab_popup
+
+
+# --- show and apply (task 21) --------------------------------------------------------------
+
+def _pay(scene):
+    _click(scene, _press_answer(scene).confirm_button.rect)
+    return scene.daily_popup
+
+
+def test_the_answer_shows_the_day_s_reference_formulas():
+    scene = _daily()
+    popup = _pay(scene)
+    answer = daily_level.daily_map(DAY)
+
+    assert popup.mode == "answer"
+    assert (popup.fx, popup.fy) == (answer.fx, answer.fy)
+    assert popup.answer_text() == f"Fx = {answer.fx}    Fy = {answer.fy}"
+    assert [action for _b, action in popup.buttons()] == ["apply", "close"]
+    _draw(scene)
+
+
+def test_showing_the_answer_resets_the_map_but_keeps_the_lives():
+    from vector_drift.scenes.game import SETUP
+    scene = _daily()
+    scene.lives -= 2
+    scene.launch_pos = (1.0, 1.0)                       # where a time-up left the ship
+    _pay(scene)
+
+    assert scene.state == SETUP
+    assert scene.launch_pos == scene.level.start
+    assert scene.lives == scene.level.lives - 2
+    assert scene.solution_used
+
+
+def test_showing_a_paid_answer_again_resets_again():
+    scene = _daily()
+    _pay(scene)
+    _click(scene, scene.daily_popup.close_button.rect)
+    scene.launch_pos = (1.0, 1.0)
+    _press_answer(scene)
+    assert scene.launch_pos == scene.level.start
+
+
+def test_the_answer_during_a_flight_ends_it_without_losing_a_life():
+    from vector_drift.scenes.game import FLIGHT, SETUP
+    scene = _daily()
+    _pay(scene)
+    _click(scene, scene.daily_popup.close_button.rect)
+    scene.editor.set_lines(["1", "0"])
+    scene._on_text_change(scene.editor)
+    scene._try_launch()
+    assert scene.state == FLIGHT
+    lives = scene.lives
+
+    _press_answer(scene)
+
+    assert scene.state == SETUP and scene.flight is None
+    assert scene.lives == lives
+    assert scene.launch_pos == scene.level.start
+
+
+def test_apply_fills_the_editor_and_closes():
+    scene = _daily()
+    scene.editor.set_lines(["2", "3"])
+    popup = _pay(scene)
+    answer = daily_level.daily_map(DAY)
+    _click(scene, popup.apply_button.rect)
+
+    assert scene.editor.lines == [answer.fx, answer.fy]
+    assert scene.daily_popup is None
+
+
+def test_the_applied_answer_reaches_the_target():
+    from vector_drift.scenes.game import ARRIVED
+    scene = _daily()
+    _click(scene, _pay(scene).apply_button.rect)
+    scene._try_launch()
+    for _ in range(60 * 20):
+        if scene.state == ARRIVED or scene.flight is None:
+            break
+        scene.update(1 / 60)
+    assert scene.state == ARRIVED

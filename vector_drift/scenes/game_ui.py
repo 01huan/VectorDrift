@@ -162,6 +162,11 @@ class GameUIMixin:
         self.audio.play("click")
         if action == "confirm":
             self._buy_daily_answer()
+        elif action == "apply":
+            popup = self.daily_popup
+            self.editor.set_lines([popup.fx, popup.fy])
+            self._on_text_change(self.editor)
+            self.daily_popup = None
         else:                                   # "cancel" / "close"
             self.daily_popup = None
 
@@ -178,7 +183,13 @@ class GameUIMixin:
         self._show_daily_answer()
 
     def _show_daily_answer(self):
+        """Show the answer; like the Hint answer page, the map starts over (lives stay).
+
+        A flight in progress just stops without costing a life.
+        """
+        self._reveal_solution()
         self.daily_popup.show_answer()
+        self._reset_level()
 
     # ------------------------------------------------------------------ Hint
     def _section_hint(self):

@@ -4,10 +4,11 @@ Three modes, styled like the Hint dialog (hint_popup.py):
 
 * ``"confirm"`` -- "Show today's answer for N coins? (You have M)", Cancel / Show answer
 * ``"short"``   -- too few coins: says so, Close only
-* ``"answer"``  -- the reference answer, Close
+* ``"answer"``  -- the reference answer with Apply, Close
 
-handle_event only reports what the player asked for -- "confirm", "cancel"
-or "close" -- and the GameScene decides what happens (charging, the reset).
+handle_event only reports what the player asked for -- "confirm", "cancel",
+"apply" or "close" -- and the GameScene decides what happens (charging,
+filling the editor).
 """
 
 import pygame
@@ -26,6 +27,9 @@ BUTTON_W, BUTTON_H = 120, 40
 
 COST_NOTE = ("Paying is the only cost: coins you collect and the clear reward still count. "
              "You pay once per day; today's answer stays free after that.")
+
+
+ANSWER_NOTE = "Today's reference answer. Other force fields can reach the target too."
 
 
 def confirm_message(price, balance):
@@ -48,6 +52,8 @@ class DailyAnswerPopup:
         self.cancel_button = Button((0, 0, bw, bh), "Cancel", style="plain", font_size=15)
         self.confirm_button = Button((0, 0, bw, bh), "Show answer", style="danger", font_size=15)
         self.close_button = Button((0, 0, bw, bh), "Close", style="plain", font_size=15)
+        self.apply_button = Button((0, 0, px(90), px(32)), "Apply", style="primary", font_size=14)
+        self.answer_row = pygame.Rect(0, 0, 0, 0)
 
     # ------------------------------------------------------------------ modes
     def show_confirm(self, price, balance):
@@ -71,12 +77,23 @@ class DailyAnswerPopup:
             self.close_button.rect.midtop = (self.card.centerx, row_y)
         else:
             self.close_button.rect.topright = (self.card.right - px(PAD), row_y)
+        # The answer row under its note, Apply at its right end (like a Hint answer).
+        width = self.card.width - 2 * px(PAD)
+        note_h = len(wrap_text(ANSWER_NOTE, TEXT_SIZE, width)) * px(LINE_H)
+        self.answer_row = pygame.Rect(self.card.x + px(PAD), self.card.y + px(78) + note_h + px(10),
+                                      width, px(40))
+        self.apply_button.rect.midright = (self.answer_row.right - px(4), self.answer_row.centery)
+
+    def answer_text(self):
+        return f"Fx = {self.fx}    Fy = {self.fy}"
 
     # ------------------------------------------------------------------ input
     def buttons(self):
         """(button, action) pairs that take input in the current mode."""
         if self.mode == "confirm":
             return [(self.cancel_button, "cancel"), (self.confirm_button, "confirm")]
+        if self.mode == "answer":
+            return [(self.apply_button, "apply"), (self.close_button, "close")]
         return [(self.close_button, "close")]
 
     def handle_event(self, event):
@@ -84,7 +101,7 @@ class DailyAnswerPopup:
             if event.key == pygame.K_ESCAPE:
                 return "cancel" if self.mode == "confirm" else "close"
             if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                return "confirm" if self.mode == "confirm" else "close"
+                return {"confirm": "confirm", "short": "close"}.get(self.mode)
             return None
         for button, action in self.buttons():
             if button.handle_event(event) == "click":
@@ -122,4 +139,8 @@ class DailyAnswerPopup:
         return y
 
     def _draw_answer(self, surface, x, y):
-        pass
+        self._draw_paragraph(surface, ANSWER_NOTE, y)
+        row = self.answer_row
+        pygame.draw.rect(surface, config.BG, row, border_radius=px(4))
+        draw_text(surface, self.answer_text(), (row.x + px(12), row.centery), 16, config.TEXT,
+                  kind="mono", anchor="midleft")
