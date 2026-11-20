@@ -194,6 +194,9 @@ XP_FIXED_LEVEL_BASE = {             # fixed level id -> XP for its first clear
     11: 300,
 }
 XP_RANDOM_MAP = 150                 # XP for the first clear of each random map
+XP_DAILY = 300                      # XP for a daily challenge clear (see xp.daily_clear_xp)
+XP_DAILY_STREAK_STEP = 30           # the day's first clear: this much more per day of streak ...
+XP_DAILY_STREAK_CAP = 5             # ... counting at most this many days
 XP_ACHIEVEMENT_TIERS = (10, 20, 30, 40)  # XP for tiers I-IV of a tiered achievement
 XP_ACHIEVEMENT_SINGLE = 40          # XP for a single achievement (hidden ones too)
 XP_LEVEL_FIRST = 100                # XP from Lv 1 to Lv 2

@@ -22,6 +22,12 @@ def test_xp_constants():
     assert config.LEVEL_MILESTONE_COINS == 10
 
 
+def test_daily_xp_constants():
+    assert config.XP_DAILY == 300
+    assert config.XP_DAILY_STREAK_STEP == 30
+    assert config.XP_DAILY_STREAK_CAP == 5
+
+
 # --- replay decay ---------------------------------------------------------------
 def test_xp_for_clear_decays_with_integer_division():
     from vector_drift.xp import xp_for_clear
