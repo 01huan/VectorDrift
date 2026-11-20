@@ -268,3 +268,82 @@ def test_restart_retry_and_replay_keep_the_day(today):
         screen = _result_screen(mgr, result)
         _click(screen, (screen.replay_button if result == "win" else screen.retry_button).rect)
         assert isinstance(mgr.scene, GameScene) and mgr.session.daily_day == DAY
+
+
+# --- the calendar (task 26) ---------------------------------------------------------------
+
+def _record(mgr, day, **fields):
+    from vector_drift.daily_records import get_record
+    get_record(mgr.session, day, create=True).update(fields)
+
+
+def test_day_marks_tell_every_state_apart():
+    from vector_drift.scenes.daily_page import DayMarks, day_marks
+    past, today_, future = date(2026, 11, 19), DAY, date(2026, 11, 21)
+    assert day_marks({"cleared": True}, past, today_) == DayMarks("cleared", False, False)
+    assert day_marks({"cleared": True, "answer_used": True}, past, today_) == DayMarks("cleared", True, False)
+    assert day_marks({"cleared": False}, past, today_) == DayMarks("failed", False, False)
+    assert day_marks(None, past, today_) == DayMarks("none", False, False)
+    assert day_marks(None, today_, today_) == DayMarks("none", False, True)
+    assert day_marks({"cleared": True}, today_, today_) == DayMarks("cleared", False, True)
+    assert day_marks(None, future, today_) == DayMarks("future", False, False)
+
+
+def test_the_calendar_shows_this_month_sunday_first(today):
+    page = _page()
+    cells = page.day_cells()
+
+    assert page.month == (2026, 11)
+    assert [d.day for d, _r in cells] == list(range(1, 31))
+    by_day = {d.day: r for d, r in cells}
+    assert by_day[1].x == by_day[8].x == by_day[29].x       # 11/1/2026 is a Sunday: first column
+    assert by_day[1].x < by_day[2].x < by_day[7].x
+    assert by_day[7].y == by_day[1].y and by_day[8].y > by_day[1].y
+
+
+def test_a_month_starting_late_in_the_week_needs_six_rows_that_fit(today):
+    from vector_drift.scenes.daily_page import calendar_card_rect
+    today.set(date(2026, 8, 15))                            # 8/1/2026 is a Saturday
+    page = _page()
+    cells = page.day_cells()
+    rows = sorted({r.y for _d, r in cells})
+
+    assert len(rows) == 6
+    card = calendar_card_rect()
+    screen = pygame.Rect(0, 0, config.WINDOW_W, config.WINDOW_H)
+    assert screen.contains(card)
+    assert all(card.contains(r) for _d, r in cells)
+    for button in (page.play_button, page.back_button):
+        assert not card.colliderect(button.rect)
+    rects = [r for _d, r in cells]
+    assert not any(a.colliderect(b) for i, a in enumerate(rects) for b in rects[i + 1:])
+
+
+def test_each_day_is_marked_from_its_record(today):
+    mgr = _manager()
+    _record(mgr, date(2026, 11, 3), cleared=True)
+    _record(mgr, date(2026, 11, 4), cleared=True, answer_used=True)
+    _record(mgr, date(2026, 11, 5))
+    page = _page(mgr)
+
+    assert page.marks(date(2026, 11, 3)).state == "cleared"
+    assert page.marks(date(2026, 11, 4)) == ("cleared", True, False)
+    assert page.marks(date(2026, 11, 5)).state == "failed"
+    assert page.marks(date(2026, 11, 6)).state == "none"
+    assert page.marks(DAY).today
+    assert page.marks(date(2026, 11, 21)).state == "future"
+    _draw(page)
+
+
+def test_today_follows_midnight_while_the_page_is_open(today):
+    page = _page()
+    today.set(date(2026, 11, 21))
+    assert page.marks(date(2026, 11, 21)) == ("none", False, True)
+    assert not page.marks(DAY).today
+
+
+def test_the_month_title_and_weekdays_are_drawn(today, monkeypatch):
+    texts = _texts(_page(), monkeypatch)
+    assert "November 2026" in texts
+    assert [t for t in texts if t in ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")] == \
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
