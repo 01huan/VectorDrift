@@ -8,7 +8,7 @@ import pygame
 from .. import config, sprites
 from ..config import px
 from ..daily_level import is_daily_level
-from ..data import level_number
+from ..data import SHIPS, level_number
 from . import ability_effects as afx
 from . import pickup_effects as pfx
 from .replay_data import START_MARKER_RADIUS_M, trail_strokes
@@ -21,6 +21,12 @@ def _rm():
 def draw_text(*a, **k):
     """Late-bound so tests can monkeypatch ``scenes.replay.draw_text``."""
     return _rm().draw_text(*a, **k)
+
+
+def _ship_label(ship_id):
+    """The recorded ship's shown name (Daybreak), or the stored id as it is."""
+    ship = SHIPS.get(ship_id) if isinstance(ship_id, str) else None
+    return ship.name if ship is not None else str(ship_id)
 
 
 class ReplayRenderMixin:
@@ -283,7 +289,7 @@ class ReplayRenderMixin:
         info = [
             ("Record", f"{self.index + 1} / {len(self.records)}"),
             ("Level", self._level_label(rec)),
-            ("Ship", str(rec.get("ship_id"))),
+            ("Ship", _ship_label(rec.get("ship_id"))),
             ("Outcome", str(rec.get("outcome"))),
             ("Speed", f"{self.player.speed:.1f}x"),
         ]

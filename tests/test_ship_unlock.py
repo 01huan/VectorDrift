@@ -12,10 +12,12 @@ from vector_drift.scenes.base import SceneManager
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 
-def test_ships_01_to_15_share_the_same_physics():
-    assert list(SHIPS) == [f"ship{n:02d}" for n in range(1, 16)]
+def test_ships_01_to_15_and_daybreak_share_the_same_physics():
+    # ship01-15 for the levels, daybreak for the daily challenge (test_daily_ship).
+    assert list(SHIPS) == [f"ship{n:02d}" for n in range(1, 16)] + ["daybreak"]
     for sid, ship in SHIPS.items():
-        assert (ship.id, ship.name, ship.mass, ship.hull_radius) == (sid, sid, 1.0, 0.2)
+        name = "Daybreak" if sid == "daybreak" else sid
+        assert (ship.id, ship.name, ship.mass, ship.hull_radius) == (sid, name, 1.0, 0.2)
 
 
 def test_level_n_flies_ship_n():

@@ -245,7 +245,11 @@ def level_ship_id(level_id, session=None):
 
     Campaign level N (the random level too) flies shipNN, or ship01 while
     that ship is not in SHIPS yet. Community and custom levels fly ship01.
+    The daily challenge flies its own ship (daily_level.DAILY_SHIP).
     """
+    from .daily_level import DAILY_SHIP, is_daily_level    # lazy: daily_level imports data
+    if is_daily_level(level_id):
+        return DAILY_SHIP.id
     if is_community_level(level_id) or is_custom_map(level_id, session):
         return DEFAULT_SHIP_ID
     return default_ship_id(level_id)

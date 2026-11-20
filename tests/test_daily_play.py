@@ -71,7 +71,7 @@ def test_daily_then_play_opens_today_s_map(today):
     assert mgr.session.level_id == config.DAILY_LEVEL_ID
     assert mgr.session.random_seed is None
     assert game.full_level == generate_daily(DAY).level
-    assert game.ship.id == "ship01"
+    assert game.ship.id == "daybreak"
 
 
 def test_daily_map_is_generated_once_per_day():

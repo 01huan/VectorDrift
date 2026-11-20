@@ -30,7 +30,7 @@ from .pickups import discs_overlap
 log = logging.getLogger(__name__)
 
 DAILY_LEVEL_NAME = "Daily Challenge"
-DAILY_SHIP = SHIPS["ship01"]
+DAILY_SHIP = SHIPS["daybreak"]     # the daily challenge's own ship (same physics as the others)
 TARGET_RADIUS = 1.0                 # same as the fixed levels
 COIN_RADIUS = 0.45                  # same as the fixed levels
 

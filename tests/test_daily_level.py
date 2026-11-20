@@ -321,7 +321,7 @@ def test_daily_map_is_a_daily_level():
     assert daily.day == DAY and daily.seed == daily_seed(DAY)
     assert not daily.is_fallback and 1 <= daily.attempts <= config.DAILY_MAX_ATTEMPTS
     assert level.id == config.DAILY_LEVEL_ID == 900
-    assert level.name == "Daily Challenge" and level.ship_id == "ship01"
+    assert level.name == "Daily Challenge" and level.ship_id == "daybreak"
     assert level.time_limit == config.DAILY_TIME_LIMIT and level.lives == config.DAILY_LIVES
     assert level.target_radius == TARGET_RADIUS
     assert not level.holes and not level.sections
