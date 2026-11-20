@@ -272,3 +272,72 @@ def test_the_applied_answer_reaches_the_target():
             break
         scene.update(1 / 60)
     assert scene.state == ARRIVED
+
+
+# --- the price is the only cost (task 22) ----------------------------------------------------
+
+def _coins(scene):
+    return [p for p in scene.pickups if p.kind == "money"]
+
+
+def _collect(scene, pickup):
+    """What a flight does when the ship touches a coin."""
+    pickup.consumed = True
+    scene.flight = SimpleNamespace(pickup_events=[
+        {"kind": "money", "center": pickup.center, "amount": 1}])
+    scene._drain_pickup_events()
+    scene.flight = None
+
+
+def _win_with_the_answer(scene):
+    """Pay (or reopen) the answer, apply it, fly to the Win screen."""
+    from vector_drift.scenes.win import WinScene
+    popup = _press_answer(scene)
+    if popup.mode == "confirm":
+        _click(scene, popup.confirm_button.rect)
+    _click(scene, scene.daily_popup.apply_button.rect)
+    scene._try_launch()
+    for _ in range(60 * 25):
+        if isinstance(scene.manager.scene, WinScene):
+            break
+        scene.update(1 / 60)
+    assert isinstance(scene.manager.scene, WinScene)
+
+
+def test_coins_still_pay_after_the_answer_once_per_spot():
+    scene = _daily()
+    _pay(scene)
+    coins = _coins(scene)
+    assert coins
+    _collect(scene, coins[0])
+    assert _balance(scene) == 13 + 1
+    assert get_record(scene.session, DAY)["coins"] == 1
+
+    again = _daily(scene.manager)                       # the same spot later that day
+    _collect(again, SimpleNamespace(center=coins[0].center, consumed=False))
+    assert _balance(again) == 14
+    assert get_record(again.session, DAY)["coins"] == 1
+
+
+def test_the_first_clear_after_the_answer_still_pays_its_reward():
+    scene = _daily()
+    _win_with_the_answer(scene)
+    stats = scene.session.stats
+
+    assert stats["clear_reward"] == config.CLEAR_REWARD
+    assert _balance(scene) >= 13 + config.CLEAR_REWARD
+    record = get_record(scene.session, DAY)
+    assert record["cleared"] and record["clear_rewarded"] and record["answer_used"]
+    assert record["best_time"] == pytest.approx(stats["total_time"])
+    assert record["first_clear_lives_used"] == 0
+
+
+def test_a_faster_clear_after_the_answer_still_updates_the_best_time():
+    scene = _daily()
+    record = get_record(scene.session, DAY, create=True)
+    record.update(cleared=True, best_time=999.0, first_clear_lives_used=3, clear_rewarded=True)
+    _win_with_the_answer(scene)
+
+    assert record["best_time"] < 999.0
+    assert record["first_clear_lives_used"] == 3          # only the first clear's run counts
+    assert scene.session.stats["clear_reward"] == 0       # the day's reward was paid before
