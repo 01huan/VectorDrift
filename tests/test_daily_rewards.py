@@ -164,7 +164,10 @@ def test_a_clear_after_midnight_counts_for_the_day_entered(clock):
     levels = LevelSelectScene(manager)
     manager.switch(levels)
     levels.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1,
-                                           pos=levels.daily_button.rect.center))   # 23:59
+                                           pos=levels.daily_button.rect.center))
+    page = manager.scene                                                            # the daily page
+    page.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1,
+                                         pos=page.play_button.rect.center))         # Play at 23:59
     clock.day = NEXT_DAY                                                            # 00:05
     retry = GameScene(manager)          # Retry builds a new game screen
     manager.switch(retry)

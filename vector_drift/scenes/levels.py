@@ -59,6 +59,30 @@ def _arrow_rect(direction):
     return rect
 
 
+def start_level(manager, level_id):
+    """Start ``level_id`` from a menu: a fresh editor, the level's own ship, a new seed."""
+    session = manager.session
+    session.level_id = level_id
+    # An imported function is the one the player wants to use, so the
+    # editor starts with it (the formulas stay editable as usual).
+    imported = getattr(session, "imported_function", None)
+    if imported is not None:
+        session.fx_text, session.fy_text = imported.fx, imported.fy
+    else:
+        session.fx_text = session.fy_text = ""
+    session.editor_history = None      # a new start: no undo into another run
+    session.ship_id = None             # start on the level's newest ship
+    # Fresh solvable layout for dynamic levels on every entry; static
+    # levels always come from get_level().
+    session.random_seed = None
+    session.level_source = "levels"
+    if is_dynamic_level(level_id):
+        import random as _random
+        session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
+    from .game import GameScene
+    manager.switch(GameScene(manager))
+
+
 class PageArrow:
     """A drawn chevron beside the grid that turns the page.
 
@@ -151,31 +175,14 @@ class LevelSelectScene(Scene):
 
     def _start(self, level_id):
         self.audio.play("click")
-        self.session.level_id = level_id
         self.session.level_select_page = (self.page, level_id)
-        # An imported function is the one the player wants to use, so the
-        # editor starts with it (the formulas stay editable as usual).
-        imported = getattr(self.session, "imported_function", None)
-        if imported is not None:
-            self.session.fx_text, self.session.fy_text = imported.fx, imported.fy
-        else:
-            self.session.fx_text = self.session.fy_text = ""
-        self.session.editor_history = None      # a new start: no undo into another run
-        self.session.ship_id = None             # start on the level's newest ship
-        # Fresh solvable layout for dynamic levels on every entry; static
-        # levels always come from get_level().
-        self.session.random_seed = None
-        self.session.level_source = "levels"
-        if is_dynamic_level(level_id):
-            import random as _random
-            self.session.random_seed = _random.SystemRandom().randint(0, 2 ** 31 - 1)
-        from .game import GameScene
-        self.manager.switch(GameScene(self.manager))
+        start_level(self.manager, level_id)
 
     def _open_daily(self):
-        """The Daily button: today's map (UTC+8), kept until the player leaves it."""
-        self.session.daily_day = daily_level.daily_today()
-        self._start(config.DAILY_LEVEL_ID)
+        """The Daily button: the daily challenge page (its Play picks the day)."""
+        self.audio.play("click")
+        from .daily_page import DailyScene
+        self.manager.switch(DailyScene(self.manager))
 
     def daily_check_rect(self):
         """Where the Daily button shows today's clear (a check mark), else None.

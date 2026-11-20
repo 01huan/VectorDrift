@@ -38,9 +38,12 @@ def today(monkeypatch):
 
 
 def _enter_daily(mgr):
+    """Daily on the level select, then Play on the daily page."""
     levels = LevelSelectScene(mgr)
     mgr.switch(levels)
     _click(levels, levels.daily_button.rect)
+    page = mgr.scene
+    _click(page, page.play_button.rect)
     return mgr.scene
 
 
@@ -59,7 +62,7 @@ def test_daily_button_sits_in_the_top_row_without_overlapping():
     scene.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
 
 
-def test_daily_button_opens_today_s_map(today):
+def test_daily_then_play_opens_today_s_map(today):
     mgr = _manager()
     game = _enter_daily(mgr)
 
@@ -159,7 +162,7 @@ def test_retry_after_midnight_keeps_the_day(today, result):
     assert mgr.scene.full_level == first.full_level
 
 
-def test_pressing_daily_again_picks_the_new_day(today):
+def test_pressing_play_again_picks_the_new_day(today):
     mgr = _manager()
     _after_midnight(today, mgr)
 
