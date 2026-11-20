@@ -32,7 +32,7 @@ def test_levels_whose_ship_is_not_made_yet_fly_ship01():
 
 def test_a_new_ship_in_ships_is_flown_by_its_level(monkeypatch):
     ships = dict(SHIPS)
-    ships["ship11"] = ShipSpec(id="ship11", name="ship11", mass=1.0, hull_radius=0.2, unlock_level=11)
+    ships["ship11"] = ShipSpec(id="ship11", name="ship11", mass=1.0, hull_radius=0.2)
     monkeypatch.setattr(data_models, "SHIPS", ships)
     assert level_ship_id(11) == "ship11"
 

@@ -29,6 +29,7 @@ from dataclasses import dataclass
 
 from . import config
 from .data import HoleSpec, LevelSpec, ObstacleSpec, PickupSpec
+from .random_level_rules import _rand_point
 
 
 @dataclass(frozen=True)
@@ -47,12 +48,6 @@ class GeneratedLayout:
 # --------------------------------------------------------------- helpers
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
-
-
-def _rand_point(rng, margin):
-    x = rng.uniform(-config.WORLD_HALF_W + margin, config.WORLD_HALF_W - margin)
-    y = rng.uniform(-config.WORLD_HALF_H + margin, config.WORLD_HALF_H - margin)
-    return (x, y)
 
 
 def _peers(obstacles):

@@ -22,7 +22,6 @@ class ShipSpec:
     wing_color: tuple = (240, 100, 96)
     trim_color: tuple = (255, 196, 70)
     length: float = 0.8         # drawn length (m); collision uses hull_radius
-    unlock_level: int = 1       # first fixed level that may fly it (see ship_unlocked)
     price: int = 0              # shop price (0 = not sold / free)
 
 
@@ -76,8 +75,6 @@ class LevelSpec:
     pickups: tuple = ()         # tuple[PickupSpec, ...]; FIXED levels own this
                               # fully: no entry = no pickups (mutual no-stack)
     holes: tuple = ()           # tuple[HoleSpec, ...]; black/white hole pairs
-    portals: tuple = ()
-    wormholes: tuple = ()
     sections: tuple = ()        # tuple[SectionSpec, ...]; empty = one-screen level.
                               # Multi-section: the per-screen fields above are
                               # section 1's (see multi_section_level).
@@ -135,7 +132,7 @@ def section_level(level, index):
     return replace(level, start=tuple(s.start), target_center=tuple(s.target_center),
                    target_radius=s.target_radius, time_limit=s.time_limit,
                    obstacles=tuple(s.obstacles), pickups=tuple(s.pickups), holes=tuple(s.holes),
-                   portals=(), wormholes=(), sections=())
+                   sections=())
 
 
 def section_shift(level, index):
@@ -171,8 +168,7 @@ def multi_section_level(id, name, ship_id, sections, lives=5):
 # flies shipNN (default_ship_id); to add a ship, add its picture and its
 # entry here: the level with its number switches to it on its own.
 SHIPS = {
-    f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2,
-                             unlock_level=n)
+    f"ship{n:02d}": ShipSpec(id=f"ship{n:02d}", name=f"ship{n:02d}", mass=1.0, hull_radius=0.2)
     for n in range(1, 11)
 }
 DEFAULT_SHIP_ID = "ship01"
@@ -229,16 +225,10 @@ class HoleSpec:
     def __init__(self, *args, **kwargs):
         bc = kwargs.pop("black_center", None)
         wc = kwargs.pop("white_center", None)
-        if bc is None:
-            for key in ("black", "entry", "in_center", "start", "center"):
-                if key in kwargs:
-                    bc = kwargs.pop(key)
-                    break
-        if wc is None:
-            for key in ("white", "exit", "out_center", "target", "end"):
-                if key in kwargs:
-                    wc = kwargs.pop(key)
-                    break
+        if bc is None and "black" in kwargs:
+            bc = kwargs.pop("black")
+        if wc is None and "white" in kwargs:
+            wc = kwargs.pop("white")
         if bc is None and args:
             bc = args[0]; args = args[1:]
         if wc is None and args:
@@ -260,17 +250,11 @@ def _ship_id(ship):
 
 
 def level_holes(level):
-    """Return a canonical HoleSpec tuple from holes/portals/wormholes aliases."""
+    """Return the canonical HoleSpec tuple of ``level`` (empty when none)."""
     if level is None:
         return ()
     holes = getattr(level, "holes", ()) or ()
-    if holes:
-        return tuple(holes)
-    for alias in ("portals", "wormholes"):
-        value = getattr(level, alias, ()) or ()
-        if value:
-            return tuple(value)
-    return ()
+    return tuple(holes)
 
 
 __all__ = [
