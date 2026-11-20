@@ -50,6 +50,25 @@ def _edge(on_start_side):
     return (lo + hi) / 2
 
 
+def _toward(a, b, factor=1.0, min_dist=1e-9):
+    """Direction from ``a`` toward ``b``, scaled by ``factor``: (ux, uy).
+
+    Returns (0.0, 0.0) when the two points are not further than
+    ``min_dist`` apart, so callers that add the result can skip their own
+    "too close to point" branch.
+    """
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    dist = math.hypot(dx, dy)
+    if not dist > min_dist:
+        return (0.0, 0.0)
+    return (factor * dx / dist, factor * dy / dist)
+
+
+def _lerp(a, b, t):
+    """Point at parameter ``t`` along a->b."""
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+
+
 class Flight:
     """One launch of the ship, initially at rest.
 
@@ -85,44 +104,9 @@ class Flight:
         self.hull_radius = ship.hull_radius
         self.hit_radius = level.target_radius + ship.hull_radius
         self.target = level.target_center
-        # (center, radius incl. hull, restitution) — precomputed so step() stays cheap.
-        # obstacle_specs is kept (mutable list) so pickup effects (shockwave) can
-        # remove obstacles mid-flight; obstacles is rebuilt alongside it.
-        self.obstacle_specs = list(getattr(level, "obstacles", ()) or ())
-        self.obstacles = tuple(
-            ((o.center[0], o.center[1]), o.radius + ship.hull_radius, o.restitution)
-            for o in self.obstacle_specs
-        )
-        # Runtime pickups (consumed flag lives on PickupState, never on spec).
-        # Shared by reference when the caller passes them (GameScene passes
-        # its run-level list so consumed pickups persist across lives);
-        # otherwise built fresh from level.pickups. No config = no pickups.
-        from .pickups import PickupState
-        if pickups is None:
-            specs = getattr(level, "pickups", ()) or ()
-            self.pickups = tuple(PickupState.from_spec(s) for s in specs)
-        else:
-            self.pickups = tuple(pickups)
-        self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
-        # Black/white hole pairs (wormholes). Persist for the whole flight.
-        if holes is None:
-            holes = level_holes(level)
-        self.holes = []
-        for h in (holes or ()):
-            try:
-                bc = getattr(h, "black_center", None)
-                wc = getattr(h, "white_center", None)
-                r = getattr(h, "radius", 0.5)
-                if bc is None and isinstance(h, (tuple, list)):
-                    # (black_center, white_center, radius?) or (black, white)
-                    bc = h[0]; wc = h[1]
-                    r = h[2] if len(h) > 2 else r
-                self.holes.append(((float(bc[0]), float(bc[1])),
-                                  (float(wc[0]), float(wc[1])), float(r)))
-            except (TypeError, ValueError, IndexError, AttributeError):
-                continue
-        self.portals = self.holes
-        self.wormholes = self.holes
+        self._init_obstacles(level, ship)
+        self._init_pickups(level, pickups)
+        self._init_holes(level, holes)
         self.bounds = bounds
         # Unbound pickup: from then on this flight cannot go out of bounds.
         self.unbound = False
@@ -159,6 +143,50 @@ class Flight:
         # white hole): the trail is not joined across a teleport.
         self.trail_breaks = []
 
+    def _init_obstacles(self, level, ship):
+        # (center, radius incl. hull, restitution), precomputed so step() stays cheap.
+        # obstacle_specs is kept (mutable list) so pickup effects (shockwave) can
+        # remove obstacles mid-flight; obstacles is rebuilt alongside it.
+        self.obstacle_specs = list(getattr(level, "obstacles", ()) or ())
+        self.obstacles = tuple(
+            ((o.center[0], o.center[1]), o.radius + ship.hull_radius, o.restitution)
+            for o in self.obstacle_specs
+        )
+
+    def _init_pickups(self, level, pickups):
+        # Runtime pickups (consumed flag lives on PickupState, never on spec).
+        # Shared by reference when the caller passes them (GameScene passes
+        # its run-level list so consumed pickups persist across lives);
+        # otherwise built fresh from level.pickups. No config = no pickups.
+        from .pickups import PickupState
+        if pickups is None:
+            specs = getattr(level, "pickups", ()) or ()
+            self.pickups = tuple(PickupState.from_spec(s) for s in specs)
+        else:
+            self.pickups = tuple(pickups)
+        self.pickup_events = []  # event dicts from triggered pickups (scene/tests)
+
+    def _init_holes(self, level, holes):
+        # Black/white hole pairs (wormholes). Persist for the whole flight.
+        if holes is None:
+            holes = level_holes(level)
+        self.holes = []
+        for h in (holes or ()):
+            try:
+                bc = getattr(h, "black_center", None)
+                wc = getattr(h, "white_center", None)
+                r = getattr(h, "radius", 0.5)
+                if bc is None and isinstance(h, (tuple, list)):
+                    # (black_center, white_center, radius?) or (black, white)
+                    bc = h[0]; wc = h[1]
+                    r = h[2] if len(h) > 2 else r
+                self.holes.append(((float(bc[0]), float(bc[1])),
+                                  (float(wc[0]), float(wc[1])), float(r)))
+            except (TypeError, ValueError, IndexError, AttributeError):
+                continue
+        self.portals = self.holes
+        self.wormholes = self.holes
+
     @property
     def time(self):
         return (self.steps - self._frozen_steps) * self.dt
@@ -171,8 +199,7 @@ class Flight:
     def force(self):
         try:
             return self.field.at(self.x, self.y)
-        except (ArithmeticError, ValueError, TypeError, OverflowError,
-                RecursionError, MemoryError):
+        except _FORCE_ERRORS:
             return (math.nan, math.nan)
 
     @property
@@ -197,12 +224,9 @@ class Flight:
             fx, fy = self.field.at(self.x, self.y)
             # Magnet pickup: pull toward the target while active.
             if self.magnet_remaining > 0.0:
-                tx, ty = self.target
-                dx, dy = tx - self.x, ty - self.y
-                dist = math.hypot(dx, dy)
-                if dist > 1e-9:
-                    fx = fx + self.magnet_force * dx / dist
-                    fy = fy + self.magnet_force * dy / dist
+                pull_x, pull_y = _toward((self.x, self.y), self.target, self.magnet_force)
+                fx = fx + pull_x
+                fy = fy + pull_y
             self._step_force = (fx, fy)
 
             # Semi-implicit Euler: update velocity before position.
@@ -212,8 +236,7 @@ class Flight:
             nx = self.x + vx * self.dt
             ny = self.y + vy * self.dt
 
-        except (ArithmeticError, ValueError, TypeError, OverflowError,
-                RecursionError, MemoryError):
+        except _FORCE_ERRORS:
             self._tick_effects()
             self.outcome = Outcome.DIVERGED
             return self.outcome
@@ -281,7 +304,7 @@ class Flight:
         only those the force really grows towards.
         """
         def at(t):
-            return p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t
+            return _lerp(p0, p1, t)
 
         def same_sign(part, t, sign):
             try:
@@ -369,7 +392,7 @@ class Flight:
         if hole is None or hole[0] > before:
             return None
         t, white = hole
-        entry = (start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t)
+        entry = _lerp(start, end, t)
         legs.append((start, entry))
         self.x, self.y = entry
         self.trail.append(entry)
@@ -503,7 +526,7 @@ class Flight:
         An unbound ship cannot go out of bounds: it stops at the pole and the
         flight is DIVERGED instead (infinite force, no way to fly on).
         """
-        pole = (p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t)
+        pole = _lerp(p0, p1, t)
         self._take_pickups(p0, pole)
         self.trail.append(pole)
         if segment_hits_circle(p0, pole, self.target, self.hit_radius):
@@ -596,8 +619,7 @@ class Flight:
                 self._use_shield(center)
                 obstacles.remove(obstacle)          # carried through this one
                 continue
-            hx = start[0] + (end[0] - start[0]) * t
-            hy = start[1] + (end[1] - start[1]) * t
+            hx, hy = _lerp(start, end, t)
             nx, ny = hx - center[0], hy - center[1]
             dist = math.hypot(nx, ny)
             if dist < 1e-9:
@@ -650,12 +672,9 @@ class Flight:
         imp = self.boost_impulse if impulse is None else float(impulse)
         speed = math.hypot(self.vx, self.vy)
         if speed < 1e-9:
-            tx, ty = self.target
-            dx, dy = tx - self.x, ty - self.y
-            dist = math.hypot(dx, dy)
-            if dist > 1e-9:
-                self.vx += imp * dx / dist
-                self.vy += imp * dy / dist
+            push_x, push_y = _toward((self.x, self.y), self.target, imp)
+            self.vx += push_x
+            self.vy += push_y
         else:
             self.vx += imp * self.vx / speed
             self.vy += imp * self.vy / speed
@@ -730,12 +749,9 @@ class Flight:
         if speed > 1e-9:
             dx, dy = self.vx / speed, self.vy / speed
         else:
-            tx, ty = self.target
-            dx, dy = tx - self.x, ty - self.y
-            dist = math.hypot(dx, dy)
-            if dist <= 1e-9:
+            dx, dy = _toward((self.x, self.y), self.target)
+            if dx == 0.0 and dy == 0.0:
                 return False
-            dx, dy = dx / dist, dy / dist
         self.trail.append((self.x, self.y))
         self.trail_breaks.append(len(self.trail))
         self.x, self.y = self.x + dx * distance, self.y + dy * distance
