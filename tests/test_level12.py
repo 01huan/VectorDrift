@@ -6,6 +6,8 @@ is 0 left of x = 0 and 2x right of it, so it only turns on on the right;
 runs the same route with the switch moved to x = 3.
 """
 
+import math
+
 import pytest
 
 from vector_drift import config
@@ -175,3 +177,125 @@ def test_section_two_takes_a_range_of_switch_lines(h):
 @pytest.mark.parametrize("h", [1.5, 4.5])
 def test_section_two_misses_with_the_switch_too_far_left_or_right(h):
     assert _fly(section(1), *_switch(h=h)).outcome is not Outcome.REACHED
+
+
+# --- the game: checkpoint, pan down and to the right, win; the answer is paid once ----------
+def _scene():
+    from types import SimpleNamespace
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
+                            stop_loop=lambda *a, **k: None)
+    manager = SceneManager(audio)
+    manager.session.level_id = 12
+    scene = GameScene(manager)
+    manager.switch(scene)
+    return manager, scene
+
+
+def _type(scene, fx, fy):
+    scene.editor.set_lines([fx, fy])
+    scene._on_text_change(scene.editor)
+
+
+def _launch(scene, surface, answer, pans=None):
+    """Fly ``answer`` through any pan that follows; the state it ends in.
+
+    Every pan seen is appended to ``pans`` as (pan, offsets at each frame).
+    """
+    from vector_drift.scenes.game import FLIGHT, PANNING
+    from vector_drift.scenes.game_layout import pan_offsets
+
+    _type(scene, *answer)
+    scene._try_launch()
+    while scene.state == FLIGHT:
+        scene.update(0.05)
+        scene.draw(surface)
+    reached = scene.state
+    frames = []
+    pan = scene.pan
+    while scene.state == PANNING:
+        frames.append(pan_offsets(pan.shift, pan.progress))
+        scene.update(0.05)
+        scene.draw(surface)
+    if pans is not None and frames:
+        pans.append((pan, frames))
+    return reached
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_level_twelve_plays_through_its_checkpoint_to_the_win():
+    import pygame
+
+    from vector_drift.scenes.game import ARRIVED, PANNING, SETUP
+
+    _, scene = _scene()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    assert scene.section_index == 0 and scene.lives == LEVEL.lives
+
+    # Section 1: a constant push misses and costs a life; A1 reaches the checkpoint,
+    # which gives the life back.
+    assert _launch(scene, surface, ("6", "-1")) == SETUP
+    assert scene.section_index == 0 and scene.lives == LEVEL.lives - 1
+    pans = []
+    assert _launch(scene, surface, A1, pans) == PANNING
+    assert scene.section_index == 1 and scene.lives == LEVEL.lives
+    assert tuple(scene.launch_pos) == START
+
+    # The camera pans down and to the right, with the checkpoint held in place.
+    (pan, frames), = pans
+    assert pan.shift == pytest.approx((13.9, -11.0))
+    assert math.dist(pan.arrival, CHECKPOINT) <= 1.0 + HULL       # touched the checkpoint
+    assert len(frames) > 2
+    for old_offset, new_offset in frames:
+        old_checkpoint = (CHECKPOINT[0] + old_offset[0], CHECKPOINT[1] + old_offset[1])
+        new_start = (START[0] + new_offset[0], START[1] + new_offset[1])
+        assert old_checkpoint == pytest.approx(new_start)
+    assert scene.pan is None                                # settled on section 2
+
+    # Section 2: A1 turns down too early; the next life starts at the checkpoint.
+    assert _launch(scene, surface, A1) == SETUP
+    assert scene.section_index == 1 and scene.lives == LEVEL.lives - 1
+    assert tuple(scene.launch_pos) == START
+    assert _launch(scene, surface, A2) == ARRIVED
+    assert scene.section_index == 1
+
+
+@pytest.mark.xfail(reason="level 12 hints pending", strict=True)
+@pytest.mark.usefixtures("pygame_display")
+def test_level_twelve_answer_is_paid_once_for_both_sections():
+    import pygame
+
+    from vector_drift.scenes.game import PANNING
+
+    assert 12 not in config.FREE_ANSWER_LEVELS
+    manager, scene = _scene()
+    manager.session.money.add(25)
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+
+    def open_answer():
+        scene._open_hint()
+        popup = scene.hint_popup
+        while popup.page < popup.answer_page - 1:
+            popup.page += 1
+        scene._request_hint_answer()
+        return popup
+
+    # Section 1: asked first, with the price; paying shows the answer page.
+    popup = open_answer()
+    assert popup.confirming and popup.confirm_price is not None
+    scene._show_hint_answer(config.HINT_ANSWER_COST)
+    assert popup.on_answer_page
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+    assert 12 in manager.session.paid_answer_levels
+
+    # Section 2: its own answer page opens straight away, at no charge.
+    assert _launch(scene, surface, A1) == PANNING
+    assert scene.section_index == 1
+    popup = open_answer()
+    assert popup.on_answer_page and not popup.confirming
+    assert popup.hint is scene.hint and scene.hint.section == 2
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
