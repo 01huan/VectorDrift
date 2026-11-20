@@ -7,7 +7,7 @@ dict, so it saves as JSON in the profile's stats unchanged):
 * ``first_clear_lives_used`` -- lives lost in the run of the first clear (None: not cleared)
 * ``coins``                  -- coins paid by that day's map pickups (not the clear reward)
 * ``best_time``              -- fastest total flight time of a clear (None: not cleared)
-* ``answer_used``            -- the reference answer was shown (always False for now)
+* ``answer_used``            -- the day's reference answer was paid for (and shown)
 * ``coins_taken``            -- [x, y] of the coins already paid that day
 * ``clear_rewarded``         -- the day's clear reward was paid
 
@@ -125,6 +125,13 @@ def take_coin(session, day, center):
         return False
     record["coins_taken"].append(point)
     return True
+
+
+def mark_answer_used(session, day):
+    """``day``'s reference answer was paid for: it stays free that day."""
+    record = get_record(session, day, create=True)
+    record["answer_used"] = True
+    return record
 
 
 def take_clear_reward(session, day):

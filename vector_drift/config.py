@@ -221,6 +221,7 @@ DAILY_UTC_OFFSET_HOURS = 8          # "today" is decided in Taiwan time (no DST)
 DAILY_TIME_LIMIT = 10.0             # s of simulated flight per launch
 DAILY_LIVES = 5
 DAILY_MAX_ATTEMPTS = 200            # generation attempts before the fallback map is used
+DAILY_ANSWER_COST = 10              # coins to see a day's reference answer, once per day
 
 # --- Random levels -----------------------------------------------------------
 # All tunables live in level_presets.py (optionally with multiple templates per level).

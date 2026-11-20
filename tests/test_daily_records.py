@@ -112,3 +112,36 @@ def test_broken_saved_records_are_cleaned():
     assert records["2026-11-19"]["coins_taken"] == [[1.5, 2.0]]
     assert records["2026-11-20"] == new_record()
     assert records_from_saved(None) == {} and records_from_saved([1, 2]) == {}
+
+
+# --- the reference answer ----------------------------------------------------------
+
+def test_daily_answer_has_its_own_price():
+    from vector_drift import config
+    assert config.DAILY_ANSWER_COST == 10
+
+
+def test_marking_the_answer_used_creates_a_missing_record():
+    from vector_drift.daily_records import mark_answer_used
+    session = Session()
+    mark_answer_used(session, DAY)
+    assert get_record(session, DAY) == dict(new_record(), answer_used=True)
+
+
+def test_marking_the_answer_used_keeps_the_other_fields():
+    from vector_drift.daily_records import mark_answer_used
+    session = _session_with_records()
+    before = dict(get_record(session, DAY))
+    mark_answer_used(session, DAY)
+    assert get_record(session, DAY) == dict(before, answer_used=True)
+    assert get_record(session, date(2026, 11, 20))["answer_used"] is False
+
+
+def test_a_used_answer_survives_a_save_and_load():
+    from vector_drift.daily_records import mark_answer_used
+    saved = _session_with_records()
+    mark_answer_used(saved, DAY)
+    loaded = Session()
+    apply_profile_to_session(loaded, _through_json(session_to_profile(saved, "u")), "u")
+    assert get_record(loaded, DAY)["answer_used"] is True
+    assert loaded.daily_records == saved.daily_records
