@@ -7,6 +7,8 @@ import pygame
 from .common import SS, OUTLINE, _cached, _paint_cached_prop
 from .common import load_image
 
+from ..community_browse import PICKUP_KINDS
+
 
 def _render_shockwave(radius):
     d = 2 * radius + 10
@@ -169,8 +171,15 @@ def _paint_unbound(surface, center, radius, t):
     _paint_cached_prop(surface, center, radius, t, "unbound", _render_unbound)
 
 
-PICKUP_RENDERERS = {"shockwave": _paint_shockwave, "extratime": _paint_extratime, "shield": _paint_shield, "life": _paint_life, "money": _paint_money,
-                    "unbound": _paint_unbound}
+_PAINTERS = {
+    "shockwave": _paint_shockwave,
+    "extratime": _paint_extratime,
+    "shield": _paint_shield,
+    "life": _paint_life,
+    "money": _paint_money,
+    "unbound": _paint_unbound,
+}
+PICKUP_RENDERERS = {kind: _PAINTERS[kind] for kind in PICKUP_KINDS}
 
 
 def draw_pickup(surface, center, radius, t, kind="shockwave"):

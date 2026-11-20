@@ -24,6 +24,8 @@ from typing import Any, Optional, Sequence
 from .community_core import (
     MIN_COVERAGE,
     MIN_MATCH_SCORE,
+    SORT_NEWEST,
+    SORT_OLDEST,
     CommunityItemInfo,
     FuzzyMatcher,
     SortOption,
@@ -35,6 +37,7 @@ from .community_core import (
     fuzzy_score,
     int_of,
     normalize_text,
+    sort_label_for,
     text_of,
     timestamp_of,
 )
@@ -65,8 +68,6 @@ PICKUP_LABELS = {
 DEFAULT_PICKUP_KIND = "money"
 
 # --- sort options -----------------------------------------------------------
-SORT_NEWEST = "newest"
-SORT_OLDEST = "oldest"
 SORT_TIME = "time"
 SORT_OBSTACLES = "obstacles"
 SORT_PICKUPS = "pickups"
@@ -220,7 +221,7 @@ def level_info(row: Any) -> CommunityLevelInfo:
 
 def sort_label(sort_key: str, descending: bool = False) -> str:
     """Human readable label of a sort option, e.g. ``"Time limit ↑"``."""
-    return SORT_TABLE.label(sort_key, descending)
+    return sort_label_for(SORT_TABLE, sort_key, descending)
 
 
 def _sort_value(info: CommunityLevelInfo, sort_key: str, pickup_kind: str) -> float:

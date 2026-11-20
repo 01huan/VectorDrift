@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
 from .community_core import (
+    SORT_NEWEST,
+    SORT_OLDEST,
     CommunityItemInfo,
     FuzzyMatcher,
     SortOption,
@@ -34,6 +36,7 @@ from .community_core import (
     int_of,
     normalize_text,
     round_half_up,
+    sort_label_for,
     text_of,
     timestamp_of,
 )
@@ -54,8 +57,6 @@ MAX_TAG_LEN = 24             # characters in one tag
 MAX_DESCRIPTION_LEN = 280    # characters in the description
 
 # --- sort options -----------------------------------------------------------
-SORT_NEWEST = "newest"
-SORT_OLDEST = "oldest"
 SORT_USES = "uses"
 SORT_SUCCESS = "success"
 SORT_FAVORITES = "favorites"
@@ -229,7 +230,7 @@ def function_info(row: Any) -> CommunityFunctionInfo:
 
 def sort_label(sort_key: str, descending: bool = False) -> str:
     """Human readable label of a sort option, e.g. ``"Most used ↓"``."""
-    return SORT_TABLE.label(sort_key, descending)
+    return sort_label_for(SORT_TABLE, sort_key, descending)
 
 
 def _sort_value(info: CommunityFunctionInfo, sort_key: str) -> float:
