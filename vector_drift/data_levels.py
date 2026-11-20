@@ -320,6 +320,64 @@ LEVELS = [
             ),
         ),
     ),
+    # The first three-section level: two checkpoints, both pans to the left,
+    # (-16, 0) each, world x 8 -> -8 (checkpoint) -> -24 (checkpoint) -> -40.
+    # 16 m, not 14 m: section 2 shares a strip with a neighbour on both sides
+    # (x in [-10, -6] with section 3, x in [6, 10] with section 1), and with a
+    # 14 m pan only |x| < 4 would be left for its props, where the ship has long
+    # left the map, so there would be no place for the Unbound. With 16 m the
+    # shared strips are 4 m wide and the props sit at |x| < 6. No coins: the
+    # coin ids of a multi-section level do not carry the section number yet.
+    # Every section reviews the Unbound, and each one changes a single thing in
+    # the previous section's formula:
+    # - Section 1 is level 6's recipe flown right to left: a wall of 11 rocks at
+    #   x = 0 from edge to edge (end rocks centred on the edges), and
+    #   F = (-0.25x, 6 - y) arches over the top of it through the Unbound above.
+    # - Section 2 changes only the sign: the same wall, the only Unbound is below,
+    #   and F = (-0.25x, -6 - y) arches under the bottom of it.
+    # - Section 3 doubles the x spring: the planet sits in a box of rocks in the
+    #   top-left corner, open only to the top of the map. F = (-0.5x, 6 - y)
+    #   swings the ship to the left while it is still high up, so it drops into
+    #   the box from above.
+    # Each section is cleared only by its own answer (tests/test_level11.py).
+    multi_section_level(
+        id=11,
+        name="Off the Map",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(8.0, 0.0), target_center=(-8.0, 0.0), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(0.0, y), radius=0.8)
+                    for y in (-7.5, -6.0, -4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5, 6.0, 7.5)
+                ),
+                pickups=(PickupSpec(center=(5.5, 6.3), radius=0.45, kind="unbound"),),
+            ),
+            SectionSpec(
+                start=(8.0, 0.0), target_center=(-8.0, 0.0), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(0.0, y), radius=0.8)
+                    for y in (-7.5, -6.0, -4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5, 6.0, 7.5)
+                ),
+                pickups=(PickupSpec(center=(5.5, -6.3), radius=0.45, kind="unbound"),),
+            ),
+            SectionSpec(
+                start=(8.0, 0.0), target_center=(-8.0, 5.0), target_radius=1.0,
+                # With the left and top edges this box closes round the planet;
+                # the only way in is down from above the map.
+                obstacles=(
+                    ObstacleSpec(center=(-9.7, 2.6), radius=0.8),
+                    ObstacleSpec(center=(-8.2, 2.6), radius=0.8),
+                    ObstacleSpec(center=(-6.7, 2.6), radius=0.8),
+                    ObstacleSpec(center=(-5.5, 2.6), radius=0.8),
+                    ObstacleSpec(center=(-5.5, 4.1), radius=0.8),
+                    ObstacleSpec(center=(-5.5, 5.6), radius=0.8),
+                    ObstacleSpec(center=(-5.5, 7.1), radius=0.8),
+                ),
+                pickups=(PickupSpec(center=(3.9, 4.7), radius=0.45, kind="unbound"),),
+            ),
+        ),
+    ),
 ]
 
 

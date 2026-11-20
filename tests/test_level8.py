@@ -144,7 +144,7 @@ def test_nothing_but_the_checkpoint_sits_where_sections_overlap(level):
 
 
 def test_there_is_a_multi_section_level_to_check():
-    assert [lv.id for lv in MULTI] == [8, 9, 10]
+    assert [lv.id for lv in MULTI] == [8, 9, 10, 11]
 
 
 def test_the_overlap_check_catches_props_from_either_side():

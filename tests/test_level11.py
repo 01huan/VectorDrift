@@ -1,0 +1,126 @@
+"""Level 11 Off the Map: the first three-section level.
+
+Two checkpoints, both pans to the left. Every section reviews the Unbound and
+changes one thing in the previous section's formula: section 1 is level 6's
+arch over a wall, section 2 flips it under the same wall, section 3 doubles
+the x spring to drop into a box in the top-left corner.
+"""
+
+import math
+
+import pytest
+
+from vector_drift import config
+from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
+                               section_level, section_shift)
+from vector_drift.level_presets import is_dynamic_level
+from vector_drift.pickups import discs_overlap
+
+LEVEL = get_level(11)
+SHIP = SHIPS[LEVEL.ship_id]
+HULL = SHIP.hull_radius
+ROCK_R = 0.8
+UNBOUND_R = 0.45
+HALF_W, HALF_H = config.WORLD_HALF_W, config.WORLD_HALF_H
+
+START = (8.0, 0.0)
+CHECKPOINT = (-8.0, 0.0)
+PLANET = (-8.0, 5.0)
+WALL = tuple((0.0, y) for y in (-7.5, -6.0, -4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5, 6.0, 7.5))
+# The box round the planet, from the left edge along the bottom and up the right side.
+BOX = ((-9.7, 2.6), (-8.2, 2.6), (-6.7, 2.6), (-5.5, 2.6), (-5.5, 4.1), (-5.5, 5.6), (-5.5, 7.1))
+UNBOUND_ABOVE = (5.5, 6.3)
+UNBOUND_BELOW = (5.5, -6.3)
+UNBOUND_BOX = (3.9, 4.7)
+
+
+def section(index):
+    return section_level(LEVEL, index)
+
+
+# --- layout -----------------------------------------------------------------------
+def test_level_eleven_is_a_fixed_three_section_level():
+    assert isinstance(LEVEL, LevelSpec) and LEVEL in LEVELS
+    assert LEVEL.name == "Off the Map"
+    assert not is_dynamic_level(11)
+    assert section_count(LEVEL) == 3
+    assert LEVEL.lives == 5
+    for k in range(3):
+        s = section(k)
+        assert s.start == START
+        assert s.target_radius == 1.0
+        assert s.time_limit == 10.0
+        assert s.holes == ()
+        assert all(o.radius == ROCK_R for o in s.obstacles)
+        assert all(p.radius == UNBOUND_R and p.kind == "unbound" for p in s.pickups)
+
+
+def test_level_eleven_has_no_coins():
+    for k in range(3):
+        assert not [p for p in section(k).pickups if p.kind == "money"]
+
+
+def test_both_pans_go_16_m_to_the_left():
+    # World x: 8 -> -8 (checkpoint) -> -24 (checkpoint) -> -40 (planet).
+    assert section_shift(LEVEL, 0) == section_shift(LEVEL, 1) == (-16.0, 0.0)
+    sx, sy = section_shift(LEVEL, 0)
+    assert (START[0] + sx, START[1] + sy) == CHECKPOINT      # the checkpoint is the next start
+
+
+def test_section_one_is_a_wall_with_an_unbound_above():
+    s = section(0)
+    assert s.target_center == CHECKPOINT
+    assert sorted(o.center for o in s.obstacles) == sorted(WALL)
+    assert [p.center for p in s.pickups] == [UNBOUND_ABOVE]
+
+
+def test_section_two_is_the_same_wall_with_an_unbound_below():
+    s = section(1)
+    assert s.target_center == CHECKPOINT
+    assert sorted(o.center for o in s.obstacles) == sorted(WALL)
+    assert [p.center for p in s.pickups] == [UNBOUND_BELOW]
+
+
+def test_section_three_is_a_box_in_the_top_left_corner():
+    s = section(2)
+    assert s.target_center == PLANET
+    assert sorted(o.center for o in s.obstacles) == sorted(BOX)
+    assert [p.center for p in s.pickups] == [UNBOUND_BOX]
+
+
+def _sealed(rocks):
+    for a, b in zip(rocks, rocks[1:]):
+        assert math.dist(a, b) <= 2 * ROCK_R + 2 * HULL, (a, b)
+
+
+def test_the_wall_seals_the_map_from_top_to_bottom():
+    _sealed(WALL)
+    assert WALL[0][1] == -HALF_H and WALL[-1][1] == HALF_H     # end rocks centred on the edges
+
+
+def test_the_box_seals_the_planet_in_with_the_left_and_top_edges():
+    _sealed(BOX)
+    assert BOX[0][0] - ROCK_R < -HALF_W                  # the bottom reaches past the left edge
+    assert BOX[-1][1] + ROCK_R > HALF_H                  # the right side reaches past the top edge
+    x, y = PLANET
+    assert x < BOX[-1][0] and y > BOX[0][1]              # the planet is inside the box
+
+
+def _things(s):
+    yield "start", s.start, 0.0
+    yield "target", s.target_center, s.target_radius
+    for p in s.pickups:
+        yield f"{p.kind} {p.center}", p.center, p.radius
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["section1", "section2", "section3"])
+def test_nothing_sits_in_a_rock(index):
+    s = section(index)
+    for name, center, radius in _things(s):
+        for rock in s.obstacles:
+            assert not discs_overlap(center, radius, rock.center, rock.radius + HULL), (name, rock.center)
+
+
+def test_level_select_lists_level_eleven():
+    cards = {lv.id: lv for lv in all_levels()}
+    assert cards[11] is LEVEL
