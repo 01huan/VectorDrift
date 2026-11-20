@@ -426,6 +426,74 @@ LEVELS = [
             ),
         ),
     ),
+    # Three sections, two checkpoints, and the first level to change pan
+    # direction: pan (0, 13) up, then (16, 0) to the right (an L), world
+    # (6, -6) -> (-1.5, 6.5) (checkpoint) -> (8, 17.5) (checkpoint) ->
+    # (21.5, 8.5). The pans are long so the shared strips stay narrow (the
+    # same reason as level 11's 16 m): y >= 5.5 of section 1 (= y <= -5.5 of
+    # section 2) and x >= 6 of section 2 (= x <= -6 of section 3), where only
+    # the checkpoints sit. No coins: the coin ids of a multi-section level do
+    # not carry the section number yet.
+    # The abs switch moves to the y axis: y + abs(y) is 0 below y = 0 and 2y
+    # above it, so it only turns on above y = 0; -y + abs(y) is the other way
+    # round.
+    # - Section 1: a full row of rocks seals y = 0 and the only way up is the
+    #   wormhole. F = (-4(y + abs(y)), -y + abs(y)): below the wall only a
+    #   spring toward y = 0, which sends the ship straight up into the black
+    #   hole (about 7.2 m/s); out of the white hole, above the wall, there is
+    #   no up or down force, only a push to the left that grows with height,
+    #   so the path bends left to the checkpoint. abs is not required here: a
+    #   linear field may also get through.
+    # - Section 2: the switch moves to y = -1. The ship rises straight up
+    #   through the gap in the floor, and the column of rocks stops a path that
+    #   turns right too early; past y = -1 it bends right, takes the Shockwave,
+    #   which blasts the middle of the tall wall (y = 0.1, 1.7, 3.3) and the
+    #   top of the column, and goes through that gap to the checkpoint. The two
+    #   ends of the floor and the column block the linear-field shortcuts.
+    # - Section 3: level 10's section 2 flipped upside down, no abs. F =
+    #   (y - 2.5, -x - 7) circles (-7, 2.5) clockwise: right through the
+    #   Shield, then down through one rock of the row into the planet.
+    # Each section is cleared only by its own answer (tests/test_level13.py).
+    multi_section_level(
+        id=13,
+        name="Change of Course",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(6.0, -6.0), target_center=(-1.5, 6.5), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, 0.0), radius=0.8)
+                    for x in (-9.6, -8.0, -6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.8, 6.4, 8.0, 9.6)
+                ),
+                holes=(HoleSpec.from_centers((6.0, -2.5), (4.0, 2.0), 0.5),),
+            ),
+            SectionSpec(
+                start=(-1.5, -6.5), target_center=(8.0, 4.5), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(2.5, y), radius=0.8)
+                    for y in (-4.7, -3.1, -1.5, 0.1, 1.7, 3.3, 4.9, 6.5)
+                ) + tuple(
+                    ObstacleSpec(center=(0.0, y), radius=0.8)
+                    for y in (-4.7, -3.1, -1.5)
+                ) + tuple(
+                    ObstacleSpec(center=(x, -4.7), radius=0.8)
+                    for x in (-4.8, -3.2, 4.1, 5.0)
+                ),
+                pickups=(PickupSpec(center=(-0.5, 1.6), radius=0.45, kind="shockwave"),),
+            ),
+            SectionSpec(
+                start=(-8.0, 4.5), target_center=(5.5, -4.5), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, -1.0), radius=0.8)
+                    for x in (1.0, 2.5, 4.0, 5.5, 7.0, 8.5, 10.0)
+                ) + tuple(
+                    ObstacleSpec(center=(1.0, y), radius=0.8)
+                    for y in (-2.5, -4.0, -5.5, -7.0)
+                ),
+                pickups=(PickupSpec(center=(-1.0, 4.5), radius=0.45, kind="shield"),),
+            ),
+        ),
+    ),
 ]
 
 
