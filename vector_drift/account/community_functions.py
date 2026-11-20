@@ -251,7 +251,7 @@ def upload_community_function(
             )
         return client.table(TABLE).insert(row).execute()
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def update_community_function(
@@ -334,7 +334,7 @@ def update_community_function(
             .execute()
         )
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def delete_community_function(
@@ -376,7 +376,7 @@ def delete_community_function(
             .execute()
         )
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def fetch_community_functions(
@@ -401,7 +401,7 @@ def fetch_community_functions(
                 lambda: client.table(TABLE).select(BASE_COLUMNS).order("created_at", desc=True)
             )
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 # Aliases mirroring community level naming.
@@ -428,7 +428,7 @@ def delete_user_community_functions(
         )
         return len(getattr(resp, "data", None) or [])
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def update_community_functions_uploader_name(
@@ -451,7 +451,7 @@ def update_community_functions_uploader_name(
         )
         return len(getattr(resp, "data", None) or [])
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 # --- usage statistics ---------------------------------------------------------
@@ -488,7 +488,7 @@ def record_community_function_usage(
             },
         ).execute()
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 # --- favorites ----------------------------------------------------------------
@@ -531,7 +531,7 @@ def set_function_favorite(
             .execute()
         )
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def set_function_rating(
@@ -576,7 +576,7 @@ def set_function_rating(
             .execute()
         )
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def fetch_function_engagement(
@@ -626,7 +626,7 @@ def fetch_function_engagement(
             pass
         return {"favorites": favorites, "ratings": ratings}
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 def delete_user_function_engagement(
@@ -646,7 +646,7 @@ def delete_user_function_engagement(
         client.table(FAVORITES_TABLE).delete().eq("user_id", account.current_user.id).execute()
         return True
 
-    run_async(_fn, on_success=on_success, on_error=on_error)
+    _run_async(_fn, on_success=on_success, on_error=on_error)
 
 
 __all__ = [
