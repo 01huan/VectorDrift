@@ -258,6 +258,19 @@ def s_magnet(rng):
     return mix(body * adsr(d, 0.06, 0.3), at(0.05, grip)), -7
 
 
+def s_unbound(rng):
+    """Unbound pickup: a lock clicks open, then the space widens in a rising shimmer."""
+    d = 1.1
+    click = mix(bandpass(noise(0.02, rng), 2000, 6000) * decay(0.02, 0.004),
+                at(0.05, 0.7 * bandpass(noise(0.02, rng), 1500, 5000) * decay(0.02, 0.005)))
+    clunk = at(0.05, 0.6 * tone(sweep(260, 180, 0.12), 0.12) * decay(0.12, 0.04))
+    spread = sum(tone(sweep(f, f * 2, 0.9), 0.9, "triangle") for f in (220, 277, 330))   # A major opens up
+    shimmer = 1.0 + 0.3 * tone(sweep(8, 20, 0.9, "lin"), 0.9)
+    air = bandpass(noise(0.9, rng), 400, sweep(1200, 7000, 0.9)) * adsr(0.9, 0.3, 0.4)
+    rise = at(0.12, lowpass(spread * shimmer, 4000) * adsr(0.9, 0.25, 0.45) / 3 + 0.25 * air)
+    return mix(click, clunk, rise)[:int(RATE * d)], -6
+
+
 SOUNDS = {name[2:]: fn for name, fn in globals().items() if name.startswith("s_")}
 
 
