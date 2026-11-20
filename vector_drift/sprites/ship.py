@@ -92,12 +92,20 @@ def draw_ship(surface, center, heading, size, ship, grey=False):
     center = (cx, cy)
     size = max(6, round(size))
     deg = math.degrees(heading)
+    # Turning a ship 180 degrees would put its top side underneath; a ship
+    # heading left is flipped top-to-bottom first, so it reads as a mirror
+    # image of the right-facing ship. Drawing only: heading is unchanged.
+    flip = math.cos(heading) < 0
 
     img = load_image(f"ship.{ship.id}", size_px=(size, size))
     if img is not None:
         if grey:
             picture = img
             img = _cached(("ship-grey", picture), lambda: _used_life_image(picture))
+        if flip:
+            upright = img
+            img = _cached(("ship-flip", upright),
+                          lambda: pygame.transform.flip(upright, False, True))
         try:
             rotated = pygame.transform.rotozoom(img, deg, 1.0)
             surface.blit(rotated, rotated.get_rect(center=center))
@@ -108,6 +116,10 @@ def draw_ship(surface, center, heading, size, ship, grey=False):
     colors = (USED_LIFE_COLORS if grey
               else (ship.hull_color, ship.wing_color, ship.trim_color))
     img = _cached(("ship", ship.id, size, grey), lambda: _render_ship(size, *colors))
+    if flip:
+        upright = img
+        img = _cached(("ship-flip", upright),
+                      lambda: pygame.transform.flip(upright, False, True))
     try:
         rotated = pygame.transform.rotozoom(img, deg, 1.0)
         surface.blit(rotated, rotated.get_rect(center=center))
