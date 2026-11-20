@@ -6,6 +6,7 @@ arch over a wall, section 2 flips it under the same wall, section 3 doubles
 the x spring to drop into a box in the top-left corner.
 """
 
+import dataclasses
 import math
 
 import pytest
@@ -13,7 +14,9 @@ import pytest
 from vector_drift import config
 from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
                                section_level, section_shift)
+from vector_drift.expr_parser import parse_expression
 from vector_drift.level_presets import is_dynamic_level
+from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.pickups import discs_overlap
 
 LEVEL = get_level(11)
@@ -124,3 +127,64 @@ def test_nothing_sits_in_a_rock(index):
 def test_level_select_lists_level_eleven():
     cards = {lv.id: lv for lv in all_levels()}
     assert cards[11] is LEVEL
+
+
+# --- reference answers and near misses --------------------------------------------------
+# Section 1: level 6's arch flown right to left, over the top of the wall.
+OVER = ("-0.25x", "6 - y")
+# Section 2: the same arch with the sign of the y spring's centre flipped, under the wall.
+UNDER = ("-0.25x", "-6 - y")
+# Section 3: the section 1 arch with an x spring twice as strong, into the box from above.
+DROP = ("-0.5x", "6 - y")
+ANSWERS = (OVER, UNDER, DROP)
+TIMES = (5.66, 5.66, 4.68)
+UNBOUNDS = (UNBOUND_ABOVE, UNBOUND_BELOW, UNBOUND_BOX)
+
+
+def _fly(level, fx, fy):
+    field = ForceField.from_exprs(parse_expression(fx), parse_expression(fy))
+    flight = Flight(field, SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["section1", "section2", "section3"])
+def test_each_reference_answer_takes_its_unbound_and_reaches(index):
+    flight = _fly(section(index), *ANSWERS[index])
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.time == pytest.approx(TIMES[index], abs=0.05)
+    assert {p.center for p in flight.pickups if p.consumed} == {UNBOUNDS[index]}
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["section1", "section2", "section3"])
+@pytest.mark.parametrize("answer", [0, 1, 2], ids=["over", "under", "drop"])
+def test_only_its_own_answer_clears_a_section(index, answer):
+    outcome = _fly(section(index), *ANSWERS[answer]).outcome
+    if answer == index:
+        assert outcome is Outcome.REACHED
+    else:
+        assert outcome is Outcome.OUT_OF_BOUNDS
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["section1", "section2", "section3"])
+def test_no_section_is_cleared_without_its_unbound(index):
+    bare = dataclasses.replace(section(index), pickups=())
+    assert _fly(bare, *ANSWERS[index]).outcome is Outcome.OUT_OF_BOUNDS
+
+
+# Every 5 deg at four strengths (288 pushes per section).
+CONSTANT_PUSHES = [(deg, size) for deg in range(0, 360, 5) for size in (1, 2, 4, 8)]
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["section1", "section2", "section3"])
+def test_no_constant_push_clears_a_section(index):
+    s = section(index)
+    reached = []
+    for deg, size in CONSTANT_PUSHES:
+        fx = size * math.cos(math.radians(deg))
+        fy = size * math.sin(math.radians(deg))
+        if _fly(s, f"{fx:.6f}", f"{fy:.6f}").outcome is Outcome.REACHED:
+            reached.append((deg, size))
+    assert reached == []
