@@ -449,3 +449,48 @@ def test_the_arrows_sit_beside_the_month_title_clear_of_the_days(today):
         assert card.contains(arrow.rect)
         assert not any(arrow.rect.colliderect(r) for _d, r in page.day_cells())
     assert page.prev_arrow.rect.right < page.next_arrow.rect.left
+
+
+# --- streaks on the page (task 28) ----------------------------------------------------------
+
+def test_streak_lines_use_day_for_one():
+    from vector_drift.scenes.daily_page import streak_text
+    assert streak_text("Current", 0) == "Current streak: 0 days"
+    assert streak_text("Current", 1) == "Current streak: 1 day"
+    assert streak_text("Longest", 2) == "Longest streak: 2 days"
+
+
+def test_the_page_shows_both_streaks(today, monkeypatch):
+    mgr = _manager()
+    for d in (1, 2, 3, 4, 5, 19):
+        _record(mgr, date(2026, 11, d), cleared=True)
+    _record(mgr, date(2026, 11, 18), cleared=True, answer_used=True)
+    texts = _texts(_page(mgr), monkeypatch)
+    assert "Current streak: 2 days" in texts            # 11/18-19; today not cleared yet
+    assert "Longest streak: 5 days" in texts
+
+
+def test_a_one_day_streak_is_singular_and_none_is_zero(today, monkeypatch):
+    mgr = _manager()
+    texts = _texts(_page(mgr), monkeypatch)
+    assert "Current streak: 0 days" in texts and "Longest streak: 0 days" in texts
+    _record(mgr, DAY, cleared=True)
+    texts = _texts(_page(mgr), monkeypatch)
+    assert "Current streak: 1 day" in texts and "Longest streak: 1 day" in texts
+
+
+def test_the_current_streak_follows_midnight(today, monkeypatch):
+    mgr = _manager()
+    _record(mgr, date(2026, 11, 19), cleared=True)
+    page = _page(mgr)
+    assert "Current streak: 1 day" in _texts(page, monkeypatch)
+    today.set(date(2026, 11, 21))                       # 11/20 was missed
+    assert "Current streak: 0 days" in _texts(page, monkeypatch)
+
+
+def test_the_streak_box_sits_above_play(today):
+    from vector_drift.scenes.daily_page import streak_box_rect
+    page = _page()
+    box = streak_box_rect()
+    assert box.bottom < page.play_button.rect.top
+    assert box.left == page.play_button.rect.left and box.width == page.play_button.rect.width

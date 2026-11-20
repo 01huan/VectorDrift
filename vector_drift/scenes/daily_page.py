@@ -30,6 +30,7 @@ from .xp_ui import draw_level_row
 TITLE_Y = 70
 DATE_Y = 112
 LEFT_X, LEFT_Y, LEFT_W = 150, 170, 330      # left column: streaks, Play, legend
+STREAK_BOX_H = 126
 PLAY_Y = LEFT_Y + 146
 PLAY_H = 56
 LEGEND_Y = LEFT_Y + 240
@@ -88,6 +89,15 @@ def day_marks(record, day, today):
 def month_weeks(year, month):
     """The month's weeks, Sunday first: lists of 7 dates (other months' days included)."""
     return calendar.Calendar(firstweekday=FIRST_WEEKDAY).monthdatescalendar(year, month)
+
+
+def streak_text(which, days):
+    """"Current streak: 2 days" ("1 day" for one)."""
+    return f"{which} streak: {days} {'day' if days == 1 else 'days'}"
+
+
+def streak_box_rect():
+    return pygame.Rect(px(LEFT_X), px(LEFT_Y), px(LEFT_W), px(STREAK_BOX_H))
 
 
 def shift_month(month, step):
@@ -234,10 +244,24 @@ class DailyScene(Scene):
                   anchor="center")
         draw_text(surface, long_date(self.today()), (cx, px(DATE_Y)), 16, config.TEXT_DIM,
                   anchor="center")
+        self._draw_streaks(surface)
         self.play_button.draw(surface)
         self.back_button.draw(surface)
         self._draw_legend(surface)
         self._draw_calendar(surface)
+
+    def _draw_streaks(self, surface):
+        """Days cleared in a row (answer days count): up to today, and the best run."""
+        records = self.session.daily_records
+        box = streak_box_rect()
+        pygame.draw.rect(surface, config.PANEL_BG, box, border_radius=px(6))
+        pygame.draw.rect(surface, config.PANEL_EDGE, box, width=max(1, px(1)), border_radius=px(6))
+        x = box.x + px(20)
+        draw_text(surface, "STREAK", (x, box.y + px(18)), 12, config.TEXT_DIM, kind="bold")
+        draw_text(surface, streak_text("Current", daily_records.current_streak(records, self.today())),
+                  (x, box.y + px(52)), 20, config.TEXT, kind="bold")
+        draw_text(surface, streak_text("Longest", daily_records.longest_streak(records)),
+                  (x, box.y + px(90)), 17, config.TEXT_DIM)
 
     def _draw_calendar(self, surface):
         card = calendar_card_rect()
