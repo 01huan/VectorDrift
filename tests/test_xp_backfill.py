@@ -64,7 +64,7 @@ def test_a_level_already_counted_gets_nothing_more():
     assert session.xp_total == 150 and session.fixed_clear_counts == {1: 2}
 
 
-def test_random_daily_and_custom_records_get_nothing():
+def test_random_and_custom_records_get_nothing():
     session = Session()
     session.records = {RANDOM_LEVEL_ID: 3.0, 1000: 4.0, -5: 2.0}
     assert not progression.backfill_xp(session)
@@ -139,3 +139,64 @@ def test_the_regular_check_backfills_migrated_achievements_and_saves(monkeypatch
     saved.clear()
     manager.update(2.0)                                     # nothing new: no save
     assert saved == []
+
+
+# --- daily clears from before daily XP (task 36) -----------------------------------------------
+
+def _daily_session():
+    """Two cleared days, one played-not-cleared day and one already given XP."""
+    from datetime import date
+    from vector_drift.daily_records import get_record
+    session = Session()
+    for day in (date(2026, 11, 18), date(2026, 11, 19)):
+        get_record(session, day, create=True).update(cleared=True, answer_used=day.day == 19)
+    get_record(session, date(2026, 11, 17), create=True)                 # failed: no XP
+    get_record(session, date(2026, 11, 20), create=True).update(cleared=True, xp_clears=2)
+    return session
+
+
+def test_old_daily_clears_get_xp_daily_once_each():
+    session = _daily_session()
+    assert progression.backfill_xp(session)
+    assert session.xp_total == 2 * config.XP_DAILY == 600
+    records = session.daily_records
+    assert records["2026-11-18"]["xp_clears"] == 1 and records["2026-11-19"]["xp_clears"] == 1
+    assert records["2026-11-17"]["xp_clears"] == 0
+    assert records["2026-11-20"]["xp_clears"] == 2
+    assert session.xp_rewarded_level == 4                   # 600 XP: Lv 4, its coins paid
+    assert int(session.money) == 3 * config.LEVEL_UP_COINS
+
+
+def test_backfilling_daily_clears_again_changes_nothing():
+    session = _daily_session()
+    progression.backfill_xp(session)
+    before = (session.xp_total, int(session.money),
+              {key: dict(record) for key, record in session.daily_records.items()})
+    assert not progression.backfill_xp(session)
+    assert (session.xp_total, int(session.money),
+            {key: dict(record) for key, record in session.daily_records.items()}) == before
+
+
+def test_daily_backfill_pops_no_level_up(monkeypatch):
+    monkeypatch.setattr(integration, "save_progress", lambda account, session: None)
+    manager = _manager()
+    popped = []
+    monkeypatch.setattr(manager.toasts, "push_level_up", lambda *a, **k: popped.append(a))
+    manager.session.daily_records = _daily_session().daily_records
+    manager.update(0.016)                                   # the regular check backfills
+    assert manager.session.xp_total == 600
+    assert manager.session.xp_rewarded_level == 4
+    assert popped == []
+
+
+def test_an_old_profile_with_daily_clears_backfills_on_load():
+    profile = PlayerProfile.from_row(
+        integration.session_to_profile(_daily_session(), "u").to_row(), "u")
+    for key in integration.XP_KEYS:
+        profile.stats.pop(key, None)
+    raw = profile.stats.get(integration.DAILY_RECORDS_KEY) or {}
+    for record in raw.values():
+        record.pop("xp_clears", None)                       # a save from before the field
+    session = Session()
+    integration.apply_profile_to_session(session, profile, "u")
+    assert session.xp_total == 3 * config.XP_DAILY          # 11/20 had no saved count either

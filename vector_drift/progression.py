@@ -140,8 +140,10 @@ def backfill_xp(session) -> bool:
     """Give the XP that progress from before XP existed has earned. True if any was given.
 
     A fixed level with a best time but no counted clear counts one clear and
-    gives its first-clear XP; every known unlock key not paid yet gives its XP;
-    then the coins of every level reached are paid. Random maps are not
+    gives its first-clear XP; a cleared daily-challenge day with no XP-paid
+    clear counts one and gives XP_DAILY (no streak bonus); every known unlock
+    key not paid yet gives its XP; then the coins of every level reached are
+    paid. Random maps are not
     backfilled (nobody knows how many there were). Nothing here pops up or
     touches the win stats, and running it again gives nothing more.
     """
@@ -156,6 +158,10 @@ def backfill_xp(session) -> bool:
             continue
         counts[level_id] = 1
         add_xp(session, base)
+    for record in (getattr(session, "daily_records", None) or {}).values():
+        if record.get("cleared") is True and not record.get("xp_clears"):
+            record["xp_clears"] = 1
+            add_xp(session, config.XP_DAILY)
     for key in list((getattr(session, "achievements", None) or {}).keys()):
         achievement_xp(session, key)
     paid = pay_level_ups(session) is not None
