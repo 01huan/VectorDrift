@@ -155,3 +155,34 @@ answer_note = "The swirl around (-6, -2.5):"
 answers = [
   { fx = "-y - 2.5", fy = "x + 6" },
 ]
+
+[level.11.section.1]
+steps = [
+  "A wall of rocks runs from the top edge to the bottom edge. Grab the Unbound above you first: for the rest of that life you can fly past the map edge and over the end of the wall.",
+  "This is Level 6 flown the other way. A spring toward x = 0, Fx = -0.25x, swings the ship from x = 8 across to x = -8. A spring toward y = 6, Fy = 6 - y, lifts it to y = 12, off the top of the map, and brings it back down to y = 0 just as x arrives.",
+]
+answer_note = "Level 6's arch, over the top of the wall:"
+answers = [
+  { fx = "-0.25x", fy = "6 - y" },
+]
+
+[level.11.section.2]
+steps = [
+  "Same wall, but this time the only Unbound is below you. Your formula from the last section flies over the top without it.",
+  "Change one sign: a spring toward y = -6 instead of y = 6 turns the arch upside down, so it runs under the bottom of the wall.",
+]
+answer_note = "The same arch, flipped under the wall:"
+answers = [
+  { fx = "-0.25x", fy = "-6 - y" },
+]
+
+[level.11.section.3]
+steps = [
+  "The planet sits in a box of rocks in the top-left corner, open only to the top of the map. Grab the Unbound on the way up, leave over the top and drop into the box from above.",
+  "Start from the section 1 arch, Fy = 6 - y, which climbs off the top of the map. With Fx = -0.25x the ship only reaches x = -8 when it is back down at y = 0, under the box.",
+  "Make the x spring twice as strong, Fx = -0.5x. The x swing now reaches the left side in about 4.4 s instead of 6.3 s, while the ship is still high up, so it drops straight down into the box.",
+]
+answer_note = "The section 1 arch with an x spring twice as strong:"
+answers = [
+  { fx = "-0.5x", fy = "6 - y" },
+]

@@ -12,13 +12,13 @@ from vector_drift.data import (LEVELS, SHIPS, default_ship_id, get_level, sectio
 from vector_drift.expr_parser import parse_expression
 from vector_drift.hints import (HintFormatError, SectionedHint, get_hint, hint_sections,
                                 load_hints, parse_hints)
-from vector_drift.level_presets import is_dynamic_level
+from vector_drift.level_presets import RANDOM_LEVEL_ID, is_dynamic_level
 from vector_drift.physics import Flight, ForceField, Outcome
 
 FIXED_IDS = [lv.id for lv in LEVELS if not is_dynamic_level(lv.id)]
 # Fixed levels whose hint is still to be written. Strict: the check fails
 # again as soon as the hint exists, so remember to drop it here.
-HINTS_PENDING = {11}
+HINTS_PENDING = set()
 
 
 def _hint_case(level_id):
@@ -54,7 +54,7 @@ def test_hints_only_cover_existing_fixed_levels():
 
 
 def test_levels_without_a_hint_return_none():
-    assert get_hint(11) is None
+    assert get_hint(RANDOM_LEVEL_ID) is None     # the random level uses the AI Solver
     assert get_hint(99) is None
     assert get_hint(1, 1) is None                # a one-screen level has only section 0
 
