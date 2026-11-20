@@ -17,6 +17,20 @@ LOGO_Y, LOGO_W = 165, 620           # logo center height and width (logical px)
 TAGLINE_Y = 285
 
 
+def _orbit_pose(t):
+    """Screen position and heading of the menu ship drifting along an ellipse.
+
+    Position is in screen space (y down); heading follows the math convention
+    draw_ship expects (y up, counter-clockwise positive), nose along velocity.
+    """
+    a, b, w = px(430), px(230), 0.35
+    cx, cy = config.WINDOW_W / 2, config.WINDOW_H / 2 + px(10)
+    th = t * w
+    pos = (cx + a * math.cos(th), cy - b * math.sin(th))
+    heading = math.atan2(b * math.cos(th), -a * math.sin(th))
+    return pos, heading
+
+
 class MenuScene(Scene):
     music = "menu"
 
@@ -91,12 +105,7 @@ class MenuScene(Scene):
         surface.blit(self.swirl, (0, 0))
         sprites.draw_target(surface, (px(150), config.WINDOW_H - px(90)), px(120), self.t)
 
-        # A ship drifting along an ellipse, nose along its velocity.
-        a, b, w = px(430), px(230), 0.35
-        cx, cy = config.WINDOW_W / 2, config.WINDOW_H / 2 + px(10)
-        th = self.t * w
-        pos = (cx + a * math.cos(th), cy - b * math.sin(th))
-        heading = math.atan2(-b * math.cos(th), -a * math.sin(th))
+        pos, heading = _orbit_pose(self.t)
         sprites.draw_ship(surface, pos, heading, px(64), SHIPS["ship01"])
 
         if not sprites.draw_logo(surface, (config.WINDOW_W // 2, px(LOGO_Y)), px(LOGO_W)):
