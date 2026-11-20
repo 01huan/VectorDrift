@@ -14,6 +14,7 @@ from ..level_presets import get_preset, is_dynamic_level
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_coins, draw_text, icon_surface, wrap_text
 from .base import Scene
+from .xp_ui import draw_level_row
 
 CARDS_PER_PAGE = PER_PAGE    # 3x3 grid, every slot a level card
 COLS = 3
@@ -282,7 +283,10 @@ class LevelSelectScene(Scene):
 
     def draw(self, surface):
         surface.blit(self.background, (0, 0))
-        draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT, icon=COIN_BALANCE)
+        self.balance_rect = draw_coins(surface, int(self.session.money), (px(12), px(12)), 16,
+                                       config.TEXT, icon=COIN_BALANCE)
+        self.level_row_rect = draw_level_row(surface, self.session.xp_total,
+                                             (px(12), self.balance_rect.bottom + px(8)))
         cx = config.WINDOW_W // 2
         draw_text(surface, "SELECT LEVEL", (cx, px(110)), 40, config.TEXT, kind="bold", anchor="center")
         draw_text(surface, "Choose a mission", (cx, px(152)), 16, config.TEXT_DIM, anchor="center")
