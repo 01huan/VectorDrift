@@ -94,3 +94,25 @@ def test_readme_coins_list_level_ups_and_the_random_card_counts_maps():
     assert f"pays {config.LEVEL_UP_COINS} coins" in coins
     assert "**Maps cleared N**" in text
     assert "instead of a best time" in text
+
+
+def test_readme_documents_the_daily_answer_page_and_xp():
+    from vector_drift import config
+    text = README.read_text(encoding="utf-8")
+    daily = _section(text, "Daily Challenge")
+    assert "`DAILY_ANSWER_COST`" in daily
+    assert f"{config.DAILY_ANSWER_COST} coins" in daily
+    assert "once per day" in daily and "Paying is the only cost" in daily
+    assert "notes that the answer was used" in daily
+    assert "Play picks the day" in daily and "pressing Daily again" not in daily
+    assert "No Hint or AI Solver" not in daily
+    assert "### The Daily Challenge page" in daily
+    for state in ("cleared (a green check)", "\"A\" badge", "played but not cleared",
+                  "not played", "Today has an outline", "dimmed"):
+        assert state in daily
+    assert "Today not cleared yet does not break it" in daily
+    assert "after paying for the answer still counts" in daily
+    assert "earliest month with a record" in daily
+    assert "Streak bonus" in daily and "(#experience-and-levels)" in daily
+    coins = _section(text, "Coins")
+    assert "`DAILY_ANSWER_COST`" in coins and "daily answer" in coins

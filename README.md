@@ -19,7 +19,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Physics-based flight** — acceleration, velocity, momentum, bumper collisions, force-field visualization, trajectory trails, and live telemetry.
 - **Campaign levels** — handcrafted challenges introduce bouncing, shockwaves, wormholes, extra time, Unbound, and checkpoints.
 - **Procedural level generation** — the random level (Level 12, right after the last campaign level) builds a new course by merging one to three seeded generation modules (two corridor flavours, wormhole network, maze, extreme time) into a single multi-screen map whose screens are chained by checkpoints.
-- **Daily Challenge** — one new map a day, the same for every player, built answer first so it always has a solution; coins and the clear reward pay once per day.
+- **Daily Challenge** — one new map a day, the same for every player, built answer first so it always has a solution; coins and the clear reward pay once per day, the reference answer can be bought once per day, and a calendar page tracks your days and streaks, which add bonus XP.
 - **Procedural Level Validator** — every generated map is checked before play: fast path analysis (A*, route and seal checks) plus an AI Solver probe that confirms a solution exists under the formal physics; invalid maps are regenerated automatically.
 - **Pickups** — shockwave, extra time, shield, life, money, and Unbound each have a distinct effect.
 - **Hints and offline AI Solver** — fixed campaign levels use authored step-by-step hints; random and custom levels use a Particle Swarm Optimization (PSO) solver.
@@ -205,16 +205,26 @@ Paying to reveal a complete answer costs 10 coins; that is the only cost. Coins 
 
 ## Daily Challenge
 
-The **Daily** button on the level selector opens the day's map. There is one map per day and it is the **same for every player**: it is generated from the date alone (seed `YYYYMMDD * 100 + DAILY_GENERATOR_VERSION`), so every computer builds the identical map. The day changes at midnight **Taiwan time** (UTC+8, `DAILY_UTC_OFFSET_HOURS`), whatever the computer's own time zone.
+The **Daily** button on the level selector opens the **Daily Challenge page** (below); its **Play** button starts the day's map. There is one map per day and it is the **same for every player**: it is generated from the date alone (seed `YYYYMMDD * 100 + DAILY_GENERATOR_VERSION`), so every computer builds the identical map. The day changes at midnight **Taiwan time** (UTC+8, `DAILY_UTC_OFFSET_HOURS`), whatever the computer's own time zone.
 
-- **One map until you leave:** the day is fixed when Daily is pressed. Restart, Retry Level and Replay keep playing that day's map, even after midnight, and a clear or a failed run counts for that day. Only going back to the level selector and pressing Daily again picks the new day.
+- **Play picks the day:** the day is fixed when **Play** is pressed on the Daily Challenge page. Restart, Retry Level and Replay keep playing that day's map, even after midnight, and a clear or a failed run counts for that day. Leaving the map (the **Daily** button on the result screens and in the pause menu, or the game panel's back button) returns to the Daily Challenge page, and pressing Play there again picks the new day. Today's map can be played again after it is cleared. The level selector's Daily button shows a check mark once today's map is cleared.
 - **Coins and clear reward once per day:** each coin on the day's map pays once per day, and the first clear of the day pays the clear reward; later clears that day say "Clear reward already collected today". Both are saved, so restarting the game does not pay them again.
-- **No Hint or AI Solver:** the daily map offers neither (abilities work as usual). The button shows a check mark once today's map is cleared.
-- **Records:** each day keeps its own record (cleared, lives lost in the first clearing run, coins from the map, best total flight time). The daily map does not set a level best time.
+- **Reference answer:** the **Answer** button in the game panel (where fixed levels have Hint; there is no AI Solver) shows the force field the day's map was built from. The first time on a day it asks "Show today's answer for 10 coins? (You have N)" (`DAILY_ANSWER_COST`); with fewer coins it only says how many are needed. The answer is paid **once per day**: that day's answer stays free afterwards, also after restarting the game. Paying is the only cost: coins, the clear reward, the day's record and XP all count as usual, and the day's record notes that the answer was used. Like Hint, Answer also works during a flight (the flight stops without costing a life), showing the answer resets the map to its start (lives stay), and **Apply** fills both formulas. Abilities work as usual.
+- **XP and streaks:** a clear gives XP; the day's first clear gets a streak bonus for the days cleared in a row, and the Mission Complete screen shows it (for example "Streak bonus +60 (3 days)"). See [Experience and Levels](#experience-and-levels).
+- **Records:** each day keeps its own record (cleared, lives lost in the first clearing run, coins from the map, best total flight time, whether the answer was used, and how many clears gave XP). The daily map does not set a level best time.
+
+### The Daily Challenge page
+
+The page shows today's date, the coin balance and player level, the streaks, a calendar, **Play** and **Back** (to the level selector).
+
+- **Streaks:** **Current streak** counts the days cleared in a row up to today. Today not cleared yet does not break it: the count then starts from yesterday. **Longest streak** is the longest run in all the records. A day cleared after paying for the answer still counts as cleared.
+- **Calendar:** one month, Sunday first, with a legend beside it. Each day shows its state: cleared (a green check), cleared with the answer used (the check plus an "A" badge), played but not cleared (a red cross), not played (a plain cell), and days still to come (dimmed). Today has an outline. "Today" follows midnight (UTC+8) even while the page stays open.
+- **Months:** the `<` / `>` arrows (or `←` / `→`) switch months, from the earliest month with a record up to the current month; an arrow is dimmed at the end of that range, and both are dimmed when there are no records yet. The page always opens on the current month.
+- **A day's record:** hovering a day with a record shows whether it was cleared, the best time, the lives lost in the first clearing run, the coins collected and whether the answer was used. Days without a record show nothing. Only today's map can be played, through Play; calendar days cannot be clicked.
 
 The map is built **answer first**: the generator picks a simple linear force field (swing, side swing, parabola, rotation or two axis, with coefficients such as 0.5, 1 or 2), flies it from rest from `(-8, y0)` with the game's own physics, and takes the ship's position 4–8 seconds in as the target. Fields whose path leaves the map, ends too close to the start, runs almost straight or passes through the target earlier are redrawn. Then 3–6 rocks are placed outside a safety tube around that path, at least one across the straight start-to-target line, coins are placed on the path, and a map that a constant push straight at the target can solve is rejected. Finally the reference answer is flown on the finished map; only a map it clears is used. Should every attempt fail, a fixed fallback map is played instead. So every daily map has a solution: the field it was built from.
 
-The constants are in `vector_drift/config.py`: `DAILY_LEVEL_ID`, `DAILY_GENERATOR_VERSION`, `DAILY_UTC_OFFSET_HOURS`, `DAILY_TIME_LIMIT`, `DAILY_LIVES` and `DAILY_MAX_ATTEMPTS`. Changing the generation rules means raising `DAILY_GENERATOR_VERSION`. `python tools/check_daily.py` checks a year of daily maps (fallback count, attempts, slowest day).
+The constants are in `vector_drift/config.py`: `DAILY_LEVEL_ID`, `DAILY_GENERATOR_VERSION`, `DAILY_UTC_OFFSET_HOURS`, `DAILY_TIME_LIMIT`, `DAILY_LIVES`, `DAILY_MAX_ATTEMPTS` and `DAILY_ANSWER_COST` (the XP constants are listed under [Experience and Levels](#experience-and-levels)). Changing the generation rules means raising `DAILY_GENERATOR_VERSION`. `python tools/check_daily.py` checks a year of daily maps (fallback count, attempts, slowest day).
 
 ## Coins
 
@@ -222,14 +232,14 @@ Coins are the game's progression currency. They are shown in the level selector,
 
 - **Coin pickups:** a coin pickup on a fixed level pays once, ever. A coin pickup on a random level pays once per generated map; entering a new map can make a new set of coins available.
 - **Clearing a level:** reaching the final target pays 5 coins. On a fixed level this happens once, ever, on the first eligible clear, and is saved with progress. On a random level it pays 5 coins once per map/seed; retrying the same map does not pay again, while a newly generated map can.
-- **Daily Challenge:** a coin pickup on the daily map pays once per day, and the first clear of the day pays 5 coins once per day; both are saved with progress.
+- **Daily Challenge:** a coin pickup on the daily map pays once per day, and the first clear of the day pays 5 coins once per day; both are saved with progress. The day's reference answer costs 10 coins, paid once per day (see [Daily Challenge](#daily-challenge)).
 - **Hint answers:** the answer page is free on **levels 1 and 2** and Level 8. On Levels 3–7 and 9–11 it costs 10 coins after confirmation, once per level per game launch.
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
-- **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
+- **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page, an AI Solver **Reveal** or the daily answer; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
 - **Level ups:** every player level reached pays 5 coins, and every fifth level pays 10 more (see [Experience and Levels](#experience-and-levels)).
 
-The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`. The daily map uses the same `CLEAR_REWARD`.
+The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `DAILY_ANSWER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`. The daily map uses the same `CLEAR_REWARD`.
 
 ## Experience and Levels
 
@@ -513,7 +523,10 @@ The formula editor detaches from the operating-system input method while the gam
 | Shop / Level Editor buttons | Open the ship shop or custom-level tools. |
 | Function Lab button | Open the Function Lab. |
 | Tutorial button | Play the opening story, then the tutorial screen. |
-| Daily button | Play today's [Daily Challenge](#daily-challenge) map (a check mark shows today's map is cleared). |
+| Daily button | Open the [Daily Challenge](#daily-challenge) page (a check mark shows today's map is cleared). |
+| `Enter` or Play on the Daily Challenge page | Play today's map. |
+| `Esc` or Back on the Daily Challenge page | Return to the level selector. |
+| `<` / `>` arrows or `←` / `→` on the Daily Challenge page | Previous / next month of the calendar. |
 | Replays button | Open saved launch replays. |
 
 ### In a level
@@ -522,8 +535,8 @@ The formula editor detaches from the operating-system input method while the gam
 |---|---|
 | `Enter` or the Play button | Launch when both force expressions are valid and the selected ship is owned. |
 | Stop button during flight | Abort the flight and lose one life. |
-| `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels, Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
-| `Esc` with a popup open | Close the topmost Hint or AI Solver popup first. |
+| `Esc` | Open the pause menu. Resume, Abort flight, Restart, Levels (**Daily** on the daily map), Main Menu, and Quit are available there; Music and Sound can be toggled separately. |
+| `Esc` with a popup open | Close the topmost Hint, AI Solver or Answer popup first. |
 | `Tab`, `Up`, or `Down` | Switch between the `Fx` and `Fy` editor lines. |
 | Lab button | List the functions saved in the Function Lab; picking one writes it into the editor. |
 | `B`, `V`, `M`, `T`, `G`, `X`, `Q` | Trigger an owned active ability during a flight (see **Ships and Shop**). |
