@@ -494,3 +494,102 @@ def test_the_streak_box_sits_above_play(today):
     box = streak_box_rect()
     assert box.bottom < page.play_button.rect.top
     assert box.left == page.play_button.rect.left and box.width == page.play_button.rect.width
+
+
+# --- a day's record on hover (task 29) ---------------------------------------------------------
+
+def _hover(page, day):
+    rect = dict(page.day_cells())[day]
+    page.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=rect.center, rel=(0, 0),
+                                         buttons=(0, 0, 0)))
+    return rect
+
+
+def test_tooltip_rows_for_a_cleared_day_with_the_answer():
+    from vector_drift.scenes.daily_page import tooltip_rows
+    rows = tooltip_rows({"cleared": True, "best_time": 12.071, "first_clear_lives_used": 2,
+                         "coins": 1, "answer_used": True})
+    assert [(label, value) for label, value, _c in rows] == [
+        ("Cleared", "Yes"), ("Best time", "12.07 s"), ("Lives lost (first clear)", "2"),
+        ("Coins collected", "1"), ("Answer", "Used")]
+
+
+def test_tooltip_rows_for_a_day_played_but_not_cleared():
+    from vector_drift.scenes.daily_page import tooltip_rows
+    rows = tooltip_rows({"cleared": False, "best_time": None, "first_clear_lives_used": None,
+                         "coins": 0, "answer_used": False})
+    assert [(label, value) for label, value, _c in rows] == [
+        ("Cleared", "No"), ("Best time", "—"), ("Lives lost (first clear)", "—"),
+        ("Coins collected", "0"), ("Answer", "Not used")]
+
+
+def test_tooltip_titles_are_short_english_dates():
+    from vector_drift.scenes.daily_page import tooltip_title
+    assert tooltip_title(date(2026, 11, 19)) == "Thu, Nov 19"
+    assert tooltip_title(date(2027, 1, 3)) == "Sun, Jan 3"
+
+
+def test_hovering_a_played_day_shows_its_record(today, monkeypatch):
+    mgr = _manager()
+    day = date(2026, 11, 19)
+    _record(mgr, day, cleared=True, best_time=12.07, first_clear_lives_used=2, coins=1,
+            answer_used=True)
+    page = _page(mgr)
+    cell = _hover(page, day)
+
+    assert page.hovered_day() == day
+    box = page.tooltip_rect()
+    assert box is not None
+    assert pygame.Rect(0, 0, config.WINDOW_W, config.WINDOW_H).contains(box)
+    assert not box.colliderect(cell)
+    texts = _texts(page, monkeypatch)
+    for text in ("Thu, Nov 19", "Yes", "12.07 s", "2", "1", "Used"):
+        assert text in texts
+
+
+@pytest.mark.parametrize("day", [date(2026, 11, 18), DAY, date(2026, 11, 25)])
+def test_days_without_a_record_show_nothing(today, day):
+    page = _page()
+    _hover(page, day)
+    assert page.hovered_day() is None and page.tooltip_rect() is None
+    _draw(page)
+
+
+def test_a_future_record_shows_nothing(today):
+    mgr = _manager()
+    _record(mgr, date(2026, 11, 25), cleared=True)      # a clock that was set ahead once
+    page = _page(mgr)
+    _hover(page, date(2026, 11, 25))
+    assert page.hovered_day() is None
+
+
+def test_moving_off_the_calendar_hides_the_record(today):
+    mgr = _manager()
+    _record(mgr, date(2026, 11, 19), cleared=True)
+    page = _page(mgr)
+    _hover(page, date(2026, 11, 19))
+    page.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(1, 1), rel=(0, 0),
+                                         buttons=(0, 0, 0)))
+    assert page.tooltip_rect() is None
+
+
+def test_tooltips_stay_on_screen_at_the_calendar_s_corner(today):
+    today.set(date(2026, 8, 31))                        # August 2026 has six weeks
+    mgr = _manager()
+    _record(mgr, date(2026, 8, 31), cleared=True)       # the last row
+    _record(mgr, date(2026, 8, 1))                      # the top-right corner
+    page = _page(mgr)
+    screen = pygame.Rect(0, 0, config.WINDOW_W, config.WINDOW_H)
+    for day in (date(2026, 8, 31), date(2026, 8, 1)):
+        cell = _hover(page, day)
+        box = page.tooltip_rect()
+        assert screen.contains(box) and not box.colliderect(cell)
+
+
+@pytest.mark.parametrize("day", [date(2026, 11, 19), DAY])
+def test_calendar_days_cannot_be_played(today, day):
+    mgr = _manager()
+    _record(mgr, day, cleared=True)
+    page = _page(mgr)
+    _click(page, dict(page.day_cells())[day])
+    assert mgr.scene is page

@@ -9,7 +9,8 @@ record (daily_records.py): cleared (a check), cleared after paying for the
 answer (an "A" badge as well), played but not cleared (a cross), not played,
 or still to come (dimmed). Today has an outline. The "<" / ">" arrows (or
 the arrow keys) switch months, from the earliest month with a record up to
-today's; the page always opens on today's month.
+today's; the page always opens on today's month. Hovering a day with a
+record shows it; no calendar day can be played (only today, through Play).
 """
 
 import calendar
@@ -53,6 +54,8 @@ FAILED_FILL = (78, 34, 44)
 BADGE_R = 8
 MONTH_ARROW_HIT = 44                        # the "<" / ">" click area beside the month title
 MONTH_ARROW_INSET = 14                      # its center, in from the grid's edge
+TOOLTIP_W, TOOLTIP_PAD, TOOLTIP_TITLE_H, TOOLTIP_ROW_H = 250, 10, 34, 20
+TOOLTIP_GAP = 6                             # between the day and its tooltip
 
 FIRST_WEEKDAY = calendar.SUNDAY
 WEEKDAY_SHORT = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -89,6 +92,26 @@ def day_marks(record, day, today):
 def month_weeks(year, month):
     """The month's weeks, Sunday first: lists of 7 dates (other months' days included)."""
     return calendar.Calendar(firstweekday=FIRST_WEEKDAY).monthdatescalendar(year, month)
+
+
+def tooltip_title(day):
+    """"Thu, Nov 19"."""
+    return f"{WEEKDAY_SHORT[(day.weekday() + 1) % 7]}, {MONTHS[day.month - 1][:3]} {day.day}"
+
+
+def tooltip_rows(record):
+    """(label, value, colour) lines of a played day's record."""
+    cleared = record.get("cleared") is True
+    best = record.get("best_time")
+    lives = record.get("first_clear_lives_used")
+    used = record.get("answer_used") is True
+    return [
+        ("Cleared", "Yes" if cleared else "No", config.SUCCESS if cleared else config.DANGER),
+        ("Best time", f"{best:.2f} s" if best is not None else "—", config.TEXT),
+        ("Lives lost (first clear)", str(lives) if lives is not None else "—", config.TEXT),
+        ("Coins collected", str(record.get("coins", 0)), config.TEXT),
+        ("Answer", "Used" if used else "Not used", config.WARNING if used else config.TEXT_DIM),
+    ]
 
 
 def streak_text(which, days):
@@ -155,6 +178,7 @@ class DailyScene(Scene):
         self.prev_arrow = _month_arrow(-1)
         self.next_arrow = _month_arrow(1)
         self._refresh_arrows()
+        self._mouse_pos = (-1, -1)
 
     @staticmethod
     def today():
@@ -175,6 +199,29 @@ class DailyScene(Scene):
 
     def marks(self, day):
         return day_marks(daily_records.get_record(self.session, day), day, self.today())
+
+    def hovered_day(self):
+        """The day under the mouse when it has a record to show (past days and today)."""
+        for day, rect in self.day_cells():
+            if rect.collidepoint(self._mouse_pos):
+                if day <= self.today() and daily_records.get_record(self.session, day) is not None:
+                    return day
+                return None
+        return None
+
+    def tooltip_rect(self):
+        """Where the hovered day's record shows: under the day, or above it near the bottom."""
+        day = self.hovered_day()
+        if day is None:
+            return None
+        cell = dict(self.day_cells())[day]
+        box = pygame.Rect(0, 0, px(TOOLTIP_W),
+                          px(2 * TOOLTIP_PAD + TOOLTIP_TITLE_H + 5 * TOOLTIP_ROW_H - TOOLTIP_ROW_H // 2))
+        box.topleft = (cell.x, cell.bottom + px(TOOLTIP_GAP))
+        if box.bottom > config.WINDOW_H - px(4):
+            box.bottom = cell.y - px(TOOLTIP_GAP)
+        box.right = min(box.right, config.WINDOW_W - px(4))
+        return box
 
     def _refresh_arrows(self):
         """An arrow works only while there is a month that way (the range follows midnight)."""
@@ -219,6 +266,7 @@ class DailyScene(Scene):
                 self.turn_month(-1 if event.key == pygame.K_LEFT else 1)
             return
         if event.type == pygame.MOUSEMOTION:
+            self._mouse_pos = event.pos
             self._refresh_arrows()
             for arrow in (self.prev_arrow, self.next_arrow):
                 arrow.update_hover(event.pos)
@@ -277,6 +325,25 @@ class DailyScene(Scene):
         self.next_arrow.draw(surface)
         for day, rect in self.day_cells():
             draw_day(surface, rect, str(day.day), self.marks(day))
+        self._draw_tooltip(surface)
+
+    def _draw_tooltip(self, surface):
+        """The hovered day's record (days without one show nothing; no day can be played)."""
+        box = self.tooltip_rect()
+        if box is None:
+            return
+        day = self.hovered_day()
+        cell = dict(self.day_cells())[day]
+        pygame.draw.rect(surface, config.TEXT_DIM, cell, width=max(1, px(1)), border_radius=px(5))
+        pygame.draw.rect(surface, config.PANEL_BG, box, border_radius=px(5))
+        pygame.draw.rect(surface, config.ACCENT, box, width=max(1, px(1)), border_radius=px(5))
+        x, right = box.x + px(TOOLTIP_PAD), box.right - px(TOOLTIP_PAD)
+        draw_text(surface, tooltip_title(day), (x, box.y + px(TOOLTIP_PAD)), 14, config.TEXT, kind="bold")
+        y = box.y + px(TOOLTIP_PAD + TOOLTIP_TITLE_H)
+        for label, value, color in tooltip_rows(daily_records.get_record(self.session, day)):
+            draw_text(surface, label, (x, y), 13, config.TEXT_DIM, anchor="midleft")
+            draw_text(surface, value, (right, y), 13, color, kind="mono", anchor="midright")
+            y += px(TOOLTIP_ROW_H)
 
     def _draw_legend(self, surface):
         x, y = px(LEFT_X), px(LEGEND_Y)
