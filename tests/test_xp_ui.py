@@ -149,12 +149,12 @@ def test_custom_and_community_maps_always_say_no_clear_xp(monkeypatch, setup, le
 
 
 @pytest.mark.parametrize("xp_gained", [0, 10])
-def test_the_daily_challenge_always_says_no_clear_xp(monkeypatch, xp_gained):
+def test_the_daily_challenge_has_no_xp_note(monkeypatch, xp_gained):
     _scene, drawn = _win_screen(monkeypatch, config.DAILY_LEVEL_ID, xp_gained=xp_gained,
                                 clear_reward=5, coins_earned=5)
     texts = _texts_of(drawn)
     assert f"+{xp_gained}" in texts
-    assert "No XP for clearing the daily challenge" in texts
+    assert not any("No XP" in text for text in texts)
 
 
 @pytest.mark.parametrize("level_id", [1, RANDOM_LEVEL_ID])

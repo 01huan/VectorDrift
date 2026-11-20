@@ -94,6 +94,12 @@ def _balance(manager):
     return int(manager.session.money)
 
 
+def _level_up_coins(manager):
+    """Coins the daily clears' XP paid through level ups (not a daily coin rule)."""
+    from vector_drift import xp
+    return xp.coins_for_levels(1, manager.session.xp_rewarded_level)
+
+
 # --- coins and clear reward ------------------------------------------------------------
 
 def test_a_daily_coin_pays_once_per_day():
@@ -123,13 +129,13 @@ def test_the_clear_reward_pays_once_per_day():
     coins = len(_coins(scene))
 
     _win(scene)
-    assert _balance(manager) == coins + config.CLEAR_REWARD
+    assert _balance(manager) == coins + config.CLEAR_REWARD + _level_up_coins(manager)
     assert manager.session.stats["clear_reward"] == config.CLEAR_REWARD
     assert get_record(manager.session, DAY)["clear_rewarded"]
     assert config.DAILY_LEVEL_ID not in manager.session.clear_rewarded_levels
 
     _win(_daily(manager))
-    assert _balance(manager) == coins + config.CLEAR_REWARD
+    assert _balance(manager) == coins + config.CLEAR_REWARD + _level_up_coins(manager)
     assert not manager.session.stats.get("clear_reward")
 
 
@@ -140,10 +146,10 @@ def test_nothing_pays_again_after_reloading_the_save():
     _win(scene)
 
     second = _reloaded(first)
-    before = _balance(second)
+    before = _balance(second) - _level_up_coins(second)
     _win(_daily(second))
 
-    assert _balance(second) == before == coins + config.CLEAR_REWARD
+    assert _balance(second) - _level_up_coins(second) == before == coins + config.CLEAR_REWARD
 
 
 def test_the_win_screen_says_the_reward_was_collected_today():

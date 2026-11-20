@@ -260,7 +260,8 @@ def test_random_map_clear_counts_are_not_saved():
     assert progression.random_map_clear_xp(loaded, RANDOM_LEVEL_ID, 123) == 150
 
 
-# --- task 11: no XP for the tutorial, custom, community and daily maps --------------------
+# --- task 11: no XP for the tutorial, custom and community maps ---------------------------
+# (The daily map gives XP since the daily XP rules: tests/test_daily_xp.py.)
 # These check the clear itself. A clear on such a map can still unlock an
 # achievement, which gives its own XP (task 12), so achievements give none here.
 def _no_clear_xp(manager):
@@ -300,7 +301,7 @@ def test_a_community_level_clear_gives_no_xp():
 
 
 @pytest.mark.usefixtures("no_achievements")
-def test_a_daily_clear_gives_no_xp(monkeypatch):
+def test_a_daily_clear_gives_its_own_xp(monkeypatch):
     from datetime import date
     from vector_drift import daily_level
     day = date(2026, 11, 19)
@@ -311,8 +312,11 @@ def test_a_daily_clear_gives_no_xp(monkeypatch):
     manager.session.random_seed = None
     scene = GameScene(manager)
     manager.switch(scene)
-    assert _arrive(scene)["xp_gained"] == 0
-    _no_clear_xp(manager)
+    assert _arrive(scene)["xp_gained"] == config.XP_DAILY
+    assert manager.session.xp_total == config.XP_DAILY
+    assert manager.session.fixed_clear_counts == {} and manager.session.random_map_clears == {}
+    from vector_drift.daily_records import get_record
+    assert get_record(manager.session, day)["xp_clears"] == 1
 
 
 def test_a_tutorial_clear_gives_no_xp():

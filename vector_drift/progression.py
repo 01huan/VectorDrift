@@ -8,7 +8,7 @@ pays nothing twice.
 
 from dataclasses import dataclass
 
-from . import config, xp
+from . import config, daily_records, xp
 
 
 @dataclass(frozen=True)
@@ -69,16 +69,32 @@ def random_map_clear_xp(session, level_id: int, seed) -> int:
     return grant_clear_xp(session, config.XP_RANDOM_MAP, counts[key])
 
 
+def daily_clear_xp(session, day) -> int:
+    """``day``'s daily map was cleared: count it in the day's record and give its XP.
+
+    The record must already say cleared, so the streak counts ``day`` itself.
+    The count is saved with the record: a restart does not make the next
+    clear that day a first clear again.
+    """
+    record = daily_records.get_record(session, day, create=True)
+    record["xp_clears"] = int(record.get("xp_clears", 0) or 0) + 1
+    streak = daily_records.current_streak(session.daily_records, day)
+    return add_xp(session, xp.daily_clear_xp(record["xp_clears"], streak))
+
+
 def clear_xp(session, level_id: int, kind: str, seed=None) -> int:
     """XP for clearing a level of ``kind`` (see GameScene._level_kind).
 
-    Campaign levels and random maps give XP here; the tutorial never gets this
-    far, and custom, community and daily maps give none.
+    Campaign levels, random maps and the daily map (the day being played,
+    session.daily_day) give XP here; the tutorial never gets this far, and
+    custom and community maps give none.
     """
     if kind == "campaign":
         return fixed_level_clear_xp(session, level_id)
     if kind == "random":
         return random_map_clear_xp(session, level_id, seed)
+    if kind == "daily":
+        return daily_clear_xp(session, session.daily_day)
     return 0
 
 

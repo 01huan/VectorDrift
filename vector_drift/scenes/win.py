@@ -72,8 +72,6 @@ class WinScene(Scene):
         """Maps whose clear gives no XP say so (their achievements may still give some)."""
         if is_custom_map(self.session.level_id, self.session):
             return [("No XP for clearing custom maps", config.TEXT_DIM)]
-        if is_daily_level(self.session.level_id):
-            return [("No XP for clearing the daily challenge", config.TEXT_DIM)]
         return []
 
     def draw(self, surface):

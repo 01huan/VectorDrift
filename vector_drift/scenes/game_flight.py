@@ -337,17 +337,18 @@ class GameFlightMixin:
         xp_before = self._xp_before = self.session.xp_total
         paid_before = self.session.xp_rewarded_level
         self._pay_clear_reward()
+        if is_daily_level(self.level.id):
+            # The day's own record keeps the best time, not session.records.
+            # Written before the XP: the streak bonus counts this day.
+            daily_records.record_clear(self.session, self.session.daily_day,
+                                       lives_used=self.level.lives - self.lives,
+                                       total_time=self.total_time)
         progression.clear_xp(self.session, self.level.id, self._level_kind(),
                              seed=self.session.random_seed)
         progression.announce_level_up(self.manager, progression.pay_level_ups(self.session))
         self._record_community_stat("clear")
         self._record_function_usage(True)
-        if is_daily_level(self.level.id):
-            # The day's own record keeps the best time, not session.records.
-            daily_records.record_clear(self.session, self.session.daily_day,
-                                       lives_used=self.level.lives - self.lives,
-                                       total_time=self.total_time)
-        else:
+        if not is_daily_level(self.level.id):
             best = self.session.records.get(self.level.id)
             if best is None or self.total_time < best:
                 self.session.records[self.level.id] = self.total_time
