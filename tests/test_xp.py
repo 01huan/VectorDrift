@@ -12,7 +12,9 @@ def test_every_campaign_level_has_a_first_clear_xp():
 
 def test_xp_constants():
     assert config.XP_RANDOM_MAP == 150
-    assert config.XP_PER_ACHIEVEMENT == 40
+    assert config.XP_ACHIEVEMENT_TIERS == (10, 20, 30, 40)
+    assert config.XP_ACHIEVEMENT_SINGLE == 40
+    assert not hasattr(config, "XP_PER_ACHIEVEMENT")
     assert config.XP_LEVEL_FIRST == 100
     assert config.XP_LEVEL_STEP == 50
     assert config.LEVEL_UP_COINS == 5
@@ -84,3 +86,24 @@ def test_coins_for_levels_pays_nothing_without_a_new_level():
 def test_coins_for_levels_never_pays_for_level_one():
     from vector_drift.xp import coins_for_levels
     assert coins_for_levels(0, 2) == 5
+
+
+# --- achievements -----------------------------------------------------------------
+def test_a_single_achievement_is_worth_40_hidden_or_not():
+    from vector_drift.xp import xp_for_achievement_key
+    assert xp_for_achievement_key("is_anyone_out_there") == 40
+    assert xp_for_achievement_key("houston") == 40              # hidden
+
+
+def test_each_tier_is_worth_its_own_xp():
+    from vector_drift.xp import xp_for_achievement_key
+    assert [xp_for_achievement_key(f"bounce_house.{t}") for t in (1, 2, 3, 4)] == [10, 20, 30, 40]
+    assert xp_for_achievement_key("lost_in_space.1") == 10      # hidden tiered
+
+
+def test_unknown_keys_are_worth_nothing():
+    from vector_drift.xp import xp_for_achievement_key
+    assert xp_for_achievement_key("we_have_liftoff") == 0       # a deleted achievement
+    assert xp_for_achievement_key("bounce_house") == 0          # the old untiered form
+    assert xp_for_achievement_key("bounce_house.5") == 0
+    assert xp_for_achievement_key("is_anyone_out_there.1") == 0

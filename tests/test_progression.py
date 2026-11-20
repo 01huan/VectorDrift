@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vector_drift import achievements, config, progression
+from vector_drift import config, progression
 from vector_drift.physics import Outcome
 from vector_drift.scenes import game as game_module
 from vector_drift.scenes.base import SceneManager, Session
@@ -24,8 +24,8 @@ def no_solver(monkeypatch):
 
 @pytest.fixture
 def no_achievements(monkeypatch):
-    """Only the clear's own XP: the achievements a clear unlocks give XP too."""
-    monkeypatch.setattr(achievements, "clear", lambda *a, **k: None)
+    """Only the clear's own XP: achievements still unlock but give no XP here."""
+    monkeypatch.setattr(progression, "achievement_xp", lambda session, key: 0)
 
 
 def _manager():
@@ -133,6 +133,7 @@ def test_a_clear_after_seeing_the_answer_still_gives_xp():
     assert manager.session.xp_total == config.XP_FIXED_LEVEL_BASE[3]
 
 
+@pytest.mark.usefixtures("no_achievements")
 def test_losing_a_level_gives_no_xp():
     manager = _manager()
     _lose(_scene(1, manager))
@@ -261,7 +262,7 @@ def test_random_map_clear_counts_are_not_saved():
 
 # --- task 11: no XP for the tutorial, custom, community and daily maps --------------------
 # These check the clear itself. A clear on such a map can still unlock an
-# achievement, which gives its own XP (task 12), so achievements are off here.
+# achievement, which gives its own XP (task 12), so achievements give none here.
 def _no_clear_xp(manager):
     session = manager.session
     assert session.xp_total == 0

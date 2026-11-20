@@ -193,7 +193,8 @@ XP_FIXED_LEVEL_BASE = {             # fixed level id -> XP for its first clear
     1: 100, 2: 120, 3: 140, 4: 160, 5: 180, 6: 200, 7: 220, 8: 240, 9: 260, 10: 280,
 }
 XP_RANDOM_MAP = 150                 # XP for the first clear of each random map
-XP_PER_ACHIEVEMENT = 40             # XP per achievement (hidden ones too)
+XP_ACHIEVEMENT_TIERS = (10, 20, 30, 40)  # XP for tiers I-IV of a tiered achievement
+XP_ACHIEVEMENT_SINGLE = 40          # XP for a single achievement (hidden ones too)
 XP_LEVEL_FIRST = 100                # XP from Lv 1 to Lv 2
 XP_LEVEL_STEP = 50                  # each further level needs this much more
 LEVEL_UP_COINS = 5                  # coins for every level reached

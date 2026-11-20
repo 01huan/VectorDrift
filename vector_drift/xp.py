@@ -59,3 +59,18 @@ def coins_for_levels(from_level: int, to_level: int) -> int:
         if level % config.LEVEL_MILESTONE_EVERY == 0:
             coins += config.LEVEL_MILESTONE_COINS
     return coins
+
+
+def xp_for_achievement_key(key) -> int:
+    """XP for one achievement unlock key: a single id or "<id>.<tier>".
+
+    A key achievements.split_key does not know (a deleted achievement, the
+    untiered form from before the tiers) is worth nothing.
+    """
+    from .achievements import split_key
+    achievement, tier = split_key(key)
+    if achievement is None:
+        return 0
+    if tier:
+        return config.XP_ACHIEVEMENT_TIERS[tier - 1]
+    return config.XP_ACHIEVEMENT_SINGLE

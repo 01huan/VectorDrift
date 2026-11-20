@@ -192,8 +192,8 @@ def _bump(session, key, amount=1):
 def unlock(manager, key, notify=True):
     """Unlock one key (a single id or "<id>.<tier>"). Returns True only the first time.
 
-    A new unlock is saved; with ``notify`` it also plays the sound and
-    queues the popup.
+    A new unlock gives its XP (once per key, see progression.achievement_xp)
+    and is saved; with ``notify`` it also plays the sound and queues the popup.
     """
     session = getattr(manager, "session", None)
     achievement, tier = split_key(key)
@@ -202,6 +202,9 @@ def unlock(manager, key, notify=True):
     if not isinstance(getattr(session, "achievements", None), dict):
         session.achievements = {}
     session.achievements[key] = datetime.now(timezone.utc).isoformat()
+    from . import progression
+    if progression.achievement_xp(session, key):
+        progression.pay_level_ups(session)
     if notify:
         toasts = getattr(manager, "toasts", None)
         if toasts is not None:

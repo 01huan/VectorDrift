@@ -93,3 +93,15 @@ def pay_level_ups(session):
     session.money.add(coins)
     session.xp_rewarded_level = level
     return LevelUp(paid, level, coins)
+
+
+def achievement_xp(session, key) -> int:
+    """Give an unlock key's XP the first time; nothing for a key already paid."""
+    paid = session.xp_achievements
+    if key in paid:
+        return 0
+    amount = xp.xp_for_achievement_key(key)
+    if amount <= 0:
+        return 0
+    paid.add(key)
+    return add_xp(session, amount)
