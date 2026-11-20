@@ -105,3 +105,39 @@ def achievement_xp(session, key) -> int:
         return 0
     paid.add(key)
     return add_xp(session, amount)
+
+
+def _fixed_level_id(key):
+    """A records key (an int, or digits saved as text) as a level id, else None."""
+    if isinstance(key, bool):
+        return None
+    if isinstance(key, int):
+        return key
+    text = str(key)
+    return int(text) if text.lstrip("-").isdigit() else None
+
+
+def backfill_xp(session) -> bool:
+    """Give the XP that progress from before XP existed has earned. True if any was given.
+
+    A fixed level with a best time but no counted clear counts one clear and
+    gives its first-clear XP; every known unlock key not paid yet gives its XP;
+    then the coins of every level reached are paid. Random maps are not
+    backfilled (nobody knows how many there were). Nothing here pops up or
+    touches the win stats, and running it again gives nothing more.
+    """
+    from .achievements import campaign_level_ids
+    campaign = set(campaign_level_ids())
+    before = int(getattr(session, "xp_total", 0) or 0)
+    counts = session.fixed_clear_counts
+    for key in list((getattr(session, "records", None) or {}).keys()):
+        level_id = _fixed_level_id(key)
+        base = config.XP_FIXED_LEVEL_BASE.get(level_id)
+        if level_id not in campaign or base is None or counts.get(level_id, 0) > 0:
+            continue
+        counts[level_id] = 1
+        add_xp(session, base)
+    for key in list((getattr(session, "achievements", None) or {}).keys()):
+        achievement_xp(session, key)
+    paid = pay_level_ups(session) is not None
+    return paid or session.xp_total != before

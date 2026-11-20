@@ -6,12 +6,15 @@ account subsystem stays usable (and testable) without importing pygame scenes.
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timezone
 from typing import Any
 
 from .models import PlayerProfile
 from .profile_manager import _profile_updated_at, _ts_gte
+
+log = logging.getLogger(__name__)
 
 # Saves made before the story was removed carry the story lines already
 # shown in their stats; the key is dropped on load and no longer written.
@@ -291,6 +294,7 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
         session.cloud_save_pending = False
     except Exception:
         pass
+    _backfill_xp(session)
 
 def profiles_equal(a: Any, b: Any) -> bool:
     """Return True when two profiles carry the same game data.
@@ -498,6 +502,21 @@ def apply_guest_profile_to_session(session, profile):
         session.cloud_save_pending = False
     except Exception:
         pass
+    _backfill_xp(session)
+
+
+def _backfill_xp(session: Any) -> None:
+    """Give a just-applied save the XP its older progress earned; save it if any.
+
+    Only the local copy is written here: the cloud copy follows with the next
+    save_progress, as for any other change.
+    """
+    try:
+        from vector_drift.progression import backfill_xp
+        if backfill_xp(session):
+            save_guest_profile(session)
+    except Exception:       # noqa: BLE001 - loading a save never fails over XP
+        log.warning("XP backfill after loading a save failed", exc_info=True)
 
 
 def session_to_guest_profile(session):

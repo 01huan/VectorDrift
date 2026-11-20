@@ -289,11 +289,16 @@ class SceneManager:
         self._achievement_check_in -= dt
         if self._achievement_check_in <= 0.0:
             # Unlocks that saved progress already proves: purchases, old
-            # saves loaded from disk or the cloud, ...
+            # saves loaded from disk or the cloud, ... and the XP of any
+            # unlock that came without unlock() (old keys made tier I).
             self._achievement_check_in = ACHIEVEMENT_CHECK_S
             try:
                 from ..achievements import check_state
+                from ..progression import backfill_xp
                 check_state(self)
+                if backfill_xp(self.session):
+                    from vector_drift.account.integration import save_progress
+                    save_progress(self.account, self.session)
             except Exception:       # noqa: BLE001 - a broken check never stops the game
                 log.debug("achievement check skipped", exc_info=True)
 

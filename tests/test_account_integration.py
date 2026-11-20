@@ -43,6 +43,8 @@ def test_session_to_profile_and_apply_roundtrip():
     s.money = Money(10)
     s.owned_ships = {"ship01", "ship02"}
     s.records = {1: 5.0}
+    # Level 1's clear already gave its XP: the load has nothing to backfill.
+    s.xp_total, s.fixed_clear_counts, s.xp_achievements, s.xp_rewarded_level = 100, {1: 1}, set(), 2
     s.collected_money_pickups = {(1, (1.0, 2.0))}
     s.stats = {"k": "v"}
     s.display_name = "Bob"
