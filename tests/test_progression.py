@@ -214,3 +214,46 @@ def test_a_clear_that_levels_up_pays_and_shows_it():
     stats = _win(_scene(1, manager))                    # 150 XP: still Lv 2
     assert "level_up" not in stats
     assert int(manager.session.money) == config.CLEAR_REWARD + 5
+
+
+# --- task 10: random map clears ---------------------------------------------------------
+def test_random_map_clear_xp_decays_per_map():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    session = Session()
+    assert progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 123) == 150
+    assert progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 123) == 75
+    assert progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 456) == 150
+    assert session.random_map_clears == {(RANDOM_LEVEL_ID, 123): 2, (RANDOM_LEVEL_ID, 456): 1}
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_random_map_clears_give_150_75_then_150_on_a_new_seed():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    manager = _manager()
+    gained = [_arrive(_scene(RANDOM_LEVEL_ID, manager, seed=seed))["xp_gained"]
+              for seed in (123, 123, 456)]
+    assert gained == [150, 75, 150]
+    assert manager.session.xp_total == 375
+    assert manager.session.fixed_clear_counts == {}
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_random_map_clears_level_up_too():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    manager = _manager()
+    stats = _arrive(_scene(RANDOM_LEVEL_ID, manager, seed=123))
+    assert stats["level_up"] == {"from": 1, "to": 2, "coins": 5}
+
+
+def test_random_map_clear_counts_are_not_saved():
+    from vector_drift.account.integration import apply_profile_to_session, session_to_profile
+    from vector_drift.account.models import PlayerProfile
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    session = Session()
+    progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 123)
+    row = session_to_profile(session, "u1").to_row()
+    assert "random_map_clears" not in row["stats"]
+    loaded = Session()
+    apply_profile_to_session(loaded, PlayerProfile.from_row(row, "u1"), "u1")
+    assert loaded.random_map_clears == {}
+    assert progression.random_map_clear_xp(loaded, RANDOM_LEVEL_ID, 123) == 150

@@ -54,14 +54,28 @@ def fixed_level_clear_xp(session, level_id: int) -> int:
     return grant_clear_xp(session, base, count)
 
 
-def clear_xp(session, level_id: int, kind: str) -> int:
+def random_map_clear_xp(session, level_id: int, seed) -> int:
+    """A random map was cleared: count it for this launch and give its XP.
+
+    The count is not saved (like clear_rewarded_maps): after a restart the
+    same map counts from 1 again.
+    """
+    counts = session.random_map_clears
+    key = (level_id, seed)
+    counts[key] = int(counts.get(key, 0)) + 1
+    return grant_clear_xp(session, config.XP_RANDOM_MAP, counts[key])
+
+
+def clear_xp(session, level_id: int, kind: str, seed=None) -> int:
     """XP for clearing a level of ``kind`` (see GameScene._level_kind).
 
-    Only campaign levels give XP here; the tutorial never gets this far, and
-    custom, community and daily maps give none.
+    Campaign levels and random maps give XP here; the tutorial never gets this
+    far, and custom, community and daily maps give none.
     """
     if kind == "campaign":
         return fixed_level_clear_xp(session, level_id)
+    if kind == "random":
+        return random_map_clear_xp(session, level_id, seed)
     return 0
 
 

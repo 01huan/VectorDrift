@@ -39,6 +39,7 @@ class Session:
     collected_random_coins: set = field(default_factory=set)   # (level_id, seed, (cx, cy)); this launch only, not saved
     clear_rewarded_levels: set = field(default_factory=set)    # fixed level ids whose clear reward was paid (saved)
     clear_rewarded_maps: set = field(default_factory=set)      # (level_id, seed) paid the clear reward; this launch only
+    random_map_clears: dict = field(default_factory=dict)      # (level_id, seed) -> clears; this launch only (XP)
     custom_levels: list = field(default_factory=list)   # player-created LevelSpecs
     custom_level_ids: set = field(default_factory=set)
     next_custom_level_id: int = 1000  # monotonic high-water for custom level ids (saved); never re-issued

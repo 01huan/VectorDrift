@@ -331,7 +331,8 @@ class GameFlightMixin:
         xp_before = self.session.xp_total
         paid_before = self.session.xp_rewarded_level
         self._pay_clear_reward()
-        progression.clear_xp(self.session, self.level.id, self._level_kind())
+        progression.clear_xp(self.session, self.level.id, self._level_kind(),
+                             seed=self.session.random_seed)
         progression.pay_level_ups(self.session)
         self._record_community_stat("clear")
         self._record_function_usage(True)
