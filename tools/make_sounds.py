@@ -246,6 +246,18 @@ def s_achievement(rng):
     return mix(0.3 * swell, 0.8 * low, high, *sparkle)[:int(RATE * d)], -7
 
 
+def s_magnet(rng):
+    """Magnet ability: an electric hum that rises and throbs faster as the pull grips."""
+    d = 0.9
+    pitch = sweep(70, 140, d)
+    hum = tone(pitch, d, "soft_square") + 0.5 * tone(pitch * 2, d) + 0.25 * tone(pitch * 3, d)
+    throb = 0.55 + 0.45 * tone(sweep(5, 12, d, "lin"), d) ** 2      # pulse speeds up
+    buzz = bandpass(noise(d, rng), 1500, 4000) * (0.5 + 0.5 * tone(60, d)) ** 4
+    grip = 0.5 * tone(sweep(400, 900, 0.3), 0.3) * decay(0.3, 0.1)  # the catch at the start
+    body = lowpass(hum * throb, 2500) + 0.12 * buzz
+    return mix(body * adsr(d, 0.06, 0.3), at(0.05, grip)), -7
+
+
 SOUNDS = {name[2:]: fn for name, fn in globals().items() if name.startswith("s_")}
 
 

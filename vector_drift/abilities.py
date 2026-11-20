@@ -144,7 +144,7 @@ register_ability(Ability(
 register_ability(Ability(
     id="ability_magnet", name="Magnet", key="M", key_code=pygame.K_m,
     description="Pull toward the target for 3 s during a flight.",
-    price=8, sound="unbound", activate=_activate_magnet,
+    price=8, sound="magnet", activate=_activate_magnet,
 ))
 
 register_ability(Ability(
