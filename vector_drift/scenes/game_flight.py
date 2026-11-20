@@ -63,6 +63,9 @@ class GameFlightMixin:
         if self.hint_popup is not None:
             self._handle_hint_event(event)
             return                      # modal: nothing behind it takes input
+        if self.daily_popup is not None:
+            self._handle_daily_answer_event(event)
+            return                      # modal: nothing behind it takes input
         if getattr(self, "lab_popup", False):
             if gfunc.handle_event(self, event):
                 return                  # modal: nothing behind it takes input
@@ -262,6 +265,7 @@ class GameFlightMixin:
             self.state = ARRIVED
             self.arrive_timer = config.WIN_DELAY
             self.hint_popup = None
+            self.daily_popup = None
             self._record_clear()
             self.audio.play("win")
             self._refresh_buttons()

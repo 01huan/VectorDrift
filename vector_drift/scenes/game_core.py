@@ -168,6 +168,7 @@ class GameCoreMixin:
         # The daily challenge offers neither: its button is "Answer" (the day's
         # reference answer, paid once per day), and the solver never starts.
         self.daily_answer = is_daily_level(self.level.id)
+        self.daily_popup = None         # the Answer dialog (daily_answer_popup.py)
         self.hint_mode = not (is_dynamic_level(self.level.id)
                               or is_custom_map(self.level.id, self.session))
         self.hint = self._section_hint()

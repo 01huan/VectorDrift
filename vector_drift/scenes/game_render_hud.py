@@ -160,6 +160,7 @@ class GameHudRenderMixin:
     def _draw_ability_tooltip(self, surface):
         """Name and description of the ability slot under the mouse."""
         if (self.pause_menu is not None or self.hint_popup is not None or self.ai_popup
+                or self.daily_popup is not None
                 or getattr(self, "lab_popup", False)):
             return
         hovered = self._hovered_ability()

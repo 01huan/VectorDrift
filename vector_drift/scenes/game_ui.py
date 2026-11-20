@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pygame
 
-from .. import config, daily_records, render, sprites
+from .. import config, daily_level, daily_records, render, sprites
 from ..config import px
 from ..desktop import set_cursor
 from ..background import BackgroundBuilder
@@ -25,6 +25,7 @@ from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, 
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
 from .base import Scene
+from .daily_answer_popup import DailyAnswerPopup
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
 from . import game_functions as gfunc
@@ -63,6 +64,8 @@ class GameUIMixin:
             self.hint_popup.answer_price = self._answer_price()
             self.hint_popup.available = self._available_coins()
             self.hint_popup.draw(surface)
+        if self.daily_popup is not None:
+            self.daily_popup.draw(surface)
         self._draw_coins(surface)
         self._draw_ability_tooltip(surface)
         if self.pause_menu is not None:
@@ -126,10 +129,56 @@ class GameUIMixin:
 
     # ------------------------------------------------------------------ daily Answer
     def _open_daily_answer(self):
-        """The daily map's Answer button."""
+        """The daily map's Answer button: the answer, a price question, or why not.
+
+        The day is the one being played (session.daily_day), not the clock's:
+        its record's answer_used says whether it was paid for already.
+        """
         if self.state == ARRIVED:
             return
         self.audio.play("click")
+        answer = daily_level.daily_map(self.session.daily_day)
+        self.daily_popup = DailyAnswerPopup(answer.fx, answer.fy)
+        if self._daily_answer_paid():
+            self._show_daily_answer()
+        else:
+            self._ask_daily_answer_price()
+
+    def _daily_answer_paid(self):
+        record = daily_records.get_record(self.session, self.session.daily_day)
+        return bool(record and record["answer_used"])
+
+    def _ask_daily_answer_price(self):
+        price, available = config.DAILY_ANSWER_COST, self._available_coins()
+        if price > available:
+            self.daily_popup.show_short(price)
+        else:
+            self.daily_popup.show_confirm(price, available)
+
+    def _handle_daily_answer_event(self, event):
+        action = self.daily_popup.handle_event(event)
+        if action is None:
+            return
+        self.audio.play("click")
+        if action == "confirm":
+            self._buy_daily_answer()
+        else:                                   # "cancel" / "close"
+            self.daily_popup = None
+
+    def _buy_daily_answer(self):
+        """Pay DAILY_ANSWER_COST once for the day being played, then show it."""
+        price = config.DAILY_ANSWER_COST
+        if price > self._available_coins():
+            self.daily_popup.show_short(price)  # balance changed: explain instead
+            return
+        self.session.money.spend(price)
+        self.money = self.session.money
+        daily_records.mark_answer_used(self.session, self.session.daily_day)
+        self._save_progress()
+        self._show_daily_answer()
+
+    def _show_daily_answer(self):
+        self.daily_popup.show_answer()
 
     # ------------------------------------------------------------------ Hint
     def _section_hint(self):
