@@ -101,7 +101,7 @@ The player edits the two components of the force field, checks the field preview
 \mathbf{a}(x,y) = \frac{\mathbf{F}(x,y)}{m}
 \]
 
-All ten ship skins use the same physical values: **1 kg mass** and **0.2 m hull radius**. A skin changes appearance, not handling.
+All fifteen ship skins use the same physical values: **1 kg mass** and **0.2 m hull radius**. A skin changes appearance, not handling.
 
 The simulation uses a fixed **1/120-second** physics step and semi-implicit Euler integration. The application renders at up to 60 frames per second. The default visible world spans approximately `x = -10..10 m` and `y = -7.5..7.5 m`.
 
@@ -262,9 +262,9 @@ The constants are in `vector_drift/config.py`: `XP_FIXED_LEVEL_BASE`, `XP_RANDOM
 
 ## Ships and Shop
 
-There are ten visual ship skins: `ship01` through `ship10`. All ten use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics.
+There are fifteen visual ship skins: `ship01` through `ship15`. All fifteen use the same 1 kg mass and 0.2 m hull radius, so the look does not change the physics.
 
-Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 10 `ship10`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today campaign levels 1 to 10 have their own ships, level 11 flies `ship01` until `ship11` is made, and the random level, id 999, is numbered 12 and flies `ship01` until `ship12` is made. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
+Each level flies its own ship and the player does not pick it: level number N flies `shipNN` (level 1 `ship01`, level 2 `ship02`, … level 11 `ship11`). A level whose ship is not made yet (no `shipNN` in `SHIPS` in `vector_drift/data_models.py`) flies `ship01`; today campaign levels 1 to 11 have their own ships, the random level, id 999, is numbered 12 and flies `ship12`, and `ship13` to `ship15` wait for levels 13 to 15. Community and custom levels always fly `ship01`. To add a ship, add `assets/images/ships/shipNN.png` and its entry in `SHIPS`: level N switches to it with no change to the level data. Ships are no longer sold; the owned-ship list in older saves is kept but no longer used.
 
 The Shop sells the seven active abilities only (ships are no longer sold), all on one page: a 4-column grid, four cards on the first row and three centred below. Each card shows the ability's icon (its picture, or a letter avatar until it has one; see `assets/images/README.md`) beside its name and key, the description, the price with **Owned ×N** (the charges the player holds), and a **Buy** button. The coin balance stays top left and **Back** bottom left.
 
