@@ -333,7 +333,7 @@ class GameFlightMixin:
         self._pay_clear_reward()
         progression.clear_xp(self.session, self.level.id, self._level_kind(),
                              seed=self.session.random_seed)
-        progression.pay_level_ups(self.session)
+        progression.announce_level_up(self.manager, progression.pay_level_ups(self.session))
         self._record_community_stat("clear")
         self._record_function_usage(True)
         if is_daily_level(self.level.id):

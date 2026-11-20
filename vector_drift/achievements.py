@@ -193,7 +193,8 @@ def unlock(manager, key, notify=True):
     """Unlock one key (a single id or "<id>.<tier>"). Returns True only the first time.
 
     A new unlock gives its XP (once per key, see progression.achievement_xp)
-    and is saved; with ``notify`` it also plays the sound and queues the popup.
+    and is saved; with ``notify`` it also plays the sound and queues the popup
+    (and the level-up popup when its XP reached a new level).
     """
     session = getattr(manager, "session", None)
     achievement, tier = split_key(key)
@@ -203,8 +204,7 @@ def unlock(manager, key, notify=True):
         session.achievements = {}
     session.achievements[key] = datetime.now(timezone.utc).isoformat()
     from . import progression
-    if progression.achievement_xp(session, key):
-        progression.pay_level_ups(session)
+    level_up = progression.pay_level_ups(session) if progression.achievement_xp(session, key) else None
     if notify:
         toasts = getattr(manager, "toasts", None)
         if toasts is not None:
@@ -213,6 +213,7 @@ def unlock(manager, key, notify=True):
             manager.audio.play("achievement")
         except Exception:           # noqa: BLE001 - sound is optional
             pass
+        progression.announce_level_up(manager, level_up)
     try:
         from .account.integration import save_progress
         save_progress(getattr(manager, "account", None), session)

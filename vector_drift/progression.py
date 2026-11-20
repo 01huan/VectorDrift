@@ -141,3 +141,19 @@ def backfill_xp(session) -> bool:
         achievement_xp(session, key)
     paid = pay_level_ups(session) is not None
     return paid or session.xp_total != before
+
+
+def announce_level_up(manager, level_up):
+    """Pop up a level up (with the achievement sound unless it joined a popup still up).
+
+    The backfill never calls this: levels from old progress pop nothing.
+    """
+    if level_up is None:
+        return
+    toasts = getattr(manager, "toasts", None)
+    if toasts is None or not toasts.push_level_up(level_up.to_level, level_up.coins):
+        return
+    try:
+        manager.audio.play("achievement")
+    except Exception:           # noqa: BLE001 - sound is optional
+        pass

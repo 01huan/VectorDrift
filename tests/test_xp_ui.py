@@ -248,3 +248,128 @@ def test_a_clear_records_the_xp_before_it():
     stats = _win(_scene(1, manager))
     assert stats["xp_before"] == 230
     assert manager.session.xp_total == 230 + stats["xp_gained"]
+
+
+# --- task 17: the level-up popup ---------------------------------------------------------------
+from vector_drift import achievements as ach  # noqa: E402
+from vector_drift.scenes import achievement_ui  # noqa: E402
+from vector_drift.scenes.achievement_ui import LevelUpToast, ToastStack  # noqa: E402
+
+
+def _items(stack):
+    return [item for item, _tier in stack.waiting] + [toast[0] for toast in stack.shown]
+
+
+def _level_ups(stack):
+    return [item for item in _items(stack) if isinstance(item, LevelUpToast)]
+
+
+def test_a_level_up_popup_says_level_up_the_level_and_the_coins(monkeypatch):
+    texts = _texts(achievement_ui, monkeypatch)
+    rows = []
+    real_row = achievement_ui.draw_icon_row
+    monkeypatch.setattr(achievement_ui, "draw_icon_row",
+                        lambda surface, parts, *a, **k: rows.append(parts) or real_row(surface, parts, *a, **k))
+    stack = ToastStack()
+    assert stack.push_level_up(5, 15)
+    stack.update(achievement_ui.SLIDE_S)
+    stack.draw(_screen())
+    assert "LEVEL UP" in texts and "Level 5" in texts
+    assert texts.index("LEVEL UP") < texts.index("Level 5")
+    assert any(("+15 coins", config.TEXT) in parts for parts in rows)
+
+
+def test_level_ups_close_together_share_one_popup():
+    stack = ToastStack()
+    assert stack.push_level_up(4, 5)
+    assert not stack.push_level_up(5, 15)              # still showing: merged
+    assert _level_ups(stack) == [LevelUpToast(5, 20)]
+
+
+def test_a_level_up_waiting_its_turn_is_merged_too():
+    stack = ToastStack()
+    for tier in (1, 2, 3, 4):
+        stack.push(ach.BY_ID["bounce_house"], tier)      # the stack is full
+    stack.push_level_up(2, 5)
+    assert not stack.push_level_up(3, 5)
+    assert _level_ups(stack) == [LevelUpToast(3, 10)]
+
+
+def test_a_merged_popup_stays_up_for_a_whole_hold_again():
+    stack = ToastStack()
+    stack.push_level_up(2, 5)
+    stack.update(achievement_ui.SLIDE_S + achievement_ui.HOLD_S - 0.1)
+    stack.push_level_up(3, 5)
+    stack.update(achievement_ui.HOLD_S - 0.2)
+    assert _level_ups(stack) == [LevelUpToast(3, 10)]
+    assert stack.shown[0][2] < achievement_ui.SLIDE_S + achievement_ui.HOLD_S
+
+
+def test_a_level_up_after_the_last_one_slid_away_gets_its_own_popup():
+    stack = ToastStack()
+    stack.push_level_up(2, 5)
+    stack.update(achievement_ui.SLIDE_S + achievement_ui.HOLD_S + 0.05)    # sliding out
+    assert stack.push_level_up(3, 5)
+    assert _level_ups(stack) == [LevelUpToast(2, 5), LevelUpToast(3, 5)]
+
+
+def test_achievement_and_level_up_popups_draw_together():
+    stack = ToastStack()
+    stack.push(ach.BY_ID["bounce_house"], 2)
+    stack.push_level_up(5, 15)
+    stack.update(0.5)
+    stack.draw(_screen())
+
+
+class _Audio:
+    def __init__(self):
+        self.played = []
+
+    def play(self, name, *a, **k):
+        self.played.append(name)
+
+    def start_loop(self, *a, **k):
+        pass
+
+    def stop_loop(self, *a, **k):
+        pass
+
+
+def _toast_manager():
+    manager = SceneManager(_Audio())
+    manager.scene = SimpleNamespace(counts_for_progress=True, update=lambda dt: None)
+    return manager
+
+
+def test_an_achievement_that_levels_up_pops_both_with_the_sound():
+    manager = _toast_manager()
+    manager.session.xp_total = 90
+    ach.unlock(manager, "chain_reaction")                    # +40: Lv 2
+    assert _items(manager.toasts) == [ach.BY_ID["chain_reaction"], LevelUpToast(2, 5)]
+    assert manager.audio.played.count("achievement") == 2
+
+
+def test_a_silent_unlock_pops_no_level_up():
+    manager = _toast_manager()
+    manager.session.xp_total = 90
+    ach.unlock(manager, "chain_reaction", notify=False)
+    assert _items(manager.toasts) == []
+    assert manager.session.xp_rewarded_level == 2                # the coins are still paid
+
+
+def test_a_clear_that_levels_up_pops_one_level_up():
+    from tests.test_progression import _scene, _win
+    manager = SceneManager(_Audio())
+    manager.session.xp_total = 240                           # Lv 2; the clear and its
+    manager.session.xp_rewarded_level = 2                    # achievements reach Lv 3
+    _win(_scene(1, manager))
+    assert _level_ups(manager.toasts) == [LevelUpToast(3, 5)]
+    assert manager.session.stats["level_up"] == {"from": 2, "to": 3, "coins": 5}
+
+
+def test_backfilled_levels_pop_nothing():
+    manager = _toast_manager()
+    manager.session.records = {1: 5.0, 2: 6.0}
+    manager.update(0.016)
+    assert manager.session.xp_rewarded_level == 2
+    assert _level_ups(manager.toasts) == []

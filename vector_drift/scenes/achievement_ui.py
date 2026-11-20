@@ -7,10 +7,12 @@ silver, gold, platinum).
 
 ToastStack is owned by the SceneManager, so a popup shows over any scene:
 it slides up from the bottom edge, stays a few seconds and slides back
-down; several unlocks at once stack upward.
+down; several unlocks at once stack upward. A level up pops up the same way
+(push_level_up), with a level badge instead of an achievement icon.
 """
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import pygame
@@ -19,7 +21,8 @@ from .. import config
 from ..achievements import ACHIEVEMENTS, FAILURE, MECHANICS, PROGRESS, SKILL, display_name
 from ..config import px
 from ..image_assets import AssetSpec, load_image, register
-from ..ui import draw_text, get_font
+from ..image_assets import COIN_TRADE
+from ..ui import draw_icon_row, draw_text, get_font
 
 SS = 4                                  # icons are drawn this many times larger, then smoothed
 CATEGORY_COLORS = {
@@ -124,14 +127,45 @@ def _ease(x):
     return 1 - (1 - x) ** 3
 
 
+LEVEL_BADGE_BG = (28, 40, 66)
+
+
+@dataclass(frozen=True)
+class LevelUpToast:
+    """A level-up popup: the level reached and the coins paid for it."""
+    level: int
+    coins: int
+
+
 class ToastStack:
     def __init__(self):
-        self.shown = []                 # [[achievement, tier, seconds shown]]
-        self.waiting = []               # [(achievement, tier)]
+        self.shown = []                 # [[achievement or LevelUpToast, tier, seconds shown]]
+        self.waiting = []               # [(achievement or LevelUpToast, tier)]
 
     def push(self, achievement, tier=0):
         self.waiting.append((achievement, tier))
         self._fill()
+
+    def push_level_up(self, level, coins):
+        """Pop up a level up. True if a new popup was queued.
+
+        A level-up popup still waiting or not yet sliding out takes the new
+        level and adds the coins instead (False), so one clear or a burst of
+        unlocks shows one popup; a merged popup that is up stays a whole
+        hold again.
+        """
+        for i, (item, _tier) in enumerate(self.waiting):
+            if isinstance(item, LevelUpToast):
+                self.waiting[i] = (LevelUpToast(level, item.coins + coins), 0)
+                return False
+        for toast in self.shown:
+            if isinstance(toast[0], LevelUpToast) and toast[2] <= SLIDE_S + HOLD_S:
+                toast[0] = LevelUpToast(level, toast[0].coins + coins)
+                toast[2] = min(toast[2], SLIDE_S)
+                return False
+        self.waiting.append((LevelUpToast(level, coins), 0))
+        self._fill()
+        return True
 
     def _fill(self):
         while self.waiting and len(self.shown) < MAX_SHOWN:
@@ -146,7 +180,7 @@ class ToastStack:
     def draw(self, surface):
         w, h = px(TOAST_W), px(TOAST_H)
         x = config.WINDOW_W - px(TOAST_MARGIN) - w
-        for i, (achievement, tier, t) in enumerate(self.shown):
+        for i, (item, tier, t) in enumerate(self.shown):
             rest_y = config.WINDOW_H - px(TOAST_MARGIN) - h - i * (h + px(TOAST_GAP))
             if t < SLIDE_S:
                 shown = _ease(t / SLIDE_S)
@@ -161,10 +195,31 @@ class ToastStack:
             surface.blit(panel, card)
             pygame.draw.rect(surface, config.PANEL_EDGE, card, width=max(1, px(1)), border_radius=px(4))
             icon = pygame.Rect(card.x + px(12), card.y + px(12), h - px(24), h - px(24))
-            draw_icon(surface, icon, achievement, tier=tier)
+            if isinstance(item, LevelUpToast):
+                _draw_level_up(surface, card, icon, item)
+                continue
+            draw_icon(surface, icon, item, tier=tier)
             tx = icon.right + px(12)
             draw_text(surface, "ACHIEVEMENT UNLOCKED", (tx, card.y + px(16)), 11, config.TEXT_DIM, kind="bold")
-            name = display_name(achievement, tier)
+            name = display_name(item, tier)
             room = card.right - px(12) - tx
             size = next((s for s in NAME_SIZES if get_font(s, "bold").size(name)[0] <= room), NAME_SIZES[-1])
             draw_text(surface, name, (tx, card.y + px(34)), size, config.TEXT, kind="bold")
+
+
+def _draw_level_up(surface, card, icon, toast):
+    """A level-up popup's badge ("Lv" over the level) and its three lines."""
+    radius = icon.w // 6
+    pygame.draw.rect(surface, LEVEL_BADGE_BG, icon, border_radius=radius)
+    pygame.draw.rect(surface, config.ACCENT, icon, width=max(2, icon.w // 12), border_radius=radius)
+    draw_text(surface, "Lv", (icon.centerx, icon.y + px(14)), 11, config.TEXT_DIM, kind="bold",
+              anchor="center")
+    number = str(toast.level)
+    size = next((s for s in (22, 18, 15) if get_font(s, "bold").size(number)[0] <= icon.w - px(8)), 13)
+    draw_text(surface, number, (icon.centerx, icon.centery + px(6)), size, config.ACCENT, kind="bold",
+              anchor="center")
+    tx = icon.right + px(12)
+    # "LEVEL UP" on top: "Level 5" alone could read as level 5 of the campaign.
+    draw_text(surface, "LEVEL UP", (tx, card.y + px(12)), 11, config.TEXT_DIM, kind="bold")
+    draw_text(surface, f"Level {toast.level}", (tx, card.y + px(27)), 17, config.TEXT, kind="bold")
+    draw_icon_row(surface, [COIN_TRADE, (f"+{toast.coins} coins", config.TEXT)], (tx, card.y + px(50)), 13)

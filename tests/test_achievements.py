@@ -105,7 +105,12 @@ def test_a_counter_unlocks_each_tier_once_with_its_own_popup():
     assert _unlocked(manager) == {"bounce_house.1"}
     ach.count(manager, ach.BOUNCES, 500)                # jumps straight past II and III
     assert {f"bounce_house.{t}" for t in (1, 2, 3, 4)} <= _unlocked(manager)
-    assert manager.audio.played.count("achievement") == 4
+    # Four popups and sounds, plus one level up: tiers I-IV give 100 XP (Lv 2).
+    from vector_drift.scenes.achievement_ui import LevelUpToast
+    popups = [item for item, _tier in manager.toasts.waiting] + [t[0] for t in manager.toasts.shown]
+    assert [item for item in popups if not isinstance(item, LevelUpToast)] == [ach.BY_ID["bounce_house"]] * 4
+    assert [item for item in popups if isinstance(item, LevelUpToast)] == [LevelUpToast(2, 5)]
+    assert manager.audio.played.count("achievement") == 4 + 1
 
 
 def test_launches_count_for_frequent_flyer():
