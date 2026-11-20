@@ -181,6 +181,7 @@ class GameUpdateMixin:
                     "clear_reward": self._clear_reward,
                     "coins_earned": (sum(amount for _key, amount in self._run_coins)
                                      + self._clear_reward),
+                    "xp_gained": self._xp_gained,
                 }
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
