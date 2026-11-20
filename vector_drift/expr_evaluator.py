@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 
 from .expr_errors import EvaluationError
-from .expr_limits import MAX_ABS_RESULT
+from .config import MAX_EXPR_RESULT as MAX_ABS_RESULT
 from .expr_registry import FUNCTIONS
 
 
@@ -36,6 +36,44 @@ class Expression:
         return result
 
     __call__ = evaluate
+
+
+def _evaluate_power(a, b):
+    # Pre-check via log10 so 10^1e9 (OverflowError) and huge-but-finite
+    # results (tunneling REACHED + pygame crash) both become diverged.
+    try:
+        if b == 0:
+            return 1.0
+        if a == 0:
+            if b < 0:
+                raise ZeroDivisionError("0.0 cannot be raised to a negative power")
+            return 0.0
+        abs_a = abs(a)
+        if abs_a == 1.0:
+            if a == 1.0:
+                return 1.0
+            # (-1)^b: only integer exponents are real-valued.
+            if not math.isfinite(b) or b != math.floor(b):
+                raise ValueError("Negative base with non-integer exponent")
+            return 1.0 if int(math.fmod(abs(b), 2.0)) == 0 else -1.0
+        if not (math.isfinite(a) and math.isfinite(b)):
+            result = a ** b
+            if not math.isfinite(result) or abs(float(result)) > MAX_ABS_RESULT:
+                raise OverflowError("Result too large")
+            return result
+        log10_mag = math.log10(abs_a) * b
+    except (ValueError, OverflowError, ZeroDivisionError):
+        raise
+    if log10_mag > math.log10(MAX_ABS_RESULT):
+        raise OverflowError("Result too large")
+    if log10_mag < -308:
+        return 0.0
+    result = a ** b
+    if not math.isfinite(result):
+        raise OverflowError("Result too large")
+    if abs(float(result)) > MAX_ABS_RESULT:
+        raise OverflowError("Result too large")
+    return result
 
 
 def evaluate_node(node, variables):
@@ -66,41 +104,7 @@ def evaluate_node(node, variables):
                 raise ZeroDivisionError("division by zero")
             return a / b
         if op == "^":
-            # Pre-check via log10 so 10^1e9 (OverflowError) and huge-but-finite
-            # results (tunneling REACHED + pygame crash) both become diverged.
-            try:
-                if b == 0:
-                    return 1.0
-                if a == 0:
-                    if b < 0:
-                        raise ZeroDivisionError("0.0 cannot be raised to a negative power")
-                    return 0.0
-                abs_a = abs(a)
-                if abs_a == 1.0:
-                    if a == 1.0:
-                        return 1.0
-                    # (-1)^b: only integer exponents are real-valued.
-                    if not math.isfinite(b) or b != math.floor(b):
-                        raise ValueError("Negative base with non-integer exponent")
-                    return 1.0 if int(math.fmod(abs(b), 2.0)) == 0 else -1.0
-                if not (math.isfinite(a) and math.isfinite(b)):
-                    result = a ** b
-                    if not math.isfinite(result) or abs(float(result)) > MAX_ABS_RESULT:
-                        raise OverflowError("Result too large")
-                    return result
-                log10_mag = math.log10(abs_a) * b
-            except (ValueError, OverflowError, ZeroDivisionError):
-                raise
-            if log10_mag > math.log10(MAX_ABS_RESULT):
-                raise OverflowError("Result too large")
-            if log10_mag < -308:
-                return 0.0
-            result = a ** b
-            if not math.isfinite(result):
-                raise OverflowError("Result too large")
-            if abs(float(result)) > MAX_ABS_RESULT:
-                raise OverflowError("Result too large")
-            return result
+            return _evaluate_power(a, b)
 
     if kind == "call":
         name, args = node[1], node[2]

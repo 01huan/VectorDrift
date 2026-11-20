@@ -6,7 +6,7 @@ Produces the tuple node tree evaluated by :mod:`vector_drift.expr_evaluator`.
 from .expr_errors import ParseError
 from .expr_evaluator import Expression
 from .expr_lexer import tokenize
-from .expr_limits import MAX_TEXT_LEN
+from .config import MAX_EXPR_TEXT_LEN as MAX_TEXT_LEN
 from .expr_registry import CONSTANTS, FUNCTIONS, expected_args
 
 
@@ -115,46 +115,7 @@ class Parser:
             if name not in FUNCTIONS:
                 raise ParseError(f"Unknown symbol '{name}'", token.pos)
 
-            self.expect("(")
-            args = []
-
-            if not (
-                self.peek().kind == "op"
-                and self.peek().value == ")"
-            ):
-                args.append(self.expression())
-
-                while self.accept(","):
-                    args.append(self.expression())
-
-            self.expect(")")
-
-            # Reject empty function calls such as sin().
-            if not args:
-                raise ParseError(
-                    f"Function '{name}' requires at least one argument",
-                    token.pos,
-                )
-
-            if name in expected_args:
-                expected = expected_args[name]
-
-                if isinstance(expected, int):
-                    valid_count = len(args) == expected
-                else:
-                    minimum, maximum = expected
-                    valid_count = (
-                        len(args) >= minimum
-                        and (maximum is None or len(args) <= maximum)
-                    )
-
-                if not valid_count:
-                    raise ParseError(
-                        f"Invalid number of arguments for '{name}'",
-                        token.pos,
-                    )
-
-            return ("call", name, tuple(args))
+            return self._function_call(token)
 
         if token.kind == "eof":
             raise ParseError("Expression ends unexpectedly", token.pos)
@@ -162,6 +123,49 @@ class Parser:
         raise ParseError(
             f"Unexpected token '{token.value}'", token.pos
         )
+
+    def _function_call(self, token):
+        name = token.value
+        self.expect("(")
+        args = []
+
+        if not (
+            self.peek().kind == "op"
+            and self.peek().value == ")"
+        ):
+            args.append(self.expression())
+
+            while self.accept(","):
+                args.append(self.expression())
+
+        self.expect(")")
+
+        # Reject empty function calls such as sin().
+        if not args:
+            raise ParseError(
+                f"Function '{name}' requires at least one argument",
+                token.pos,
+            )
+
+        if name in expected_args:
+            expected = expected_args[name]
+
+            if isinstance(expected, int):
+                valid_count = len(args) == expected
+            else:
+                minimum, maximum = expected
+                valid_count = (
+                    len(args) >= minimum
+                    and (maximum is None or len(args) <= maximum)
+                )
+
+            if not valid_count:
+                raise ParseError(
+                    f"Invalid number of arguments for '{name}'",
+                    token.pos,
+                )
+
+        return ("call", name, tuple(args))
 
 
 def parse_expression(text):

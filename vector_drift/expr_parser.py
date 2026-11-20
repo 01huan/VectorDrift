@@ -19,7 +19,7 @@ The implementation is split into small modules:
 * ``expr_grammar``   -- recursive-descent parser
 * ``expr_evaluator`` -- node evaluation + the Expression value object
 * ``expr_analysis``  -- diagnostics + singularity analysis
-* ``expr_limits`` / ``expr_errors`` -- shared limits and exceptions
+* ``config`` / ``expr_errors`` -- shared limits and exceptions
 
 This module keeps the historical public import path and re-exports every
 name callers used before the split.
@@ -45,7 +45,7 @@ from .expr_lexer import (
     starts_atom,
     tokenize,
 )
-from .expr_limits import MAX_ABS_RESULT, MAX_NUMBER_DIGITS, MAX_TEXT_LEN
+from .config import MAX_EXPR_RESULT as MAX_ABS_RESULT, MAX_NUMBER_DIGITS, MAX_EXPR_TEXT_LEN as MAX_TEXT_LEN
 from .expr_registry import (
     CONSTANTS,
     FUNCTIONS,

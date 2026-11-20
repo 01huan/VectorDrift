@@ -9,11 +9,13 @@ import re
 from dataclasses import dataclass
 
 from .expr_errors import ParseError
-from .expr_limits import MAX_ABS_RESULT, MAX_NUMBER_DIGITS
+from .config import MAX_EXPR_RESULT as MAX_ABS_RESULT, MAX_NUMBER_DIGITS
 from .expr_registry import FUNCTIONS
 
 _NUMBER_RE = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)")
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
+
+_ATOM_WORDS = frozenset({"x", "y", "pi", "e"})
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,7 @@ def ends_atom(token):
     if token.kind == "op" and token.value == ")":
         return True
     if token.kind == "ident":
-        return token.value in {"x", "y", "pi", "e"}
+        return token.value in _ATOM_WORDS
     return False
 
 
@@ -58,10 +60,41 @@ def starts_atom(token):
         return True
     if token.kind == "ident":
         return (
-            token.value in {"x", "y", "pi", "e"}
+            token.value in _ATOM_WORDS
             or token.value in FUNCTIONS
         )
     return False
+
+
+def _read_number(text, i):
+    """Read the number at ``text[i:]``; return (Token, end_pos)."""
+    n = len(text)
+    match = _NUMBER_RE.match(text, i)
+    if not match:
+        raise ParseError("Invalid number", i)
+
+    end = match.end()
+    if end < n and text[end] == ".":
+        raise ParseError("Invalid number (two decimal points)", i)
+
+    raw = match.group()
+    if _significant_digits(raw) > MAX_NUMBER_DIGITS:
+        raise ParseError("Number too large", i)
+    try:
+        value = float(raw)
+    except (ValueError, OverflowError) as exc:
+        raise ParseError("Number too large", i) from exc
+    if not math.isfinite(value) or abs(value) > MAX_ABS_RESULT:
+        raise ParseError("Number too large", i)
+    return Token("num", value, i), end
+
+
+def _read_ident(text, i):
+    """Read the identifier at ``text[i:]``; return (Token, end_pos)."""
+    match = _IDENT_RE.match(text, i)
+    if not match:
+        raise ParseError(f"Unexpected character '{text[i]}'", i)
+    return Token("ident", match.group().lower(), i), match.end()
 
 
 def tokenize(text):
@@ -77,34 +110,13 @@ def tokenize(text):
             continue
 
         if ch.isdigit() or ch == ".":
-            match = _NUMBER_RE.match(text, i)
-            if not match:
-                raise ParseError("Invalid number", i)
-
-            end = match.end()
-            if end < n and text[end] == ".":
-                raise ParseError("Invalid number (two decimal points)", i)
-
-            raw = match.group()
-            if _significant_digits(raw) > MAX_NUMBER_DIGITS:
-                raise ParseError("Number too large", i)
-            try:
-                value = float(raw)
-            except (ValueError, OverflowError) as exc:
-                raise ParseError("Number too large", i) from exc
-            if not math.isfinite(value) or abs(value) > MAX_ABS_RESULT:
-                raise ParseError("Number too large", i)
-            tokens.append(Token("num", value, i))
-            i = end
+            token, i = _read_number(text, i)
+            tokens.append(token)
             continue
 
         if ch.isalpha() or ch == "_":
-            match = _IDENT_RE.match(text, i)
-            if not match:
-                raise ParseError(f"Unexpected character '{ch}'", i)
-            word = match.group()
-            tokens.append(Token("ident", word.lower(), i))
-            i = match.end()
+            token, i = _read_ident(text, i)
+            tokens.append(token)
             continue
 
         if ch == "*" and i + 1 < n and text[i + 1] == "*":
