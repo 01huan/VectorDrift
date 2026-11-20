@@ -135,8 +135,8 @@ class GamePickupMixin:
                     log.debug("life sfx skipped", exc_info=True)
             elif event.get("kind") == "money":
                 # Each coin pays once: once ever on a fixed level, once per
-                # map on a random level, once per day on the daily map.  After a reveal coins pay nothing
-                # and stay collectable for a later run.
+                # map on a random level, once per day on the daily map. Seeing an
+                # answer (Hint, AI Solver, daily Answer) changes nothing: coins still pay.
                 key = self._coin_key(event.get("center"))
                 if is_custom_map(self.level.id, self.session):
                     # Custom/community maps pay no coins (by design): the
