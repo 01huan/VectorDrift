@@ -347,3 +347,105 @@ def test_the_month_title_and_weekdays_are_drawn(today, monkeypatch):
     assert "November 2026" in texts
     assert [t for t in texts if t in ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")] == \
         ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+# --- switching months (task 27) ----------------------------------------------------------------
+
+def test_shift_month_crosses_years():
+    from vector_drift.scenes.daily_page import shift_month
+    assert shift_month((2026, 11), 1) == (2026, 12)
+    assert shift_month((2026, 12), 1) == (2027, 1)
+    assert shift_month((2026, 1), -1) == (2025, 12)
+
+
+def test_month_range_runs_from_the_first_record_to_today():
+    from vector_drift.scenes.daily_page import month_range
+    records = {"2026-09-14": {}, "2026-11-02": {}}
+    assert month_range({}, DAY) == ((2026, 11), (2026, 11))
+    assert month_range(records, DAY) == ((2026, 9), (2026, 11))
+    assert month_range({"2025-12-31": {}}, DAY) == ((2025, 12), (2026, 11))
+    assert month_range({"2027-01-01": {}}, DAY) == ((2026, 11), (2026, 11))
+
+
+def test_without_records_neither_arrow_works(today):
+    page = _page()
+    assert not page.prev_arrow.enabled and not page.next_arrow.enabled
+    _click(page, page.prev_arrow.rect)
+    _key(page, pygame.K_LEFT)
+    _click(page, page.next_arrow.rect)
+    assert page.month == (2026, 11)
+    _draw(page)
+
+
+def test_the_arrows_walk_back_to_the_first_record_and_stop(today, monkeypatch):
+    mgr = _manager()
+    _record(mgr, date(2026, 9, 14), cleared=True)
+    page = _page(mgr)
+
+    assert page.month == (2026, 11)
+    assert page.prev_arrow.enabled and not page.next_arrow.enabled
+    _click(page, page.prev_arrow.rect)
+    assert page.month == (2026, 10)
+    assert page.prev_arrow.enabled and page.next_arrow.enabled
+    _click(page, page.prev_arrow.rect)
+    assert page.month == (2026, 9)
+    assert not page.prev_arrow.enabled
+    _click(page, page.prev_arrow.rect)                  # at the end: nothing happens
+    assert page.month == (2026, 9)
+
+    assert page.marks(date(2026, 9, 14)).state == "cleared"
+    assert "September 2026" in _texts(page, monkeypatch)
+    assert [d.day for d, _r in page.day_cells()] == list(range(1, 31))
+
+    _click(page, page.next_arrow.rect)
+    assert page.month == (2026, 10)
+
+
+def test_arrow_keys_switch_months(today):
+    mgr = _manager()
+    _record(mgr, date(2026, 10, 1))
+    page = _page(mgr)
+    _key(page, pygame.K_LEFT)
+    assert page.month == (2026, 10)
+    _key(page, pygame.K_RIGHT)
+    assert page.month == (2026, 11)
+    _key(page, pygame.K_RIGHT)
+    assert page.month == (2026, 11)
+
+
+def test_the_page_always_opens_on_today_s_month(today):
+    mgr = _manager()
+    _record(mgr, date(2026, 9, 1))
+    page = _page(mgr)
+    _key(page, pygame.K_LEFT)
+    _key(page, pygame.K_LEFT)
+    assert _page(mgr).month == (2026, 11)
+
+
+def test_a_new_month_at_midnight_opens_the_next_arrow(today):
+    today.set(date(2026, 11, 30))
+    page = _page()
+    assert not page.next_arrow.enabled
+    today.set(date(2026, 12, 1))
+    _draw(page)
+    assert page.month == (2026, 11)                     # the shown month stays
+    assert page.next_arrow.enabled
+    _click(page, page.next_arrow.rect)
+    assert page.month == (2026, 12)
+
+
+def test_disabled_arrows_take_no_hover(today):
+    page = _page()
+    page.handle_event(pygame.event.Event(pygame.MOUSEMOTION, pos=page.prev_arrow.rect.center,
+                                         rel=(0, 0), buttons=(0, 0, 0)))
+    assert not page.prev_arrow.hover
+
+
+def test_the_arrows_sit_beside_the_month_title_clear_of_the_days(today):
+    from vector_drift.scenes.daily_page import calendar_card_rect
+    page = _page()
+    card = calendar_card_rect()
+    for arrow in (page.prev_arrow, page.next_arrow):
+        assert card.contains(arrow.rect)
+        assert not any(arrow.rect.colliderect(r) for _d, r in page.day_cells())
+    assert page.prev_arrow.rect.right < page.next_arrow.rect.left

@@ -7,11 +7,14 @@ Replay inside the game keep that day (session.daily_day).
 The calendar shows one month, Sunday first. Each day is marked from its
 record (daily_records.py): cleared (a check), cleared after paying for the
 answer (an "A" badge as well), played but not cleared (a cross), not played,
-or still to come (dimmed). Today has an outline.
+or still to come (dimmed). Today has an outline. The "<" / ">" arrows (or
+the arrow keys) switch months, from the earliest month with a record up to
+today's; the page always opens on today's month.
 """
 
 import calendar
 from collections import namedtuple
+from datetime import date
 
 import pygame
 
@@ -20,6 +23,7 @@ from ..config import px
 from ..image_assets import COIN_BALANCE
 from ..ui import Button, draw_coins, draw_text, icon_surface
 from .base import Scene
+from .levels import PageArrow
 from .xp_ui import draw_level_row
 
 # Layout in logical pixels (1280 x 720).
@@ -46,6 +50,8 @@ CELL_FILL = (22, 30, 54)                    # a past day not played
 CLEARED_FILL = (28, 78, 58)
 FAILED_FILL = (78, 34, 44)
 BADGE_R = 8
+MONTH_ARROW_HIT = 44                        # the "<" / ">" click area beside the month title
+MONTH_ARROW_INSET = 14                      # its center, in from the grid's edge
 
 FIRST_WEEKDAY = calendar.SUNDAY
 WEEKDAY_SHORT = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -84,10 +90,43 @@ def month_weeks(year, month):
     return calendar.Calendar(firstweekday=FIRST_WEEKDAY).monthdatescalendar(year, month)
 
 
+def shift_month(month, step):
+    """(year, month) ``step`` months after ``month`` (before, for a negative step)."""
+    year, m = month
+    index = year * 12 + (m - 1) + step
+    return index // 12, index % 12 + 1
+
+
+def month_range(records, today):
+    """(first, last) months the calendar can show.
+
+    The last is today's month; the first is the earliest month with a record,
+    or today's month when that is earlier or there are no records.
+    """
+    last = (today.year, today.month)
+    days = [date.fromisoformat(key) for key in records]     # keys are ISO days (daily_records)
+    first = min([(d.year, d.month) for d in days] + [last])
+    return first, last
+
+
 def calendar_card_rect():
     """The calendar card: month title, weekdays and room for six weeks."""
     return pygame.Rect(px(CAL_X - CARD_PAD), px(CAL_Y - 4), px(GRID_W + 2 * CARD_PAD),
                        px(GRID_Y - CAL_Y + 4 + GRID_H + CARD_PAD))
+
+
+class MonthArrow(PageArrow):
+    """The level select's page arrow, smaller: switches the calendar's month."""
+
+    glyph_size = (12, 24)
+    stroke = 4
+
+
+def _month_arrow(direction):
+    rect = pygame.Rect(0, 0, px(MONTH_ARROW_HIT), px(MONTH_ARROW_HIT))
+    x = CAL_X + MONTH_ARROW_INSET if direction < 0 else CAL_X + GRID_W - MONTH_ARROW_INSET
+    rect.center = (px(x), px(MONTH_Y))
+    return MonthArrow(direction, rect)
 
 
 class DailyScene(Scene):
@@ -102,7 +141,10 @@ class DailyScene(Scene):
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Back",
                                   style="plain", font_size=17)
         today = self.today()
-        self.month = (today.year, today.month)      # the month on the calendar
+        self.month = (today.year, today.month)      # the month on the calendar: always today's at first
+        self.prev_arrow = _month_arrow(-1)
+        self.next_arrow = _month_arrow(1)
+        self._refresh_arrows()
 
     @staticmethod
     def today():
@@ -124,6 +166,26 @@ class DailyScene(Scene):
     def marks(self, day):
         return day_marks(daily_records.get_record(self.session, day), day, self.today())
 
+    def _refresh_arrows(self):
+        """An arrow works only while there is a month that way (the range follows midnight)."""
+        first, last = month_range(self.session.daily_records, self.today())
+        self.prev_arrow.enabled = self.month > first
+        self.next_arrow.enabled = self.month < last
+        for arrow in (self.prev_arrow, self.next_arrow):
+            if not arrow.enabled:
+                arrow.hover = False
+
+    def turn_month(self, step):
+        """Show the month ``step`` (-1 / +1) away, if that arrow works."""
+        self._refresh_arrows()
+        arrow = self.prev_arrow if step < 0 else self.next_arrow
+        if not arrow.enabled:
+            return False
+        self.audio.play("click")
+        self.month = shift_month(self.month, step)
+        self._refresh_arrows()
+        return True
+
     # ------------------------------------------------------------------ actions
     def _play(self):
         """Today's map: the day is decided now, on Play."""
@@ -143,7 +205,18 @@ class DailyScene(Scene):
                 self._back()
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 self._play()
+            elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                self.turn_month(-1 if event.key == pygame.K_LEFT else 1)
             return
+        if event.type == pygame.MOUSEMOTION:
+            self._refresh_arrows()
+            for arrow in (self.prev_arrow, self.next_arrow):
+                arrow.update_hover(event.pos)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for arrow in (self.prev_arrow, self.next_arrow):
+                if arrow.rect.collidepoint(event.pos):
+                    self.turn_month(arrow.direction)    # a disabled arrow does nothing
+                    return
         if self.play_button.handle_event(event) == "click":
             self._play()
             return
@@ -175,6 +248,9 @@ class DailyScene(Scene):
         for col, name in enumerate(WEEKDAY_SHORT):
             draw_text(surface, name, (px(CAL_X + col * (CELL_W + CELL_GAP) + CELL_W // 2), px(WEEKDAY_Y)),
                       13, config.TEXT_DIM, kind="bold", anchor="center")
+        self._refresh_arrows()
+        self.prev_arrow.draw(surface)
+        self.next_arrow.draw(surface)
         for day, rect in self.day_cells():
             draw_day(surface, rect, str(day.day), self.marks(day))
 

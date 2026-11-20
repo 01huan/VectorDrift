@@ -89,6 +89,9 @@ class PageArrow:
     Disabled (no page that way): drawn faint, no hover, clicks do nothing.
     """
 
+    glyph_size = (ARROW_W, ARROW_H)    # the chevron, logical px
+    stroke = ARROW_STROKE
+
     def __init__(self, direction, rect):
         self.direction = direction      # -1: "<" previous page, +1: ">" next page
         self.rect = rect
@@ -99,7 +102,7 @@ class PageArrow:
         self.hover = self.enabled and self.rect.collidepoint(pos)
 
     def glyph_rect(self):
-        glyph = pygame.Rect(0, 0, px(ARROW_W), px(ARROW_H))
+        glyph = pygame.Rect(0, 0, px(self.glyph_size[0]), px(self.glyph_size[1]))
         glyph.center = self.rect.center
         return glyph
 
@@ -109,7 +112,7 @@ class PageArrow:
     def draw(self, surface, k=3):
         """Supersampled chevron (like render.draw_smooth_arrow), then scaled down."""
         glyph = self.glyph_rect()
-        stroke = max(2, px(ARROW_STROKE))
+        stroke = max(2, px(self.stroke))
         pad = stroke
         w, h = glyph.w + 2 * pad, glyph.h + 2 * pad
         big = pygame.Surface((w * k, h * k), pygame.SRCALPHA)
