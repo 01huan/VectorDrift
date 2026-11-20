@@ -61,3 +61,36 @@ def test_readme_documents_the_daily_challenge():
     assert "Clear reward already collected today" in daily
     coins = text.split("## Coins", 1)[1].split("\n## ", 1)[0]
     assert "Daily Challenge" in coins
+
+
+def _section(text, heading):
+    text = text.replace("\r\n", "\n")
+    assert f"\n## {heading}" in text
+    return text.split(f"## {heading}", 1)[1].split("\n## ", 1)[0]
+
+
+def test_readme_documents_experience_and_levels():
+    from vector_drift import config
+    text = README.read_text(encoding="utf-8")
+    xp = _section(text, "Experience and Levels")
+    for name in ("XP_FIXED_LEVEL_BASE", "XP_RANDOM_MAP", "XP_DAILY", "XP_DAILY_STREAK_STEP",
+                 "XP_DAILY_STREAK_CAP", "XP_ACHIEVEMENT_TIERS", "XP_ACHIEVEMENT_SINGLE",
+                 "XP_LEVEL_FIRST", "XP_LEVEL_STEP", "LEVEL_UP_COINS", "LEVEL_MILESTONE_EVERY",
+                 "LEVEL_MILESTONE_COINS"):
+        assert f"`{name}`" in xp
+    assert "max(1, base // k)" in xp
+    assert f"{config.XP_RANDOM_MAP} XP" in xp
+    assert "300, 330, 360, 390, then 420" in xp
+    assert "custom or community map gives no XP" in xp
+    assert "Older saves" in xp and "running it again gives nothing more" in xp
+    assert "LEVEL UP" in xp
+
+
+def test_readme_coins_list_level_ups_and_the_random_card_counts_maps():
+    from vector_drift import config
+    text = README.read_text(encoding="utf-8")
+    coins = _section(text, "Coins")
+    assert "**Level ups:**" in coins
+    assert f"pays {config.LEVEL_UP_COINS} coins" in coins
+    assert "**Maps cleared N**" in text
+    assert "instead of a best time" in text

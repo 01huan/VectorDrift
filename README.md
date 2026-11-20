@@ -26,7 +26,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Custom level editor** — create, edit, save, and play your own layouts.
 - **Community levels and functions** — browse, search and sort public content (fuzzy search by name and uploader; click the dropdown to pick a sort), favorite and rate it (five stars on the card), and publish or delete your own uploads through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
-- **Progression and persistence** — earn coins, buy ship skins, keep best times, and save progress locally or to an optional online account.
+- **Progression and persistence** — earn coins and [experience points](#experience-and-levels) that raise your player level, buy abilities, keep best times, and save progress locally or to an optional online account.
 - **Music and art** — music, sound effects, and replaceable image/audio assets.
 
 ## Current game content
@@ -62,7 +62,7 @@ A campaign level's number is its id. The random level's id is fixed at **999** (
 
 ### Random level generation
 
-The random level (Level 12) is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering the random level as a new run generates a new seed and layout.
+The random level (Level 12) is generated when it is entered from the level selector. The generator picks one to three complete module presets, builds one layout per preset with the usual single-layout flow, validates every layout (see [Procedural Level Validator](#procedural-level-validator)) and retries with a fresh seed if the validation finds a hard error. The layouts are then merged into one multi-screen level: every screen but the last ends on a checkpoint, so the ship flies on to the next screen instead of winning, and only the last screen's target is the planet. The lives are shared by the whole run. Every map is identified by a seed. Retrying the same run or replaying it uses the same layout; entering the random level as a new run generates a new seed and layout. Because every visit is a new map, the random level's card on the level selector shows how many maps have been cleared (**Maps cleared N**, saved with progress) instead of a best time.
 
 The modules:
 
@@ -227,8 +227,28 @@ Coins are the game's progression currency. They are shown in the level selector,
 - **AI Solver:** background solving is free. **Reveal** (10 coins) unlocks the formulas for the current level/map during that game launch; a new random map needs a new reveal.
 - **Solution-assisted runs:** the price of a full answer (10 coins for a paid Hint answer page or an AI Solver **Reveal**; nothing on the free answer levels) is the only cost. Coins already collected in the run are kept, coin pickups collected after seeing the answer pay as usual, the clear reward is still paid, and the clear still sets a best time.
 - **Custom levels:** custom/community levels can contain money pickups, but playing them does not add those pickups to the player's coin balance and does not pay the campaign/random clear reward.
+- **Level ups:** every player level reached pays 5 coins, and every fifth level pays 10 more (see [Experience and Levels](#experience-and-levels)).
 
 The relevant constants are in `vector_drift/config.py`: `HINT_ANSWER_COST`, `AI_SOLVER_COST`, `FREE_ANSWER_LEVELS`, and `CLEAR_REWARD`. The daily map uses the same `CLEAR_REWARD`.
+
+## Experience and Levels
+
+Clears and achievements give **experience points (XP)**. XP raises the player's **level**, and every level reached pays coins. The level and the progress toward the next one are shown under the coin balance on the level selector and the Daily Challenge page. The Mission Complete screen shows **XP earned** (the clear's own XP plus the XP of any achievement it unlocked) and fills the level bar; reaching a new level pops up **LEVEL UP** with the coins it paid.
+
+Where XP comes from:
+
+- **Fixed levels:** the first clear of a campaign level gives its own amount, from 100 XP for Level 1 rising by 20 per level (Level 11: 300 XP). The clear count of each level is saved.
+- **Random level:** the first clear of each generated map gives 150 XP. These counts last for the current game launch, like a map's clear reward.
+- **Daily Challenge:** the first clear of a day gives 300 XP plus a streak bonus of 30 XP for every further day in the streak, counted up to 5 days: 300, 330, 360, 390, then 420 for a streak of 5 days or more. The streak counts the days cleared in a row, that day included (see [Daily Challenge](#daily-challenge)). Later clears of the same day decay like any replay (150, 100, 75, …) with no bonus. The count is saved in the day's record, so restarting the game does not make the next clear a first clear again.
+- **Achievements:** each unlock pays once: 10, 20, 30 and 40 XP for tiers I–IV of a tiered achievement, 40 XP for a single achievement (hidden ones too).
+
+**Replays decay:** the k-th clear of the same source gives `max(1, base // k)` XP, for example 260, 130, 86, 65, … for a 260 XP level; it never drops below 1. Seeing an answer (Hint, AI Solver or the daily answer) never reduces the XP of a clear. Clearing a custom or community map gives no XP (an achievement it unlocks still gives its own), and the tutorial gives none.
+
+**Levels:** going from level L to L + 1 needs `100 + 50 × (L − 1)` XP: 100 to reach Level 2, 150 more for Level 3, 200 more for Level 4, and so on. Every level reached pays 5 coins, and every fifth level (5, 10, 15, …) pays 10 coins more. The highest level paid is saved, so no level pays twice.
+
+**Older saves:** when a save is loaded, and in a regular check while the game runs, progress from before XP existed gets its XP once. Each fixed level with a best time but no counted clear gets its first-clear XP, each cleared Daily Challenge day that never gave XP gets 300 XP (no streak bonus), and each unlocked achievement not paid yet gets its XP; then the coins of every level reached are paid. Random maps are not backfilled (nobody knows how many there were). This pops nothing up and does not touch the Mission Complete screen, and running it again gives nothing more.
+
+The constants are in `vector_drift/config.py`: `XP_FIXED_LEVEL_BASE`, `XP_RANDOM_MAP`, `XP_DAILY`, `XP_DAILY_STREAK_STEP`, `XP_DAILY_STREAK_CAP`, `XP_ACHIEVEMENT_TIERS`, `XP_ACHIEVEMENT_SINGLE`, `XP_LEVEL_FIRST`, `XP_LEVEL_STEP`, `LEVEL_UP_COINS`, `LEVEL_MILESTONE_EVERY` and `LEVEL_MILESTONE_COINS`. The formulas are in `vector_drift/xp.py`; `vector_drift/progression.py` applies them to the player's progress.
 
 ## Ships and Shop
 
@@ -618,7 +638,7 @@ Use only the project's public anon/publishable client key in this desktop client
 
 Guest progress is saved locally under `~/.vector_drift/guest_profile.json`. The local account session (refresh token, not the password) is stored separately under `~/.vector_drift/account_session.json` when signed in.
 
-The player profile can include coin balance, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, the [Daily Challenge](#daily-challenge) records, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
+The player profile can include coin balance, experience points and the player level reached, owned ships, purchased items, best-time records, the latest ten replays, collected fixed-level money pickups, clear-reward progress, custom levels, the [Function Lab](#function-lab) library, the [Daily Challenge](#daily-challenge) records, whether the opening story has been seen, and other stats. The local player id used by the [community level statistics](#community-level-statistics) is saved with them. With Supabase configured and a user signed in, the profile is synchronized through the `profiles` table. Local guest progress and cloud progress are reconciled using their update timestamps.
 
 The SQL schema enables Row Level Security. A player can read/insert/update their own profile; community content is publicly readable, authenticated users can publish, and only the uploader can update or delete their own content. Usage, favorite and rating counters are maintained by security-definer database functions and triggers, and the client-submitted columns are restricted with column-level privileges, so ownership and statistics can never be written by the client. The game code also checks ownership before showing edit and delete actions.
 
