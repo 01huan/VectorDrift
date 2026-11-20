@@ -14,7 +14,7 @@ from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
                     is_custom_map, level_holes, section_count, section_level, section_shift,
                     ship_unlocked)
 from ..expr_parser import diagnose_expression
-from .. import achievements, progression
+from .. import achievements, progression, xp
 from ..hints import get_hint
 from ..daily_level import is_daily_level
 from ..level_presets import is_dynamic_level
@@ -325,11 +325,14 @@ class GameFlightMixin:
 
         The daily map writes its day's record instead of session.records.
         ``_xp_gained`` is all the XP this clear brought: the clear's own and
-        that of the achievements it unlocked.
+        that of the achievements it unlocked; ``_level_up`` the levels all of
+        it reached (their coins are paid as each one is reached).
         """
         xp_before = self.session.xp_total
+        paid_before = self.session.xp_rewarded_level
         self._pay_clear_reward()
         progression.clear_xp(self.session, self.level.id, self._level_kind())
+        progression.pay_level_ups(self.session)
         self._record_community_stat("clear")
         self._record_function_usage(True)
         if is_daily_level(self.level.id):
@@ -346,6 +349,10 @@ class GameFlightMixin:
         save_progress(self.manager.account, self.session)
         self._report_clear()
         self._xp_gained = self.session.xp_total - xp_before
+        paid_now = self.session.xp_rewarded_level
+        self._level_up = (progression.LevelUp(paid_before, paid_now,
+                                              xp.coins_for_levels(paid_before, paid_now))
+                          if paid_now > paid_before else None)
 
     def _store_replay(self, outcome):
         """Keep this launch in the session's replays."""

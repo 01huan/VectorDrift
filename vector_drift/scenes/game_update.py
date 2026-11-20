@@ -183,6 +183,8 @@ class GameUpdateMixin:
                                      + self._clear_reward),
                     "xp_gained": self._xp_gained,
                 }
+                if self._level_up is not None:
+                    self.session.stats["level_up"] = self._level_up.as_stats()
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
 

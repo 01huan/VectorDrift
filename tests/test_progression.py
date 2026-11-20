@@ -162,3 +162,55 @@ def test_clear_xp_is_saved_with_the_clear(monkeypatch):
         (session.xp_total, dict(session.fixed_clear_counts))))
     _win(_scene(1))
     assert (100, {1: 1}) in saved
+
+
+# --- task 9: level-up coins -------------------------------------------------------------
+def _xp_at_level(level):
+    """The total XP that just reaches ``level``."""
+    from vector_drift.xp import xp_to_next
+    return sum(xp_to_next(n) for n in range(1, level))
+
+
+def test_reaching_level_five_pays_fifteen_coins_once():
+    session = Session()
+    session.xp_total, session.xp_rewarded_level = _xp_at_level(4), 4
+    session.xp_total = _xp_at_level(5)
+    level_up = progression.pay_level_ups(session)
+    assert level_up == progression.LevelUp(4, 5, 15)
+    assert int(session.money) == 15
+    assert session.xp_rewarded_level == 5
+
+    assert progression.pay_level_ups(session) is None       # nothing new: nothing paid
+    assert int(session.money) == 15
+
+
+def test_jumping_from_level_one_to_nine_pays_every_level_between():
+    session = Session()
+    session.xp_total = _xp_at_level(9)
+    assert progression.pay_level_ups(session) == progression.LevelUp(1, 9, 50)
+    assert int(session.money) == 50
+    assert session.xp_rewarded_level == 9
+
+
+def test_no_level_up_pays_nothing():
+    session = Session()
+    session.xp_total = 99
+    assert progression.pay_level_ups(session) is None
+    assert int(session.money) == 0 and session.xp_rewarded_level == 1
+
+
+def test_level_up_reads_as_win_stats():
+    assert progression.LevelUp(4, 5, 15).as_stats() == {"from": 4, "to": 5, "coins": 15}
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_a_clear_that_levels_up_pays_and_shows_it():
+    manager = _manager()
+    stats = _win(_scene(1, manager))                    # 100 XP: Lv 1 -> Lv 2
+    assert stats["level_up"] == {"from": 1, "to": 2, "coins": 5}
+    assert int(manager.session.money) == config.CLEAR_REWARD + 5
+    assert manager.session.xp_rewarded_level == 2
+
+    stats = _win(_scene(1, manager))                    # 150 XP: still Lv 2
+    assert "level_up" not in stats
+    assert int(manager.session.money) == config.CLEAR_REWARD + 5

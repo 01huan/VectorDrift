@@ -6,7 +6,21 @@ keys, the highest level whose coins were paid), so running the same code again
 pays nothing twice.
 """
 
+from dataclasses import dataclass
+
 from . import config, xp
+
+
+@dataclass(frozen=True)
+class LevelUp:
+    """Levels reached at once and the coins they paid."""
+    from_level: int     # the highest level paid before
+    to_level: int       # the level reached now
+    coins: int          # coins paid for every level in between
+
+    def as_stats(self):
+        """The form the win stats keep (session.stats["level_up"])."""
+        return {"from": self.from_level, "to": self.to_level, "coins": self.coins}
 
 
 def add_xp(session, amount: int) -> int:
@@ -49,3 +63,19 @@ def clear_xp(session, level_id: int, kind: str) -> int:
     if kind == "campaign":
         return fixed_level_clear_xp(session, level_id)
     return 0
+
+
+def pay_level_ups(session):
+    """Pay the coins of every level reached but not paid yet.
+
+    Returns a LevelUp, or None when the current level was already paid.
+    Safe to call any number of times: xp_rewarded_level remembers the payout.
+    """
+    level = xp.level_progress(int(getattr(session, "xp_total", 0) or 0)).level
+    paid = int(getattr(session, "xp_rewarded_level", 1) or 1)
+    if level <= paid:
+        return None
+    coins = xp.coins_for_levels(paid, level)
+    session.money.add(coins)
+    session.xp_rewarded_level = level
+    return LevelUp(paid, level, coins)

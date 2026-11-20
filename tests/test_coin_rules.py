@@ -29,6 +29,14 @@ def no_solver(monkeypatch):
         running=True, cancel=lambda: None, stop=lambda *a: True, error=None, result=None))
 
 
+@pytest.fixture(autouse=True)
+def no_level_up_coins(monkeypatch):
+    """These tests count the clear reward and pickups; level-up coins are
+    tested in test_progression.py (a first clear of level 1 reaches Lv 2)."""
+    from vector_drift import progression
+    monkeypatch.setattr(progression, "pay_level_ups", lambda session: None)
+
+
 def _manager():
     audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
                             stop_loop=lambda *a, **k: None)

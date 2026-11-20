@@ -176,6 +176,7 @@ class GameCoreMixin:
         self._run_coins = []            # (coin key, amount) paid out this run, before any reveal
         self._clear_reward = 0          # coins the clear paid (shown on Mission Complete)
         self._xp_gained = 0             # XP the clear brought (shown on Mission Complete)
+        self._level_up = None           # progression.LevelUp the clear reached, if any
 
         # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
