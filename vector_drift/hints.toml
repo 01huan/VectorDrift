@@ -186,3 +186,25 @@ answer_note = "The section 1 arch with an x spring twice as strong:"
 answers = [
   { fx = "-0.5x", fy = "6 - y" },
 ]
+
+[level.12.section.1]
+steps = [
+  "The checkpoint is far down on the right, but a row of rocks runs under you from the left edge. Fly flat to the right along y = 5.5 first, past the end of the row, and only then turn down.",
+  "That is two different fields: left of x = 0 a push to the right with no up or down force, right of x = 0 a push down. abs(x) can switch between them: x + abs(x) is 0 when x < 0 and 2x when x > 0, so it only turns on right of x = 0. -x + abs(x) is the other way round: -2x on the left, 0 on the right.",
+  "Fx = -x + abs(x) is a spring toward x = 0 that only works on the left. It flings the ship right along y = 5.5, and it crosses x = 0 at about 9.9 m/s. Past x = 0 there is no sideways force, so the ship keeps that speed.",
+  "Fy = -c(x + abs(x)) pushes down only right of x = 0, harder the further right, so the path bends down. c = 10 brings the ship down onto the checkpoint; anything from about 8 to 14 works.",
+]
+answer_note = "A switch at x = 0: a spring on the left, a push down on the right:"
+answers = [
+  { fx = "-x + abs(x)", fy = "-10(x + abs(x))" },
+]
+
+[level.12.section.2]
+steps = [
+  "Same start, but the row of rocks now runs on to x = 6.4 and the planet sits just past its end. Your switch at x = 0 turns down too early and hits the row.",
+  "Move the switch: (x - 3) + abs(x - 3) is 0 left of x = 3 and 2(x - 3) right of it. Write x - 3 for every x in your formula and the whole field slides 3 m to the right, so the ship flies flat until x = 3 before it turns down.",
+]
+answer_note = "The section 1 formula with the switch moved to x = 3:"
+answers = [
+  { fx = "-(x - 3) + abs(x - 3)", fy = "-10((x - 3) + abs(x - 3))" },
+]

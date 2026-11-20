@@ -263,7 +263,6 @@ def test_level_twelve_plays_through_its_checkpoint_to_the_win():
     assert scene.section_index == 1
 
 
-@pytest.mark.xfail(reason="level 12 hints pending", strict=True)
 @pytest.mark.usefixtures("pygame_display")
 def test_level_twelve_answer_is_paid_once_for_both_sections():
     import pygame
@@ -299,3 +298,4 @@ def test_level_twelve_answer_is_paid_once_for_both_sections():
     assert popup.on_answer_page and not popup.confirming
     assert popup.hint is scene.hint and scene.hint.section == 2
     assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+
