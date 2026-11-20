@@ -15,7 +15,7 @@ Pure data helpers: no pygame, no scenes.
 """
 
 import math
-from datetime import date
+from datetime import date, timedelta
 
 
 def new_record():
@@ -164,3 +164,42 @@ def record_clear(session, day, lives_used, total_time):
 def record_fail(session, day):
     """A run on ``day``'s map ended without a clear: the day gets a record, nothing more."""
     return get_record(session, day, create=True)
+
+
+# --- streaks ----------------------------------------------------------------------------
+
+def cleared_days(records):
+    """The days (datetime.date) whose record says cleared; answer days included."""
+    days = set()
+    for key, record in records.items():
+        if isinstance(record, dict) and record.get("cleared") is True and _is_day_key(key):
+            days.add(date.fromisoformat(key))
+    return days
+
+
+def current_streak(records, today):
+    """Days cleared in a row up to ``today``.
+
+    Today not cleared yet does not break it: the count then starts yesterday.
+    """
+    days = cleared_days(records)
+    day = today if today in days else today - timedelta(days=1)
+    count = 0
+    while day in days:
+        count += 1
+        day -= timedelta(days=1)
+    return count
+
+
+def longest_streak(records):
+    """The most days cleared in a row anywhere in ``records``."""
+    days = cleared_days(records)
+    best = 0
+    for day in days:
+        if day - timedelta(days=1) in days:
+            continue                    # not the first day of its run
+        length = 1
+        while day + timedelta(days=length) in days:
+            length += 1
+        best = max(best, length)
+    return best

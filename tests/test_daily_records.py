@@ -3,6 +3,8 @@
 import json
 from datetime import date
 
+import pytest
+
 from vector_drift.account.integration import (_apply_profile_stats, apply_profile_to_session,
                                               profiles_equal, reset_session_to_guest,
                                               session_to_profile)
@@ -145,3 +147,51 @@ def test_a_used_answer_survives_a_save_and_load():
     apply_profile_to_session(loaded, _through_json(session_to_profile(saved, "u")), "u")
     assert get_record(loaded, DAY)["answer_used"] is True
     assert loaded.daily_records == saved.daily_records
+
+
+# --- streaks --------------------------------------------------------------------------
+
+
+TODAY = date(2026, 11, 20)
+
+
+def _records(cleared=(), answered=(), failed=()):
+    """Records with the given November days cleared / cleared with the answer / failed."""
+    session = Session()
+    for d in cleared:
+        get_record(session, date(2026, 11, d), create=True)["cleared"] = True
+    for d in answered:
+        get_record(session, date(2026, 11, d), create=True).update(cleared=True, answer_used=True)
+    for d in failed:
+        get_record(session, date(2026, 11, d), create=True)
+    return session.daily_records
+
+
+@pytest.mark.parametrize("records, current, longest", [
+    (_records(), 0, 0),
+    (_records(cleared=[20]), 1, 1),
+    (_records(cleared=[18, 19]), 2, 2),                     # today not cleared yet
+    (_records(cleared=[18, 19, 20]), 3, 3),
+    (_records(cleared=[17, 19, 20]), 2, 2),                 # 11/18 missed
+    (_records(cleared=[1, 2, 3, 4, 5, 19, 20]), 2, 5),
+    (_records(cleared=[20], answered=[19]), 2, 2),          # the answer day still counts
+    (_records(cleared=[20], failed=[19]), 1, 1),            # a fail breaks it
+])
+def test_streaks(records, current, longest):
+    from vector_drift.daily_records import current_streak, longest_streak
+    assert current_streak(records, TODAY) == current
+    assert longest_streak(records) == longest
+
+
+def test_a_streak_runs_across_months():
+    from vector_drift.daily_records import current_streak, longest_streak
+    session = Session()
+    for day in (date(2026, 10, 30), date(2026, 10, 31), date(2026, 11, 1)):
+        get_record(session, day, create=True)["cleared"] = True
+    assert current_streak(session.daily_records, date(2026, 11, 2)) == 3
+    assert longest_streak(session.daily_records) == 3
+
+
+def test_a_streak_that_ended_before_yesterday_is_not_current():
+    from vector_drift.daily_records import current_streak
+    assert current_streak(_records(cleared=[17, 18]), TODAY) == 0
