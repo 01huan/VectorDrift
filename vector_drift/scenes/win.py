@@ -11,6 +11,9 @@ from ..level_presets import is_dynamic_level
 from ..ui import draw_coins, draw_text
 from .base import Scene, draw_overlay_card, result_buttons
 
+CARD_H = 560                    # stats, coins, XP, up to two notes, the XP bar, the buttons
+BUTTONS_UP = 70                 # the buttons' top, this far above the card's bottom edge
+
 
 class WinScene(Scene):
     def __init__(self, manager, background=None):
@@ -18,7 +21,7 @@ class WinScene(Scene):
         self.background = background
         self.replay_button, self.levels_button, self.menu_button = result_buttons("Replay")
         for b in (self.replay_button, self.levels_button, self.menu_button):
-            b.rect.y = config.WINDOW_H // 2 + px(150)
+            b.rect.y = config.WINDOW_H // 2 + px(CARD_H // 2 - BUTTONS_UP)
 
     def handle_event(self, event):
         if self.replay_button.handle_event(event) == "click" or (
@@ -51,6 +54,14 @@ class WinScene(Scene):
             return [(f"Clear reward already collected for this {where}", config.TEXT_DIM)]
         return []
 
+    def _xp_notes(self):
+        """Maps whose clear gives no XP say so (their achievements may still give some)."""
+        if is_custom_map(self.session.level_id, self.session):
+            return [("No XP for clearing custom maps", config.TEXT_DIM)]
+        if is_daily_level(self.session.level_id):
+            return [("No XP for clearing the daily challenge", config.TEXT_DIM)]
+        return []
+
     def draw(self, surface):
         s = self.session.stats
         lines = [
@@ -61,16 +72,17 @@ class WinScene(Scene):
             ("Fx", s.get("fx", "0")),
             ("Fy", s.get("fy", "0")),
             ("Coins earned", ""),                       # amount drawn below, with coin_2
+            ("XP earned", f"+{int(s.get('xp_gained', 0) or 0)}"),   # with this clear's achievements
         ]
         card = draw_overlay_card(surface, self.background, "MISSION COMPLETE", config.SUCCESS, lines,
-                                 card_h=470)
+                                 card_h=CARD_H)
         draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT, icon=COIN_BALANCE)
         # Stat lines start at card.y + 104, 30 apart (draw_overlay_card).
-        coins_y = card.y + px(104) + (len(lines) - 1) * px(30)
+        coins_y = card.y + px(104) + (len(lines) - 2) * px(30)
         draw_coins(surface, f"+{int(s.get('coins_earned', 0))}", (card.right - px(48), coins_y), 17,
                    config.TEXT, kind="mono", anchor="midright")
-        y = coins_y + px(36)
-        for text, color in self._notes(s):
+        y = coins_y + px(30) + px(36)
+        for text, color in self._notes(s) + self._xp_notes():
             draw_text(surface, text, (card.centerx, y), 16, color, kind="bold", anchor="center")
             y += px(26)
         for b in (self.replay_button, self.levels_button, self.menu_button):
