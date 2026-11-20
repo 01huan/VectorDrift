@@ -58,11 +58,14 @@ def random_map_clear_xp(session, level_id: int, seed) -> int:
     """A random map was cleared: count it for this launch and give its XP.
 
     The count is not saved (like clear_rewarded_maps): after a restart the
-    same map counts from 1 again.
+    same map counts from 1 again.  A map's first clear this launch also adds
+    one to the saved random_maps_cleared.
     """
     counts = session.random_map_clears
     key = (level_id, seed)
     counts[key] = int(counts.get(key, 0)) + 1
+    if counts[key] == 1:
+        session.random_maps_cleared = int(getattr(session, "random_maps_cleared", 0) or 0) + 1
     return grant_clear_xp(session, config.XP_RANDOM_MAP, counts[key])
 
 

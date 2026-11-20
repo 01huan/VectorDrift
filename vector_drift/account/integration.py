@@ -65,6 +65,11 @@ FIXED_CLEAR_COUNTS_KEY = "fixed_clear_counts"
 XP_ACHIEVEMENTS_KEY = "xp_achievements"
 XP_REWARDED_LEVEL_KEY = "xp_rewarded_level"
 XP_KEYS = (XP_TOTAL_KEY, FIXED_CLEAR_COUNTS_KEY, XP_ACHIEVEMENTS_KEY, XP_REWARDED_LEVEL_KEY)
+# How many random maps were cleared (Session.random_maps_cleared), saved the
+# same way: applying a save replaces the session's count.  A save without the
+# key (made before the count existed) or with a broken value counts one map if
+# its records hold a random level's best time, else none.
+RANDOM_MAPS_CLEARED_KEY = "random_maps_cleared"
 # Daily challenge records (Session.daily_records), saved the same way. Like
 # the achievements, applying a save replaces the session's with that copy's;
 # a save without the key (made before the daily challenge) has none.
@@ -152,6 +157,25 @@ def _xp_from_stats(stats: dict) -> tuple[int, dict, set, int]:
     return total, counts, achievement_ids, rewarded
 
 
+def _random_maps_cleared_from(stats: dict, records: Any) -> int:
+    """The saved random map count, as the Session holds it.
+
+    A missing or broken count (from a save made before the count existed)
+    becomes 1 when ``records`` holds a random level's best time, else 0.
+    """
+    count = _plain_int(stats.get(RANDOM_MAPS_CLEARED_KEY))
+    if count is not None and count >= 0:
+        return count
+    from vector_drift.level_presets import is_dynamic_level
+    for key in (records or {}):
+        try:
+            if is_dynamic_level(int(key)):
+                return 1
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return 0
+
+
 def _session_class():
     from vector_drift.scenes.base import Session
 
@@ -187,6 +211,10 @@ def _apply_profile_stats(session: Any, stats: dict | None) -> None:
      session.xp_achievements, session.xp_rewarded_level) = _xp_from_stats(stats)
     for key in XP_KEYS:
         stats.pop(key, None)
+    # The callers set session.records before the stats.
+    session.random_maps_cleared = _random_maps_cleared_from(
+        stats, getattr(session, "records", None))
+    stats.pop(RANDOM_MAPS_CLEARED_KEY, None)
     from ..daily_records import records_from_saved
     session.daily_records = records_from_saved(stats.pop(DAILY_RECORDS_KEY, None))
     _restore_custom_levels(session, stats.pop(CUSTOM_LEVELS_KEY, None))
@@ -336,6 +364,8 @@ def profiles_equal(a: Any, b: Any) -> bool:
         stats[FIXED_CLEAR_COUNTS_KEY] = counts
         stats[XP_ACHIEVEMENTS_KEY] = sorted(achievement_ids)
         stats[XP_REWARDED_LEVEL_KEY] = rewarded
+        stats[RANDOM_MAPS_CLEARED_KEY] = _random_maps_cleared_from(
+            stats, getattr(profile, "records", None))
         # Daily records compare as they would load: none saved means none.
         from ..daily_records import records_from_saved
         stats[DAILY_RECORDS_KEY] = records_from_saved(stats.get(DAILY_RECORDS_KEY))
@@ -391,6 +421,7 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
              FIXED_CLEAR_COUNTS_KEY: dict(getattr(session, "fixed_clear_counts", None) or {}),
              XP_ACHIEVEMENTS_KEY: sorted(getattr(session, "xp_achievements", None) or ()),
              XP_REWARDED_LEVEL_KEY: int(getattr(session, "xp_rewarded_level", 1) or 1),
+             RANDOM_MAPS_CLEARED_KEY: int(getattr(session, "random_maps_cleared", 0) or 0),
              DAILY_RECORDS_KEY: records_to_saved(getattr(session, "daily_records", None) or {}),
              CUSTOM_LEVELS_KEY: _custom_levels_to_rows(getattr(session, "custom_levels", ())),
              FUNCTION_LIBRARY_KEY: library_to_rows(getattr(session, "function_library", ())),
@@ -440,6 +471,7 @@ def reset_session_to_guest(session: Any) -> None:
     session.fixed_clear_counts = {}
     session.xp_achievements = set()
     session.xp_rewarded_level = 1
+    session.random_maps_cleared = 0
     session.daily_records = {}
     # Delete player-created (local custom) levels together with the rest of
     # local data, so "Delete local data" removes them from memory and the

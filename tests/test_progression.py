@@ -334,3 +334,45 @@ def test_a_tutorial_demo_screen_clear_gives_no_xp():
     _reach(scene)
     assert scene._xp_gained == 0
     _no_clear_xp(manager)
+
+
+# --- task 18: cleared random maps --------------------------------------------------------
+def test_a_new_session_has_no_cleared_random_maps():
+    assert Session().random_maps_cleared == 0
+
+
+def test_each_random_map_counts_once_per_launch():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    session = Session()
+    progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 123)
+    assert session.random_maps_cleared == 1
+    progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 123)
+    assert session.random_maps_cleared == 1
+    progression.random_map_clear_xp(session, RANDOM_LEVEL_ID, 456)
+    assert session.random_maps_cleared == 2
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_clearing_random_maps_counts_the_maps():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    manager = _manager()
+    for seed in (123, 123, 456):
+        _arrive(_scene(RANDOM_LEVEL_ID, manager, seed=seed))
+    assert manager.session.random_maps_cleared == 2
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_fixed_custom_and_daily_clears_do_not_count_as_random_maps(monkeypatch):
+    from datetime import date
+    from vector_drift import daily_level, data
+    manager = _manager()
+    _arrive(_scene(1, manager))
+    data.register_custom_level(_plain_level(1000))
+    manager.session.custom_level_ids.add(1000)
+    manager.session.level_source = "custom"
+    _arrive(_scene(1000, manager))
+    day = date(2026, 11, 19)
+    monkeypatch.setattr(daily_level, "daily_today", lambda now=None: day)
+    manager.session.daily_day = day
+    _arrive(_scene(config.DAILY_LEVEL_ID, manager))
+    assert manager.session.random_maps_cleared == 0

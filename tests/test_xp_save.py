@@ -141,3 +141,74 @@ def test_reset_session_to_guest_clears_the_xp():
     session = _session_with_xp()
     reset_session_to_guest(session)
     _assert_defaults(session)
+
+
+# --- task 18: cleared random maps in the profile -----------------------------------
+def _random_profile(maps=None, records=None, drop_key=False):
+    session = Session()
+    if maps is not None:
+        session.random_maps_cleared = maps
+    session.records = dict(records or {})
+    profile = session_to_profile(session, "u")
+    if drop_key:
+        profile.stats.pop("random_maps_cleared")
+    return profile
+
+
+def test_cleared_random_maps_survive_a_save_and_load():
+    profile = _through_json(_random_profile(maps=7))
+    assert profile.stats["random_maps_cleared"] == 7
+    loaded = Session()
+    apply_profile_to_session(loaded, profile, "u")
+    assert loaded.random_maps_cleared == 7
+    assert "random_maps_cleared" not in loaded.stats
+
+
+def test_applying_a_profile_replaces_the_cleared_random_maps():
+    session = Session()
+    session.random_maps_cleared = 9
+    apply_profile_to_session(session, _through_json(_random_profile(maps=2)), "u")
+    assert session.random_maps_cleared == 2
+
+
+def test_an_old_profile_with_a_random_record_counts_one_map():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    profile = _through_json(_random_profile(records={RANDOM_LEVEL_ID: 3.5}, drop_key=True))
+    session = Session()
+    session.random_maps_cleared = 9
+    apply_profile_to_session(session, profile, "u")
+    assert session.random_maps_cleared == 1
+
+
+def test_an_old_profile_without_a_random_record_counts_none():
+    profile = _through_json(_random_profile(records={1: 3.5}, drop_key=True))
+    session = Session()
+    session.random_maps_cleared = 9
+    apply_profile_to_session(session, profile, "u")
+    assert session.random_maps_cleared == 0
+
+
+def test_a_broken_random_map_count_loads_like_a_missing_one():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    for broken in (-1, "3", True, None, 2.0):
+        for records, expected in (({RANDOM_LEVEL_ID: 3.5}, 1), ({1: 3.5}, 0)):
+            session = Session()
+            session.records = dict(records)
+            _apply_profile_stats(session, {"random_maps_cleared": broken})
+            assert session.random_maps_cleared == expected, (broken, records)
+
+
+def test_an_old_profile_with_a_random_record_matches_a_new_one_with_one_map():
+    from vector_drift.level_presets import RANDOM_LEVEL_ID
+    old = _random_profile(records={RANDOM_LEVEL_ID: 3.5}, drop_key=True)
+    new = _random_profile(maps=1, records={RANDOM_LEVEL_ID: 3.5})
+    assert profiles_equal(old, new) and profiles_equal(new, old)
+    assert profiles_equal(_random_profile(drop_key=True), _random_profile(maps=0))
+    assert not profiles_equal(_random_profile(maps=2), _random_profile(maps=1))
+
+
+def test_reset_session_to_guest_clears_the_random_map_count():
+    session = Session()
+    session.random_maps_cleared = 4
+    reset_session_to_guest(session)
+    assert session.random_maps_cleared == 0
