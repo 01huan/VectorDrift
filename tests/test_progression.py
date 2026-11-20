@@ -257,3 +257,79 @@ def test_random_map_clear_counts_are_not_saved():
     apply_profile_to_session(loaded, PlayerProfile.from_row(row, "u1"), "u1")
     assert loaded.random_map_clears == {}
     assert progression.random_map_clear_xp(loaded, RANDOM_LEVEL_ID, 123) == 150
+
+
+# --- task 11: no XP for the tutorial, custom, community and daily maps --------------------
+# These check the clear itself. A clear on such a map can still unlock an
+# achievement, which gives its own XP (task 12), so achievements are off here.
+def _no_clear_xp(manager):
+    session = manager.session
+    assert session.xp_total == 0
+    assert session.fixed_clear_counts == {}
+    assert session.random_map_clears == {}
+    assert session.xp_rewarded_level == 1
+
+
+def _plain_level(level_id):
+    from vector_drift import data
+    return data.LevelSpec(id=level_id, name="Plain", start=(-7.0, 0.0),
+                          target_center=(7.0, 0.0), target_radius=1.0, ship_id="ship01")
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_a_custom_level_clear_gives_no_xp():
+    from vector_drift import data
+    manager = _manager()
+    data.register_custom_level(_plain_level(1000))
+    manager.session.custom_level_ids.add(1000)
+    manager.session.level_source = "custom"
+    assert _arrive(_scene(1000, manager))["xp_gained"] == 0
+    _no_clear_xp(manager)
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_a_community_level_clear_gives_no_xp():
+    from vector_drift import data
+    manager = _manager()
+    level_id = data.community_level_id("row-for-xp")
+    data.register_community_level(_plain_level(level_id))
+    manager.session.level_source = "community"
+    assert _arrive(_scene(level_id, manager))["xp_gained"] == 0
+    _no_clear_xp(manager)
+
+
+@pytest.mark.usefixtures("no_achievements")
+def test_a_daily_clear_gives_no_xp(monkeypatch):
+    from datetime import date
+    from vector_drift import daily_level
+    day = date(2026, 11, 19)
+    monkeypatch.setattr(daily_level, "daily_today", lambda now=None: day)
+    manager = _manager()
+    manager.session.level_id = config.DAILY_LEVEL_ID
+    manager.session.daily_day = day
+    manager.session.random_seed = None
+    scene = GameScene(manager)
+    manager.switch(scene)
+    assert _arrive(scene)["xp_gained"] == 0
+    _no_clear_xp(manager)
+
+
+def test_a_tutorial_clear_gives_no_xp():
+    from vector_drift.scenes.tutorial_basics import BasicsScene
+    manager = _manager()
+    scene = BasicsScene(manager, 0)                 # the "play" step: fly to the planet
+    manager.switch(scene)
+    _reach(scene)
+    assert scene.done
+    assert scene._xp_gained == 0
+    _no_clear_xp(manager)
+
+
+def test_a_tutorial_demo_screen_clear_gives_no_xp():
+    from vector_drift.scenes.tutorial_play import TutorialGameScene
+    manager = _manager()
+    scene = TutorialGameScene(manager, _plain_level(1))
+    manager.switch(scene)
+    _reach(scene)
+    assert scene._xp_gained == 0
+    _no_clear_xp(manager)
