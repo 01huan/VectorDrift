@@ -186,6 +186,8 @@ class GameUpdateMixin:
                 }
                 if self._level_up is not None:
                     self.session.stats["level_up"] = self._level_up.as_stats()
+                if self._streak_bonus is not None:
+                    self.session.stats["streak_bonus"] = dict(self._streak_bonus)
                 from .win import WinScene
                 self.manager.switch(WinScene(self.manager, self._snapshot()))
 

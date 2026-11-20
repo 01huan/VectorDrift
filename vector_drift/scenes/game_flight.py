@@ -345,6 +345,7 @@ class GameFlightMixin:
                                        total_time=self.total_time)
         progression.clear_xp(self.session, self.level.id, self._level_kind(),
                              seed=self.session.random_seed)
+        self._streak_bonus = self._daily_streak_bonus()
         progression.announce_level_up(self.manager, progression.pay_level_ups(self.session))
         self._record_community_stat("clear")
         self._record_function_usage(True)
@@ -361,6 +362,19 @@ class GameFlightMixin:
         self._level_up = (progression.LevelUp(paid_before, paid_now,
                                               xp.coins_for_levels(paid_before, paid_now))
                           if paid_now > paid_before else None)
+
+    def _daily_streak_bonus(self):
+        """{"xp", "days"} when this clear was the day's first in a streak of 2+ days, else None."""
+        if not is_daily_level(self.level.id):
+            return None
+        day = self.session.daily_day
+        record = daily_records.get_record(self.session, day)
+        if not record or record["xp_clears"] != 1:
+            return None
+        days = daily_records.current_streak(self.session.daily_records, day)
+        if days < 2:
+            return None
+        return {"xp": xp.daily_streak_bonus(days), "days": days}
 
     def _store_replay(self, outcome):
         """Keep this launch in the session's replays."""

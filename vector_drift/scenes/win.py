@@ -68,10 +68,14 @@ class WinScene(Scene):
             return [(f"Clear reward already collected for this {where}", config.TEXT_DIM)]
         return []
 
-    def _xp_notes(self):
-        """Maps whose clear gives no XP say so (their achievements may still give some)."""
+    def _xp_notes(self, s=None):
+        """Maps whose clear gives no XP say so (their achievements may still give some);
+        the day's first daily clear in a streak shows its bonus."""
         if is_custom_map(self.session.level_id, self.session):
             return [("No XP for clearing custom maps", config.TEXT_DIM)]
+        bonus = (self.session.stats if s is None else s).get("streak_bonus")
+        if is_daily_level(self.session.level_id) and isinstance(bonus, dict):
+            return [(f"Streak bonus +{bonus['xp']} ({bonus['days']} days)", config.WARNING)]
         return []
 
     def draw(self, surface):
@@ -94,7 +98,7 @@ class WinScene(Scene):
         draw_coins(surface, f"+{int(s.get('coins_earned', 0))}", (card.right - px(48), coins_y), 17,
                    config.TEXT, kind="mono", anchor="midright")
         y = coins_y + px(30) + px(36)
-        for text, color in self._notes(s) + self._xp_notes():
+        for text, color in self._notes(s) + self._xp_notes(s):
             draw_text(surface, text, (card.centerx, y), 16, color, kind="bold", anchor="center")
             y += px(26)
         # The bar row keeps one place under room for two notes.

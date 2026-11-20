@@ -179,6 +179,7 @@ class GameCoreMixin:
         self._xp_gained = 0             # XP the clear brought (shown on Mission Complete)
         self._xp_before = 0             # XP before the clear (the win screen bar grows from it)
         self._level_up = None           # progression.LevelUp the clear reached, if any
+        self._streak_bonus = None       # {"xp", "days"}: the daily streak bonus this clear got
 
         # --- AI assistant (offline solver, random levels) -------------------
         # Depends on the Solver interface, not a concrete model.  Swapping the
