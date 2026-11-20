@@ -339,7 +339,6 @@ def test_level_thirteen_plays_through_two_checkpoints_to_the_win():
     assert scene.section_index == 2
 
 
-@pytest.mark.xfail(reason="level 13 hints pending", strict=True)
 @pytest.mark.usefixtures("pygame_display")
 def test_level_thirteen_answer_is_paid_once_for_all_three_sections():
     import pygame

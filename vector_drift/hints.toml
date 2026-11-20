@@ -208,3 +208,36 @@ answer_note = "The section 1 formula with the switch moved to x = 3:"
 answers = [
   { fx = "-(x - 3) + abs(x - 3)", fy = "-10((x - 3) + abs(x - 3))" },
 ]
+
+[level.13.section.1]
+steps = [
+  "A wall of rocks runs right across the map at y = 0. The only way up is the wormhole: fly straight up into the black hole, then curve left from the white hole up to the checkpoint.",
+  "abs works on y too: y + abs(y) is 0 below y = 0 and 2y above it, so it only turns on above the wall. -y + abs(y) is the other way round: -2y below the wall, 0 above it.",
+  "Fy = -y + abs(y) is a spring toward y = 0 that only works below the wall. It throws the ship straight up into the black hole at about 7.2 m/s. Above the wall there is no up or down force, so the ship keeps rising at that speed out of the white hole.",
+  "Fx = -c(y + abs(y)) pushes left only above the wall, harder the higher the ship is, so the path bends left. c = 4 brings the ship to the checkpoint; anything from about 3 to 7 works.",
+]
+answer_note = "A switch at y = 0: a spring below the wall, a push to the left above it:"
+answers = [
+  { fx = "-4(y + abs(y))", fy = "-y + abs(y)" },
+]
+
+[level.13.section.2]
+steps = [
+  "Fly straight up through the gap in the floor. The column of rocks on your right stops you from turning too early. Grab the Shockwave on the way to blast a hole in the tall wall, then turn right to the checkpoint.",
+  "Use the switch on y again, moved down to y = -1: (y + 1) + abs(y + 1) is 0 below y = -1 and 2(y + 1) above it.",
+  "Fy = -(y + 1) + abs(y + 1) is a spring toward y = -1 that only works below it: the ship shoots straight up and crosses y = -1 at about 7.8 m/s. Fx = c((y + 1) + abs(y + 1)) pushes right only above y = -1. c = 10 bends the path through the Shockwave and the gap to the checkpoint; anything from about 8 to 20 works.",
+]
+answer_note = "A switch at y = -1: a spring below it, a push to the right above it:"
+answers = [
+  { fx = "10((y + 1) + abs(y + 1))", fy = "-(y + 1) + abs(y + 1)" },
+]
+
+[level.13.section.3]
+steps = [
+  "No switch needed here. The planet sits in the bottom-right corner, sealed in by an L-shaped wall. Grab the Shield on your right first, then break through the wall within 3 seconds.",
+  "This is the swirl from Level 10, flipped upside down. F = (y - 2.5, -x - 7) circles clockwise around (-7, 2.5): it swings the ship right through the Shield, then down through the wall into the planet.",
+]
+answer_note = "Level 10's swirl, flipped upside down:"
+answers = [
+  { fx = "y - 2.5", fy = "-x - 7" },
+]
