@@ -24,7 +24,7 @@ def _session_with_records():
     session = Session()
     record = get_record(session, DAY, create=True)
     record.update(cleared=True, first_clear_lives_used=2, coins=1, best_time=7.25,
-                  coins_taken=[[-3.125, 4.5]], clear_rewarded=True)
+                  coins_taken=[[-3.125, 4.5]], clear_rewarded=True, xp_clears=3)
     get_record(session, date(2026, 11, 20), create=True)["coins"] = 0
     return session
 
@@ -32,7 +32,7 @@ def _session_with_records():
 def test_a_new_record_has_every_field():
     assert new_record() == {
         "cleared": False, "first_clear_lives_used": None, "coins": 0, "best_time": None,
-        "answer_used": False, "coins_taken": [], "clear_rewarded": False,
+        "answer_used": False, "coins_taken": [], "clear_rewarded": False, "xp_clears": 0,
     }
 
 
@@ -195,3 +195,24 @@ def test_a_streak_runs_across_months():
 def test_a_streak_that_ended_before_yesterday_is_not_current():
     from vector_drift.daily_records import current_streak
     assert current_streak(_records(cleared=[17, 18]), TODAY) == 0
+
+
+# --- XP-paid clears ------------------------------------------------------------------
+
+def test_xp_clears_survive_a_save_and_load():
+    saved = _session_with_records()
+    loaded = Session()
+    apply_profile_to_session(loaded, _through_json(session_to_profile(saved, "u")), "u")
+    assert get_record(loaded, DAY)["xp_clears"] == 3
+    assert get_record(loaded, date(2026, 11, 20))["xp_clears"] == 0
+
+
+def test_an_old_record_without_xp_clears_reads_zero():
+    records = records_from_saved({"2026-11-19": {"cleared": True, "coins": 1}})
+    assert records["2026-11-19"]["xp_clears"] == 0
+
+
+@pytest.mark.parametrize("value", ["2", -1, 1.5, True, None, [1]])
+def test_broken_xp_clears_read_zero(value):
+    records = records_from_saved({"2026-11-19": {"cleared": True, "xp_clears": value}})
+    assert records["2026-11-19"]["xp_clears"] == 0

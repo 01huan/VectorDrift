@@ -10,6 +10,7 @@ dict, so it saves as JSON in the profile's stats unchanged):
 * ``answer_used``            -- the day's reference answer was paid for (and shown)
 * ``coins_taken``            -- [x, y] of the coins already paid that day
 * ``clear_rewarded``         -- the day's clear reward was paid
+* ``xp_clears``              -- clears of the day that were given XP (k of the next one - 1)
 
 Pure data helpers: no pygame, no scenes.
 """
@@ -28,6 +29,7 @@ def new_record():
         "answer_used": False,
         "coins_taken": [],
         "clear_rewarded": False,
+        "xp_clears": 0,
     }
 
 
@@ -88,6 +90,7 @@ def _clean_record(raw):
     points = (_point(p) for p in (taken if isinstance(taken, (list, tuple)) else ()))
     record["coins_taken"] = [p for p in points if p is not None]
     record["clear_rewarded"] = raw.get("clear_rewarded") is True
+    record["xp_clears"] = _count(raw.get("xp_clears")) or 0
     return record
 
 
