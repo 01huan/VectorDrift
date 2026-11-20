@@ -6,14 +6,14 @@ from .. import config
 from ..config import px
 from ..image_assets import COIN_BALANCE
 from ..ui import draw_coins, draw_text
-from .base import Scene, draw_overlay_card, result_buttons
+from .base import Scene, back_label, draw_overlay_card, result_buttons
 
 
 class FailScene(Scene):
     def __init__(self, manager, background=None):
         super().__init__(manager)
         self.background = background
-        self.retry_button, self.levels_button, self.menu_button = result_buttons("Retry Level")
+        self.retry_button, self.levels_button, self.menu_button = result_buttons("Retry Level", back_label(self.session))
         for b in (self.retry_button, self.levels_button, self.menu_button):
             b.rect.y = config.WINDOW_H // 2 + px(50)
 

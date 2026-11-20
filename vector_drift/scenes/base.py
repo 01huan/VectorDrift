@@ -175,6 +175,13 @@ def back_scene_for_level(session, scene=None):
 
     s = str(source).lower() if source is not None else ""
 
+    # The daily map goes back to the daily challenge page, whose Play picks
+    # the day again.
+    from ..daily_level import is_daily_level
+    if is_daily_level(level_id):
+        from .daily_page import DailyScene
+        return DailyScene
+
     # A community level is somebody else's level: it goes back to the public
     # browser it was opened from, never to the player's own level list.
     if "community" in s or is_community_level(level_id):
@@ -330,12 +337,18 @@ def draw_overlay_card(surface, background, title, title_color, lines, card_h=320
     return card
 
 
-def result_buttons(first_label):
+def back_label(session):
+    """The label of the button that leaves a level for its list: "Daily" on the daily map."""
+    from ..daily_level import is_daily_level
+    return "Daily" if is_daily_level(getattr(session, "level_id", None)) else "Levels"
+
+
+def result_buttons(first_label, back="Levels"):
     'Three buttons under a result card.'
     cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
     w, h, gap = px(150), px(46), px(14)
     left = cx - (3 * w + 2 * gap) // 2
-    labels = (first_label, "Levels", "Main Menu")
+    labels = (first_label, back, "Main Menu")
     styles = ("primary", "plain", "plain")
     return [Button((left + i * (w + gap), 0, w, h), label, style=style, font_size=17)
             for i, (label, style) in enumerate(zip(labels, styles))]

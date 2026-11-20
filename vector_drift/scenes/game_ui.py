@@ -24,7 +24,7 @@ from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, 
                   draw_panel_box, draw_text, icon_surface)
 from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
 from ..solver.interface import SolveResult
-from .base import Scene
+from .base import Scene, back_label
 from .daily_answer_popup import DailyAnswerPopup
 from .hint_popup import HintPopup, confirm_text
 from .pause_menu import PauseMenu
@@ -85,7 +85,8 @@ class GameUIMixin:
     def _open_pause(self):
         self.pause_menu = PauseMenu(in_flight=self.state == FLIGHT,
                                     music_on=getattr(self.audio, "music_on", True),
-                                    sfx_on=getattr(self.audio, "sfx_on", True))
+                                    sfx_on=getattr(self.audio, "sfx_on", True),
+                                    back=back_label(self.session))
         if self.state == FLIGHT:
             self.audio.stop_loop("thruster_loop")
         set_cursor("arrow")
@@ -119,8 +120,12 @@ class GameUIMixin:
             # Like Retry on the fail screen: same level, ship and seed, formulas kept.
             self.manager.switch(GameScene(self.manager))
         elif action == "levels":
-            from .levels import LevelSelectScene
-            self.manager.switch(LevelSelectScene(self.manager))
+            if is_daily_level(self.level.id):
+                from .daily_page import DailyScene
+                self.manager.switch(DailyScene(self.manager))
+            else:
+                from .levels import LevelSelectScene
+                self.manager.switch(LevelSelectScene(self.manager))
         elif action == "menu":
             from .menu import MenuScene
             self.manager.switch(MenuScene(self.manager))

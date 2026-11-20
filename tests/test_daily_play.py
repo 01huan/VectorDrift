@@ -103,12 +103,13 @@ def test_a_daily_level_without_a_day_plays_today(today):
     assert mgr.session.daily_day == DAY
 
 
-def test_back_from_daily_returns_to_the_level_select(today):
+def test_back_from_daily_returns_to_the_daily_page(today):
     from vector_drift.scenes.base import back_scene_for_level
+    from vector_drift.scenes.daily_page import DailyScene
 
     mgr = _manager()
     game = _enter_daily(mgr)
-    assert back_scene_for_level(mgr.session, game) is LevelSelectScene
+    assert back_scene_for_level(mgr.session, game) is DailyScene
 
 
 # --- the same map until the player leaves -------------------------------------------

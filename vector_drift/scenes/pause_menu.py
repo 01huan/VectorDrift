@@ -19,15 +19,17 @@ class PauseMenu:
     happens. Quit asks first ("Quit VectorDrift?"); Cancel / Esc go back.
     The bottom row holds two switches, reported as "toggle_music" /
     "toggle_sfx"; they keep the menu open (GameScene calls set_audio after).
+    ``back`` labels the "levels" row: "Daily" on the daily map, whose row goes
+    back to the daily challenge page.
     """
 
-    def __init__(self, in_flight=False, music_on=True, sfx_on=True):
+    def __init__(self, in_flight=False, music_on=True, sfx_on=True, back="Levels"):
         self.in_flight = in_flight          # Abort flight is only offered mid-flight
         self.confirming_quit = False
         rows = [("Resume", "resume", "primary")]
         if in_flight:
             rows.append(("Abort flight", "abort", "danger"))
-        rows += [("Restart", "restart", "plain"), ("Levels", "levels", "plain"),
+        rows += [("Restart", "restart", "plain"), (back, "levels", "plain"),
                  ("Main Menu", "menu", "plain"), ("Quit", "quit", "plain")]
 
         bw, bh, gap = px(BUTTON_W), px(BUTTON_H), px(GAP)

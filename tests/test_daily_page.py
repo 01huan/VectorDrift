@@ -152,3 +152,119 @@ def test_the_buttons_do_not_overlap(today):
     assert not page.play_button.rect.colliderect(page.back_button.rect)
     screen = pygame.Rect(0, 0, config.WINDOW_W, config.WINDOW_H)
     assert screen.contains(page.play_button.rect) and screen.contains(page.back_button.rect)
+
+
+# --- back to the page from a daily game (task 25) ---------------------------------------------
+
+def _daily_game(mgr):
+    page = _page(mgr)
+    _click(page, page.play_button.rect)
+    assert isinstance(mgr.scene, GameScene)
+    return mgr.scene
+
+
+def _result_screen(mgr, result):
+    from vector_drift.scenes.fail import FailScene
+    from vector_drift.scenes.win import WinScene
+    mgr.session.stats = {}
+    screen = WinScene(mgr) if result == "win" else FailScene(mgr)
+    mgr.switch(screen)
+    return screen
+
+
+def _pause(game):
+    from vector_drift.scenes.pause_menu import PauseMenu
+    game._open_pause()
+    assert isinstance(game.pause_menu, PauseMenu)
+    return game.pause_menu
+
+
+def _pause_button(menu, action):
+    return next(button for button, act in menu.buttons() if act == action)
+
+
+def test_the_game_s_back_button_opens_the_daily_page(today):
+    mgr = _manager()
+    game = _daily_game(mgr)
+    _click(game, game.level_button.rect)
+    assert isinstance(mgr.scene, DailyScene)
+
+
+@pytest.mark.parametrize("result", ["win", "fail"])
+def test_result_screens_go_back_to_the_daily_page(today, result):
+    from vector_drift.scenes.menu import MenuScene
+    mgr = _manager()
+    _daily_game(mgr)
+    screen = _result_screen(mgr, result)
+
+    assert screen.levels_button.label == "Daily"
+    _click(screen, screen.levels_button.rect)
+    assert isinstance(mgr.scene, DailyScene)
+
+    _daily_game(mgr)
+    screen = _result_screen(mgr, result)
+    _click(screen, screen.menu_button.rect)
+    assert isinstance(mgr.scene, MenuScene)
+
+
+def test_the_pause_menu_goes_back_to_the_daily_page(today):
+    from vector_drift.scenes.menu import MenuScene
+    mgr = _manager()
+    game = _daily_game(mgr)
+    menu = _pause(game)
+    button = _pause_button(menu, "levels")
+
+    assert button.label == "Daily"
+    _click(game, button.rect)
+    assert isinstance(mgr.scene, DailyScene)
+
+    game = _daily_game(mgr)
+    _click(game, _pause_button(_pause(game), "menu").rect)
+    assert isinstance(mgr.scene, MenuScene)
+
+
+@pytest.mark.parametrize("result", ["win", "fail"])
+def test_other_levels_still_go_back_to_the_level_select(today, result):
+    mgr = _manager()
+    mgr.session.level_id = 1
+    game = GameScene(mgr)
+    mgr.switch(game)
+    menu = _pause(game)
+    button = _pause_button(menu, "levels")
+    assert button.label == "Levels"
+    _click(game, button.rect)
+    assert isinstance(mgr.scene, LevelSelectScene)
+
+    screen = _result_screen(mgr, result)
+    assert screen.levels_button.label == "Levels"
+    _click(screen, screen.levels_button.rect)
+    assert isinstance(mgr.scene, LevelSelectScene)
+
+
+def test_play_after_midnight_from_the_result_screen_is_a_new_day(today):
+    mgr = _manager()
+    first = _daily_game(mgr)                            # Play at 23:59
+    today.set(date(2026, 11, 21))                       # 00:05
+    screen = _result_screen(mgr, "win")
+    _click(screen, screen.levels_button.rect)
+    page = mgr.scene
+    assert isinstance(page, DailyScene)
+
+    _click(page, page.play_button.rect)
+
+    assert mgr.session.daily_day == date(2026, 11, 21)
+    assert mgr.scene.full_level == generate_daily(date(2026, 11, 21)).level
+    assert mgr.scene.full_level != first.full_level
+
+
+def test_restart_retry_and_replay_keep_the_day(today):
+    mgr = _manager()
+    _daily_game(mgr)
+    today.set(date(2026, 11, 21))
+    game = mgr.scene
+    _click(game, _pause_button(_pause(game), "restart").rect)
+    assert mgr.session.daily_day == DAY
+    for result in ("win", "fail"):
+        screen = _result_screen(mgr, result)
+        _click(screen, (screen.replay_button if result == "win" else screen.retry_button).rect)
+        assert isinstance(mgr.scene, GameScene) and mgr.session.daily_day == DAY
