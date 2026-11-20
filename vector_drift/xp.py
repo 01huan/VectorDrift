@@ -20,6 +20,26 @@ def xp_for_clear(base: int, k: int) -> int:
     return max(1, base // k)
 
 
+def daily_streak_bonus(streak: int) -> int:
+    """Extra XP a day's first clear gets for a streak of ``streak`` days (today included)."""
+    days = min(max(1, streak), config.XP_DAILY_STREAK_CAP)
+    return config.XP_DAILY_STREAK_STEP * (days - 1)
+
+
+def daily_clear_xp(k: int, streak: int) -> int:
+    """XP for the ``k``-th clear (k >= 1) of one day's daily map.
+
+    The first clear gets XP_DAILY plus the streak bonus (``streak``: days
+    cleared in a row with that day included; below 1 counts as 1). Later
+    clears that day decay like any other source and get no bonus.
+    """
+    if k < 1:
+        raise ValueError(f"clear count must be at least 1, got {k}")
+    if k == 1:
+        return config.XP_DAILY + daily_streak_bonus(streak)
+    return xp_for_clear(config.XP_DAILY, k)
+
+
 @dataclass(frozen=True)
 class LevelProgress:
     """Where a total XP puts the player."""

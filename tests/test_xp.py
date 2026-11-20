@@ -113,3 +113,33 @@ def test_unknown_keys_are_worth_nothing():
     assert xp_for_achievement_key("bounce_house") == 0          # the old untiered form
     assert xp_for_achievement_key("bounce_house.5") == 0
     assert xp_for_achievement_key("is_anyone_out_there.1") == 0
+
+
+# --- daily challenge ---------------------------------------------------------------
+def test_daily_first_clear_grows_with_the_streak_up_to_the_cap():
+    from vector_drift.xp import daily_clear_xp
+    assert [daily_clear_xp(1, s) for s in range(1, 7)] == [300, 330, 360, 390, 420, 420]
+    assert daily_clear_xp(1, 3) == 360
+    assert daily_clear_xp(1, 12) == 420
+
+
+def test_daily_later_clears_decay_without_the_streak():
+    from vector_drift.xp import daily_clear_xp
+    assert daily_clear_xp(2, 5) == 150
+    assert daily_clear_xp(3, 1) == 100
+    assert daily_clear_xp(4, 9) == 75
+    assert daily_clear_xp(400, 1) == 1
+
+
+def test_daily_streak_below_one_counts_as_one():
+    from vector_drift.xp import daily_clear_xp
+    assert daily_clear_xp(1, 0) == 300
+    assert daily_clear_xp(1, -3) == 300
+
+
+def test_daily_clear_xp_rejects_k_below_one():
+    import pytest
+    from vector_drift.xp import daily_clear_xp
+    for k in (0, -1):
+        with pytest.raises(ValueError):
+            daily_clear_xp(k, 3)
