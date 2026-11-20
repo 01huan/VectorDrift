@@ -378,6 +378,54 @@ LEVELS = [
             ),
         ),
     ),
+    # The first pan down and to the right: pan (13.9, -11), world (-7, 5.5) ->
+    # (6.9, -5.5) (checkpoint) -> (22.9, -9). The screens share x >= 3.9,
+    # y <= -3.5 of section 1 (= x <= -3.9, y >= 3.5 of section 2), where only
+    # the checkpoint sits. No coins: the coin ids of a multi-section level do
+    # not carry the section number yet.
+    # The first level to teach abs(x) as a switch: x + abs(x) is 0 for x < 0
+    # and 2x for x > 0, so it only turns on right of x = 0; -x + abs(x) is the
+    # other way round.
+    # - Section 1: a floor row of rocks at y = 3.5 runs from the left edge to
+    #   x = 1.6. F = (-x + abs(x), -10(x + abs(x))): left of x = 0 there is only
+    #   a spring toward x = 0, which flings the ship flat along y = 5.5 to x = 0
+    #   (about 9.9 m/s); right of x = 0 there is only a push down, stronger the
+    #   further right. The other 4 rocks block the linear-field shortcuts (an
+    #   arch bulging up, a curve bending in, a curve bending out).
+    # - Section 2: the floor row runs on to x = 6.4 and the planet sits just
+    #   past its end. The reference answer is section 1's formula with x - 3
+    #   for x, so the switch moves to x = 3.
+    # Each section is cleared only by its own answer (tests/test_level12.py).
+    multi_section_level(
+        id=12,
+        name="Turning Point",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(-7.0, 5.5), target_center=(6.9, -5.5), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, 3.5), radius=0.8)
+                    for x in (-9.6, -8.0, -6.4, -4.8, -3.2, -1.6, 0.0, 1.6)
+                ) + (
+                    ObstacleSpec(center=(-3.2, 7.0), radius=0.8),
+                    ObstacleSpec(center=(3.2, 1.6), radius=0.8),
+                    ObstacleSpec(center=(7.5, -1.5), radius=0.8),
+                    ObstacleSpec(center=(9.1, -1.5), radius=0.8),
+                ),
+            ),
+            SectionSpec(
+                start=(-7.0, 5.5), target_center=(9.0, 2.0), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, 2.5), radius=0.8)
+                    for x in (-9.6, -8.0, -6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.8, 6.4)
+                ) + (
+                    ObstacleSpec(center=(5.0, 3.75), radius=0.8),
+                    ObstacleSpec(center=(-1.6, 7.0), radius=0.8),
+                    ObstacleSpec(center=(9.2, 4.5), radius=0.8),
+                ),
+            ),
+        ),
+    ),
 ]
 
 

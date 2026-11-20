@@ -5,11 +5,22 @@ import pygame
 import pytest
 
 from vector_drift import data_models
+from vector_drift import data
 from vector_drift.data import SHIPS, ShipSpec, default_ship_id, level_ship_id
 from vector_drift.level_presets import RANDOM_LEVEL_ID
 from vector_drift.scenes.base import SceneManager
 
 pytestmark = pytest.mark.usefixtures("pygame_display")
+
+
+def _last_fixed_id():
+    # Read data.LEVELS when used, not at import: other tests may swap the list.
+    return max(level.id for level in data.LEVELS)
+
+
+# The random level is numbered right after the last campaign level and flies that slot's ship.
+LEVEL_SHIPS = ([(n, f"ship{n:02d}") for n in range(1, _last_fixed_id() + 1)]
+               + [(RANDOM_LEVEL_ID, f"ship{_last_fixed_id() + 1:02d}")])
 
 
 def test_ships_01_to_15_and_daybreak_share_the_same_physics():
@@ -21,9 +32,11 @@ def test_ships_01_to_15_and_daybreak_share_the_same_physics():
 
 
 def test_level_n_flies_ship_n():
-    for n in range(1, 12):
+    last = _last_fixed_id()
+    for n in range(1, last + 1):
         assert level_ship_id(n) == f"ship{n:02d}"
-    assert level_ship_id(RANDOM_LEVEL_ID) == "ship12"   # the random level is numbered 12
+    # The random level is numbered right after the last campaign level.
+    assert level_ship_id(RANDOM_LEVEL_ID) == f"ship{last + 1:02d}"
 
 
 def test_levels_whose_ship_is_not_made_yet_fly_ship01():
@@ -64,8 +77,7 @@ def game_on(manager, level_id):
     return GameScene(manager)
 
 
-@pytest.mark.parametrize("level_id, ship_id",
-                         [(n, f"ship{n:02d}") for n in range(1, 12)] + [(RANDOM_LEVEL_ID, "ship12")])
+@pytest.mark.parametrize("level_id, ship_id", LEVEL_SHIPS)
 def test_game_flies_the_levels_ship_with_no_arrows(level_id, ship_id):
     scene = game_on(SceneManager(Quiet()), level_id)
     assert scene.ship.id == ship_id
