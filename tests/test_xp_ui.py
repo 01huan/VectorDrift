@@ -170,3 +170,81 @@ def test_the_xp_line_and_two_notes_stay_above_the_buttons(monkeypatch):
     for button in (scene.replay_button, scene.levels_button, scene.menu_button):
         assert lowest < button.rect.top
         assert button.rect.bottom <= config.WINDOW_H
+
+
+# --- task 16: the XP bar grows on the win screen -------------------------------------------
+def _states(before, after, steps=50):
+    duration = xp_ui.XP_BAR_S
+    return [xp_ui.xp_bar_state(before, after, duration * i / steps) for i in range(steps + 1)]
+
+
+def test_the_bar_grows_from_before_to_after_inside_one_level():
+    states = _states(130, 205)                              # Lv 2: 30/150 -> 105/150
+    assert states[0] == (2, 30 / 150)
+    assert states[-1] == (2, 105 / 150)
+    fractions = [f for _level, f in states]
+    assert fractions == sorted(fractions)
+
+
+def test_the_bar_eases_out():
+    level, fraction = xp_ui.xp_bar_state(130, 205, xp_ui.XP_BAR_S / 2)
+    assert fraction > (30 + 105) / 2 / 150                 # past halfway at half time
+
+
+def test_a_level_up_fills_the_bar_then_grows_from_zero():
+    states = _states(230, 280)                              # Lv 2 130/150 -> Lv 3 30/200
+    assert states[0] == (2, 130 / 150)
+    assert states[-1] == (3, 30 / 200)
+    levels_shown = [level for level, _f in states]
+    assert levels_shown == sorted(levels_shown) and set(levels_shown) == {2, 3}
+    assert max(f for level, f in states if level == 2) > 0.95      # it gets (almost) full
+    assert min(f for level, f in states if level == 3) < 0.05      # and starts again near 0
+    assert all(0.0 <= f <= 1.0 for _level, f in states)
+
+
+def test_jumping_several_levels_fills_once_then_shows_the_new_level():
+    states = _states(0, 2750)                               # Lv 1 -> Lv 10
+    assert {level for level, _f in states} == {1, 10}
+    assert states[-1] == (10, 50 / 550)
+
+
+def test_no_gain_keeps_the_bar_still():
+    assert set(_states(290, 290)) == {(3, 40 / 200)}
+
+
+def test_after_the_time_is_up_the_bar_stays_at_the_end():
+    assert xp_ui.xp_bar_state(230, 280, 10.0) == (3, 30 / 200)
+    assert xp_ui.xp_bar_state(230, 280, -1.0) == (2, 130 / 150)
+
+
+def test_the_win_screen_bar_starts_before_the_clear_and_ends_after_it(monkeypatch):
+    from vector_drift.scenes import win
+    manager = _manager(xp_total=280)
+    manager.session.stats = {"xp_before": 230, "xp_gained": 50, "clear_reward": 5}
+    scene = win.WinScene(manager)
+    texts = _texts(xp_ui, monkeypatch)
+    scene.draw(_screen())
+    assert "Lv 2" in texts and "130 / 150 XP" in texts
+    texts.clear()
+    scene.update(xp_ui.XP_BAR_S + 0.1)
+    scene.draw(_screen())
+    assert "Lv 3" in texts and "30 / 200 XP" in texts
+
+
+def test_the_win_screen_bar_sits_between_the_notes_and_the_buttons(monkeypatch):
+    scene, drawn = _win_screen(monkeypatch, 1000, _custom, xp_gained=10, xp_before=280)
+    notes_bottom = max(rect.bottom for text, rect in drawn if text.startswith("No "))
+    bar = scene.xp_bar_rect
+    assert bar.top > notes_bottom
+    assert bar.bottom < scene.replay_button.rect.top
+    numbers = next(rect for text, rect in drawn if text.endswith(" XP"))
+    assert numbers.bottom < scene.replay_button.rect.top
+
+
+def test_a_clear_records_the_xp_before_it():
+    from tests.test_progression import _manager as game_manager, _scene, _win
+    manager = game_manager()
+    manager.session.xp_total = 230
+    stats = _win(_scene(1, manager))
+    assert stats["xp_before"] == 230
+    assert manager.session.xp_total == 230 + stats["xp_gained"]

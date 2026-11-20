@@ -182,6 +182,7 @@ class GameUpdateMixin:
                     "coins_earned": (sum(amount for _key, amount in self._run_coins)
                                      + self._clear_reward),
                     "xp_gained": self._xp_gained,
+                    "xp_before": self._xp_before,
                 }
                 if self._level_up is not None:
                     self.session.stats["level_up"] = self._level_up.as_stats()

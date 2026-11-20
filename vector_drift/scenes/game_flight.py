@@ -328,7 +328,7 @@ class GameFlightMixin:
         that of the achievements it unlocked; ``_level_up`` the levels all of
         it reached (their coins are paid as each one is reached).
         """
-        xp_before = self.session.xp_total
+        xp_before = self._xp_before = self.session.xp_total
         paid_before = self.session.xp_rewarded_level
         self._pay_clear_reward()
         progression.clear_xp(self.session, self.level.id, self._level_kind(),

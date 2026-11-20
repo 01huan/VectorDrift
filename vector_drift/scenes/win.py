@@ -10,6 +10,7 @@ from ..image_assets import COIN_BALANCE
 from ..level_presets import is_dynamic_level
 from ..ui import draw_coins, draw_text
 from .base import Scene, draw_overlay_card, result_buttons
+from .xp_ui import draw_xp_bar_row, xp_bar_state
 
 CARD_H = 560                    # stats, coins, XP, up to two notes, the XP bar, the buttons
 BUTTONS_UP = 70                 # the buttons' top, this far above the card's bottom edge
@@ -22,6 +23,19 @@ class WinScene(Scene):
         self.replay_button, self.levels_button, self.menu_button = result_buttons("Replay")
         for b in (self.replay_button, self.levels_button, self.menu_button):
             b.rect.y = config.WINDOW_H // 2 + px(CARD_H // 2 - BUTTONS_UP)
+        self.xp_t = 0.0                 # seconds the XP bar has been growing
+        self.xp_bar_rect = None
+
+    def update(self, dt):
+        self.xp_t += dt
+
+    def _xp_span(self, s):
+        """(XP before this clear, XP after it) for the bar."""
+        gained = max(0, int(s.get("xp_gained", 0) or 0))
+        before = s.get("xp_before")
+        if not isinstance(before, int) or isinstance(before, bool) or before < 0:
+            before = max(0, int(getattr(self.session, "xp_total", 0) or 0) - gained)
+        return before, before + gained
 
     def handle_event(self, event):
         if self.replay_button.handle_event(event) == "click" or (
@@ -85,5 +99,9 @@ class WinScene(Scene):
         for text, color in self._notes(s) + self._xp_notes():
             draw_text(surface, text, (card.centerx, y), 16, color, kind="bold", anchor="center")
             y += px(26)
+        # The bar row keeps one place under room for two notes.
+        bar_y = coins_y + px(30) + px(36) + 2 * px(26) + px(8)
+        level, fraction = xp_bar_state(*self._xp_span(s), self.xp_t)
+        self.xp_bar_rect = draw_xp_bar_row(surface, card, bar_y, level, fraction)
         for b in (self.replay_button, self.levels_button, self.menu_button):
             b.draw(surface)
