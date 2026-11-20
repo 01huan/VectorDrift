@@ -113,18 +113,20 @@ def _card_texts(monkeypatch, scene, level_id):
 
 
 @pytest.mark.usefixtures("pygame_display")
-def test_a_new_fixed_level_does_not_show_the_random_levels_best_time(monkeypatch, next_fixed_level):
+def test_a_new_fixed_level_does_not_show_the_random_levels_progress(monkeypatch, next_fixed_level):
     from vector_drift.scenes.levels import LevelSelectScene
 
     manager = _manager()
     manager.session.records[RANDOM_LEVEL_ID] = RANDOM_BEST
+    manager.session.random_maps_cleared = 3
     new_card = _card_texts(monkeypatch, LevelSelectScene(manager), next_fixed_level.id)
     assert "Not cleared yet" in new_card
-    assert not any("Best" in text for text in new_card)
+    assert not any("Best" in text or "Maps cleared" in text for text in new_card)
     assert str(next_fixed_level.id) in new_card
 
     random_card = _card_texts(monkeypatch, LevelSelectScene(manager), RANDOM_LEVEL_ID)
-    assert f"Best {RANDOM_BEST:.2f} s" in random_card
+    assert "Maps cleared 3" in random_card
+    assert not any("Best" in text for text in random_card)
     assert str(next_fixed_level.id + 1) in random_card      # shown after the new level
     assert str(RANDOM_LEVEL_ID) not in random_card
 
@@ -253,3 +255,43 @@ def test_a_random_level_replay_rebuilds_its_map_after_a_new_fixed_level():
         assert [(tuple(p.center), p.kind) for p in replay._pickups] == [
             (tuple(p.center), p.kind) for p in flown.pickups]
         replay.draw(surface)
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_the_random_card_shows_not_cleared_until_a_map_is_cleared(monkeypatch):
+    from vector_drift.scenes.levels import LevelSelectScene
+
+    manager = _manager()
+    manager.session.records[RANDOM_LEVEL_ID] = RANDOM_BEST      # kept, but not shown
+    card = _card_texts(monkeypatch, LevelSelectScene(manager), RANDOM_LEVEL_ID)
+    assert "Not cleared yet" in card
+    assert not any("Best" in text or "Maps cleared" in text for text in card)
+
+    manager.session.random_maps_cleared = 1
+    card = _card_texts(monkeypatch, LevelSelectScene(manager), RANDOM_LEVEL_ID)
+    assert "Maps cleared 1" in card
+    assert "Not cleared yet" not in card
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_a_random_clear_still_writes_its_best_time():
+    from types import SimpleNamespace
+    from vector_drift.physics import Outcome
+    from vector_drift.scenes.game import GameScene
+
+    manager = _manager()
+    manager.session.level_id = RANDOM_LEVEL_ID
+    manager.session.random_seed = 123
+    scene = GameScene(manager)
+    manager.switch(scene)
+    while not scene.on_last_section:
+        scene.flight = SimpleNamespace(time=1.0, trail=[], x=0.0, y=0.0)
+        scene._end_flight(Outcome.REACHED)
+        for _ in range(60 * 3):
+            if scene.pan is None:
+                break
+            scene.update(1 / 60)
+    scene.flight = SimpleNamespace(time=1.0, trail=[], x=0.0, y=0.0)
+    scene._end_flight(Outcome.REACHED)
+    assert RANDOM_LEVEL_ID in manager.session.records
+    assert manager.session.random_maps_cleared == 1

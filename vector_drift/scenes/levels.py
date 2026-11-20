@@ -411,11 +411,18 @@ class LevelSelectScene(Scene):
         for k, line in enumerate(lines):
             draw_text(surface, line, (rect.x + px(18), name_y + px(22 + k * (size + 2))), size,
                       config.ACCENT)
-        best = self.session.records.get(lid)
-        if best is None:
+        if is_dynamic_level(lid):
+            # A new map every visit: how many were cleared, not one best time
+            # (session.records still keeps it, it is just not shown).
+            maps = int(getattr(self.session, "random_maps_cleared", 0) or 0)
+            status = f"Maps cleared {maps}" if maps > 0 else None
+        else:
+            best = self.session.records.get(lid)
+            status = f"Best {best:.2f} s" if best is not None else None
+        if status is None:
             draw_text(surface, "Not cleared yet", (rect.x + px(18), status_y), 13, config.TEXT_DIM, anchor="midleft")
         else:
             check = icon_surface("check", px(16), config.SUCCESS)
             surface.blit(check, check.get_rect(midleft=(rect.x + px(16), status_y)))
-            draw_text(surface, f"Best {best:.2f} s", (rect.x + px(38), status_y), 13, config.SUCCESS,
+            draw_text(surface, status, (rect.x + px(38), status_y), 13, config.SUCCESS,
                       anchor="midleft")
