@@ -188,3 +188,107 @@ def test_no_constant_push_clears_a_section(index):
         if _fly(s, f"{fx:.6f}", f"{fy:.6f}").outcome is Outcome.REACHED:
             reached.append((deg, size))
     assert reached == []
+
+
+# --- the game: two checkpoints, two pans to the left, win; the answer is paid once ---------
+def _scene():
+    from types import SimpleNamespace
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.game import GameScene
+
+    audio = SimpleNamespace(play=lambda *a, **k: None, start_loop=lambda *a, **k: None,
+                            stop_loop=lambda *a, **k: None)
+    manager = SceneManager(audio)
+    manager.session.level_id = 11
+    scene = GameScene(manager)
+    manager.switch(scene)
+    return manager, scene
+
+
+def _type(scene, fx, fy):
+    scene.editor.set_lines([fx, fy])
+    scene._on_text_change(scene.editor)
+
+
+def _launch(scene, surface, answer):
+    """Fly ``answer`` through any pan that follows; the state it ends in."""
+    from vector_drift.scenes.game import FLIGHT, PANNING
+
+    _type(scene, *answer)
+    scene._try_launch()
+    while scene.state == FLIGHT:
+        scene.update(0.05)
+        scene.draw(surface)
+    reached = scene.state
+    while scene.state == PANNING:
+        scene.update(0.05)
+        scene.draw(surface)
+    return reached
+
+
+@pytest.mark.usefixtures("pygame_display")
+def test_level_eleven_plays_through_two_checkpoints_to_the_win():
+    import pygame
+
+    from vector_drift.scenes.game import ARRIVED, PANNING, SETUP
+
+    _, scene = _scene()
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    assert scene.section_index == 0 and scene.lives == LEVEL.lives
+
+    # Section 1 at full lives: the checkpoint's extra life is capped.
+    assert _launch(scene, surface, OVER) == PANNING
+    assert scene.section_index == 1 and scene.lives == LEVEL.lives
+    assert tuple(scene.launch_pos) == START
+
+    # Section 2: section 1's answer flies out over the wall without an Unbound; the
+    # next life starts at the checkpoint, and reaching the next one gives it back.
+    assert _launch(scene, surface, OVER) == SETUP
+    assert scene.section_index == 1 and scene.lives == LEVEL.lives - 1
+    assert tuple(scene.launch_pos) == START
+    assert _launch(scene, surface, UNDER) == PANNING
+    assert scene.section_index == 2 and scene.lives == LEVEL.lives
+
+    # Section 3: the planet.
+    assert _launch(scene, surface, DROP) == ARRIVED
+    assert scene.section_index == 2 and scene.lives == LEVEL.lives
+
+
+@pytest.mark.xfail(reason="level 11 hints pending", strict=True)
+@pytest.mark.usefixtures("pygame_display")
+def test_level_eleven_answer_is_paid_once_for_all_three_sections():
+    import pygame
+
+    from vector_drift.scenes.game import PANNING
+
+    assert 11 not in config.FREE_ANSWER_LEVELS
+    manager, scene = _scene()
+    manager.session.money.add(25)
+    surface = pygame.Surface((config.WINDOW_W, config.WINDOW_H))
+    scene.draw(surface)
+
+    def open_answer():
+        scene._open_hint()
+        popup = scene.hint_popup
+        while popup.page < popup.answer_page - 1:
+            popup.page += 1
+        scene._request_hint_answer()
+        return popup
+
+    # Section 1: asked first, with the price; paying shows the answer page.
+    popup = open_answer()
+    assert popup.confirming and popup.confirm_price is not None
+    scene._show_hint_answer(config.HINT_ANSWER_COST)
+    assert popup.on_answer_page
+    assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
+    assert 11 in manager.session.paid_answer_levels
+
+    # Sections 2 and 3: each one's own answer page opens straight away, at no charge.
+    for answer, section_number in ((OVER, 2), (UNDER, 3)):
+        assert _launch(scene, surface, answer) == PANNING
+        assert scene.section_index == section_number - 1
+        popup = open_answer()
+        assert popup.on_answer_page and not popup.confirming
+        assert popup.hint is scene.hint and scene.hint.section == section_number
+        assert int(manager.session.money) == 25 - config.HINT_ANSWER_COST
