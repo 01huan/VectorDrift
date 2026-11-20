@@ -110,7 +110,11 @@ class GameHudRenderMixin:
 
         if not self.show_assists:
             return
-        if self.hint_mode:
+        if self.daily_answer:
+            # Answer button (daily map): like Hint, usable any time before the win.
+            self.ai_button.enabled = self.state != ARRIVED
+            self.ai_button.label = "Answer"
+        elif self.hint_mode:
             # Hint button (fixed levels): usable any time before the win.
             self.ai_button.enabled = self.hint is not None and self.state != ARRIVED
             self.ai_button.label = "Hint"
@@ -119,8 +123,7 @@ class GameHudRenderMixin:
             self.ai_button.enabled = True
             self.ai_button.label = ("AI Solver" if self.ai_status != "error"
                                     else "AI Solver (Failed)")
-        if self.show_answer_help:
-            self.ai_button.draw(surface)
+        self.ai_button.draw(surface)
         self.lab_button.draw(surface)
 
     # ------------------------------------------------------------------ abilities

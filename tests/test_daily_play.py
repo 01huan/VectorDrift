@@ -169,26 +169,53 @@ def test_pressing_daily_again_picks_the_new_day(today):
     assert again.full_level == generate_daily(NEXT_DAY).level
 
 
-# --- no Hint and no AI Solver -----------------------------------------------------------
+# --- the Answer button (no Hint, no AI Solver) -------------------------------------------
 
 def _drawn_buttons(game):
     drawn = []
     for name in ("ai_button", "lab_button"):
         button = getattr(game, name)
-        button.draw = lambda surface, name=name: drawn.append(name)
+        button.draw = lambda surface, name=name, b=button: drawn.append((name, b.label))
     game.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
     return drawn
 
 
-def test_the_daily_map_has_no_hint_or_ai_solver(today):
+def test_the_daily_map_shows_answer_where_hint_sits(today):
     game = _enter_daily(_manager())
+    fixed = _manager()
+    fixed.session.level_id = 1
+    hint_rect = GameScene(fixed).ai_button.rect
 
-    assert not game.show_answer_help
+    assert game.daily_answer
     assert game.ai_solver is None and game.ai_job is None
-    assert _drawn_buttons(game) == ["lab_button"]
+    assert _drawn_buttons(game) == [("ai_button", "Answer"), ("lab_button", "Lab")]
+    assert game.ai_button.rect == hint_rect
+    assert game.ai_button.enabled
 
+
+def test_the_answer_button_opens_no_hint_or_ai_solver(today):
+    game = _enter_daily(_manager())
     _click(game, game.ai_button.rect)
     assert game.hint_popup is None and not game.ai_popup
+
+
+def test_the_answer_button_works_during_a_flight_like_hint(today):
+    from vector_drift.scenes.game import FLIGHT
+    game = _enter_daily(_manager())
+    game.editor.set_lines(["1", "0"])
+    game._on_text_change(game.editor)
+    game._try_launch()
+    assert game.state == FLIGHT
+    game.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    assert game.ai_button.enabled
+
+
+def test_the_answer_button_is_off_once_the_map_is_cleared(today):
+    from vector_drift.scenes.game import ARRIVED
+    game = _enter_daily(_manager())
+    game.state = ARRIVED
+    game.draw(pygame.Surface((config.WINDOW_W, config.WINDOW_H)))
+    assert not game.ai_button.enabled
 
 
 def test_the_lab_still_opens_on_the_daily_map(today):
@@ -201,8 +228,17 @@ def test_fixed_levels_keep_their_hint_button():
     mgr = _manager()
     mgr.session.level_id = 1
     game = GameScene(mgr)
-    assert game.show_answer_help
-    assert _drawn_buttons(game) == ["ai_button", "lab_button"]
+    assert not game.daily_answer
+    assert _drawn_buttons(game) == [("ai_button", "Hint"), ("lab_button", "Lab")]
+
+
+def test_random_levels_keep_their_ai_solver_button():
+    mgr = _manager()
+    mgr.session.level_id = 999
+    mgr.session.random_seed = 7
+    game = GameScene(mgr)
+    assert not game.daily_answer
+    assert _drawn_buttons(game) == [("ai_button", "AI Solver"), ("lab_button", "Lab")]
 
 
 

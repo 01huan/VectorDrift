@@ -124,6 +124,13 @@ class GameUIMixin:
         elif action == "quit":
             self.manager.quit()
 
+    # ------------------------------------------------------------------ daily Answer
+    def _open_daily_answer(self):
+        """The daily map's Answer button."""
+        if self.state == ARRIVED:
+            return
+        self.audio.play("click")
+
     # ------------------------------------------------------------------ Hint
     def _section_hint(self):
         """The hint for the section on screen (one per section on multi-section levels)."""

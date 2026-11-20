@@ -165,9 +165,9 @@ class GameCoreMixin:
         # config.AI_SOLVER_COST coins once per map/level this launch.
         # Revealing the answer costs its price once per launch; that price is the
         # only cost. Clears still count toward best times, clear rewards, and coins.
-        # The daily challenge offers neither (no answers in its first version):
-        # no Hint / AI Solver button, and the solver never starts.
-        self.show_answer_help = not is_daily_level(self.level.id)
+        # The daily challenge offers neither: its button is "Answer" (the day's
+        # reference answer, paid once per day), and the solver never starts.
+        self.daily_answer = is_daily_level(self.level.id)
         self.hint_mode = not (is_dynamic_level(self.level.id)
                               or is_custom_map(self.level.id, self.session))
         self.hint = self._section_hint()
