@@ -232,12 +232,7 @@ def make_plot_background(viewport, space=None):
     return surf
 
 
-def grid_lines(viewport):
-    """The grid as (color, vertical, position px, width px), plot-local, drawing order.
-
-    Minor/major lines + axes at the viewport's scale; zoomed far out the major
-    step grows (grid_step) so the number of lines stays about the same.
-    """
+def _grid_lines_for(viewport):
     ox, oy = viewport.left, viewport.top
     s = viewport.scale
 
@@ -262,6 +257,30 @@ def grid_lines(viewport):
     lines += [(major, False, sy(j * step), 1) for j in range(-max_y, max_y + 1) if j]
     axis_w = max(2, px(1.5))
     lines += [(axis, True, sx(0), axis_w), (axis, False, sy(0), axis_w)]
+    return lines
+
+
+_grid_lines_cache: dict = {}
+
+
+def grid_lines(viewport):
+    """The grid as (color, vertical, position px, width px), plot-local, drawing order.
+
+    Minor/major lines + axes at the viewport's scale; zoomed far out the major
+    step grows (grid_step) so the number of lines stays about the same.
+
+    The result is cached by the viewport geometry: the lines only change when
+    the camera moves, so a steady camera skips the ~250-tuple rebuild per frame.
+    """
+    key = (viewport.left, viewport.top, viewport.width, viewport.height,
+           viewport.scale, viewport.cx, viewport.cy)
+    cached = _grid_lines_cache.get(key)
+    if cached is not None:
+        return cached
+    lines = _grid_lines_for(viewport)
+    if len(_grid_lines_cache) >= 16:
+        _grid_lines_cache.clear()
+    _grid_lines_cache[key] = lines
     return lines
 
 
