@@ -3,6 +3,7 @@
 import pygame
 
 from .. import image_assets
+from .common import _rotated
 
 
 HOLE_SPIN_PERIOD_S = 8.0
@@ -28,7 +29,7 @@ def draw_hole(surface, center, radius, t=0.0, kind="black", pair_index=1):
                 continue
             img = image_assets.load_image(key, size_px=(size, size))
             if img is not None:
-                img = pygame.transform.rotozoom(img, _hole_spin_angle(kind, t), 1.0)
+                img = _rotated(img, _hole_spin_angle(kind, t), (key, size))
                 rect = img.get_rect(center=(int(cx), int(cy)))
                 surface.blit(img, rect)
                 return

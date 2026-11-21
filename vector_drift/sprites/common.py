@@ -25,6 +25,27 @@ def _cached(key, build):
     return _cache[key]
 
 
+_ROTATED_CACHE: dict = {}
+_ROTATED_CACHE_MAX = 128
+
+
+def _rotated(img, angle, tag):
+    """``pygame.transform.rotozoom(img, angle, 1.0)`` memoized by (tag, rounded angle).
+
+    For per-frame rotating sprites (ship, hole, start marker): a bounded cache
+    avoids re-rotating the same image + angle every frame.  ``tag`` must
+    separate sprites that rotate differently (e.g. different sizes).
+    """
+    key = (tag, round(angle, 2))
+    rot = _ROTATED_CACHE.get(key)
+    if rot is None:
+        if len(_ROTATED_CACHE) >= _ROTATED_CACHE_MAX:
+            _ROTATED_CACHE.clear()
+        rot = pygame.transform.rotozoom(img, angle, 1.0)
+        _ROTATED_CACHE[key] = rot
+    return rot
+
+
 def _poly(surface, pts, fill, outline_w):
     """Filled polygon with a rounded-corner outline."""
     pygame.draw.polygon(surface, fill, pts)

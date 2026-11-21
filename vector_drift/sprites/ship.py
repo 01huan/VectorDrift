@@ -5,7 +5,7 @@ import math
 import pygame
 
 from .. import config
-from .common import (SS, OUTLINE, GLASS, NOZZLE, _cached, _poly, _shade)
+from .common import (SS, OUTLINE, GLASS, NOZZLE, _cached, _poly, _shade, _rotated)
 from .common import load_image
 
 # Hull, wing and trim of the code-drawn grey rocket that marks a used life.
@@ -98,6 +98,7 @@ def draw_ship(surface, center, heading, size, ship, grey=False):
     flip = math.cos(heading) < 0
 
     img = load_image(f"ship.{ship.id}", size_px=(size, size))
+    tag = ("ship", ship.id, size, grey, flip)
     if img is not None:
         if grey:
             picture = img
@@ -107,7 +108,7 @@ def draw_ship(surface, center, heading, size, ship, grey=False):
             img = _cached(("ship-flip", upright),
                           lambda: pygame.transform.flip(upright, False, True))
         try:
-            rotated = pygame.transform.rotozoom(img, deg, 1.0)
+            rotated = _rotated(img, deg, tag)
             surface.blit(rotated, rotated.get_rect(center=center))
         except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
             return
@@ -121,7 +122,7 @@ def draw_ship(surface, center, heading, size, ship, grey=False):
         img = _cached(("ship-flip", upright),
                       lambda: pygame.transform.flip(upright, False, True))
     try:
-        rotated = pygame.transform.rotozoom(img, deg, 1.0)
+        rotated = _rotated(img, deg, tag)
         surface.blit(rotated, rotated.get_rect(center=center))
     except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
         return

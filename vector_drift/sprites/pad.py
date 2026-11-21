@@ -5,7 +5,7 @@ import math
 import pygame
 
 from .. import config
-from .common import _cached
+from .common import _cached, _rotated
 from .common import load_image
 
 
@@ -29,7 +29,7 @@ def draw_start_marker(surface, center, radius, t):
     img = load_image("ui.start_marker", size_px=(radius * 2, radius * 2))
     if img is not None:
         try:
-            rotated = pygame.transform.rotozoom(img, -math.degrees(t * 0.4), 1.0)
+            rotated = _rotated(img, -math.degrees(t * 0.4), ("start_marker", radius))
             surface.blit(rotated, rotated.get_rect(center=center))
         except (pygame.error, TypeError, ValueError, OverflowError, MemoryError):
             return
