@@ -17,7 +17,9 @@ from typing import Any, Callable, Optional
 
 __all__ = [
     "run_async", "require_auth", "uploader_name", "norm_name",
-    "select_all_pages",
+    "select_all_pages", "require_user_id", "delete_where_user_id",
+    "update_where_user_id", "delete_owned_item", "fetch_rows_newest",
+    "fetch_engagement",
 ]
 
 # PostgREST responses are capped server-side (Supabase defaults to 1000
@@ -103,3 +105,76 @@ def uploader_name(account: Any) -> str:
         if display and "@" not in str(display):
             name = str(display)
     return name or ""
+
+
+def require_user_id(account: Any) -> str:
+    """The current user's id, raising when the account is not signed in."""
+    if account is None or not account.is_authenticated() or account.current_user is None:
+        raise RuntimeError("Not logged in.")
+    return account.current_user.id
+
+
+def delete_where_user_id(client: Any, table: str, user_id: str) -> int:
+    """Delete every row of ``table`` owned by ``user_id``; return the count."""
+    resp = client.table(table).delete().eq("user_id", user_id).execute()
+    return len(getattr(resp, "data", None) or [])
+
+
+def update_where_user_id(client: Any, table: str, user_id: str, values: dict) -> int:
+    """Update every row of ``table`` owned by ``user_id``; return the count."""
+    resp = client.table(table).update(values).eq("user_id", user_id).execute()
+    return len(getattr(resp, "data", None) or [])
+
+
+def delete_owned_item(client: Any, table: str, item_id: Any, user_id: str) -> Any:
+    """Delete the community row with ``id`` owned by ``user_id``; return the response."""
+    return (
+        client.table(table)
+        .delete()
+        .eq("id", item_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+
+def fetch_rows_newest(client: Any, table: str, base_columns: str, stat_columns: str) -> list[dict]:
+    """Fetch a community table newest first.
+
+    The statistics columns may be missing on an older database; on failure
+    the plain column list is used instead (rows still show, counters missing).
+    """
+    try:
+        return select_all_pages(
+            lambda: client.table(table).select(f"{base_columns}, {stat_columns}").order("created_at", desc=True)
+        )
+    except Exception:
+        return select_all_pages(
+            lambda: client.table(table).select(base_columns).order("created_at", desc=True)
+        )
+
+
+def fetch_engagement(client: Any, favorites_table: str, ratings_table: str,
+                     id_key: str, user_id: str) -> tuple[list, dict]:
+    """Fetch the caller's favorites and ratings from the per-user tables."""
+    favorites: list = []
+    ratings: dict = {}
+    try:
+        for row in select_all_pages(
+                lambda: client.table(favorites_table).select(id_key).eq("user_id", user_id)):
+            fid = row.get(id_key)
+            if fid:
+                favorites.append(str(fid))
+    except Exception:
+        pass
+    try:
+        for row in select_all_pages(
+                lambda: client.table(ratings_table).select(f"{id_key}, rating").eq("user_id", user_id)):
+            fid = row.get(id_key)
+            if fid:
+                try:
+                    ratings[str(fid)] = int(row.get("rating"))
+                except (TypeError, ValueError):
+                    continue
+    except Exception:
+        pass
+    return favorites, ratings

@@ -17,7 +17,10 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from .supabase_client import get_client
-from .community_common import require_auth, run_async, uploader_name, norm_name, select_all_pages
+from .community_common import (delete_owned_item, delete_where_user_id, fetch_engagement,
+                               fetch_rows_newest, require_auth, require_user_id,
+                               run_async, select_all_pages, update_where_user_id,
+                               uploader_name, norm_name)
 
 TABLE = "community_functions"
 FAVORITES_TABLE = "community_function_favorites"
@@ -365,16 +368,8 @@ def delete_community_function(
                 account = val
 
     def _fn() -> Any:
-        if account is None or not account.is_authenticated() or account.current_user is None:
-            raise RuntimeError("Not logged in.")
-        client = get_client()
-        return (
-            client.table(TABLE)
-            .delete()
-            .eq("id", function_id)
-            .eq("user_id", account.current_user.id)
-            .execute()
-        )
+        user_id = require_user_id(account)
+        return delete_owned_item(get_client(), TABLE, function_id, user_id)
 
     run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -391,15 +386,7 @@ def fetch_community_functions(
     """
 
     def _fn() -> list[dict]:
-        client = get_client()
-        try:
-            return select_all_pages(
-                lambda: client.table(TABLE).select(f"{BASE_COLUMNS}, {STAT_COLUMNS}").order("created_at", desc=True)
-            )
-        except Exception:
-            return select_all_pages(
-                lambda: client.table(TABLE).select(BASE_COLUMNS).order("created_at", desc=True)
-            )
+        return fetch_rows_newest(get_client(), TABLE, BASE_COLUMNS, STAT_COLUMNS)
 
     run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -417,16 +404,7 @@ def delete_user_community_functions(
     """Delete every community function owned by the current user."""
 
     def _fn() -> int:
-        if account is None or not account.is_authenticated() or account.current_user is None:
-            raise RuntimeError("Not logged in.")
-        client = get_client()
-        resp = (
-            client.table(TABLE)
-            .delete()
-            .eq("user_id", account.current_user.id)
-            .execute()
-        )
-        return len(getattr(resp, "data", None) or [])
+        return delete_where_user_id(get_client(), TABLE, require_user_id(account))
 
     run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -440,16 +418,8 @@ def update_community_functions_uploader_name(
     """Refresh ``uploader_name`` on every community function owned by the user."""
 
     def _fn() -> int:
-        if account is None or not account.is_authenticated() or account.current_user is None:
-            raise RuntimeError("Not logged in.")
-        client = get_client()
-        resp = (
-            client.table(TABLE)
-            .update({"uploader_name": new_name or ""})
-            .eq("user_id", account.current_user.id)
-            .execute()
-        )
-        return len(getattr(resp, "data", None) or [])
+        return update_where_user_id(
+            get_client(), TABLE, require_user_id(account), {"uploader_name": new_name or ""})
 
     run_async(_fn, on_success=on_success, on_error=on_error)
 
@@ -592,38 +562,11 @@ def fetch_function_engagement(
     """
 
     def _fn() -> dict:
-        empty = {"favorites": [], "ratings": {}}
-        if (
-            account is None
-            or not account.is_authenticated()
-            or account.current_user is None
-        ):
-            return empty
+        if account is None or not account.is_authenticated() or account.current_user is None:
+            return {"favorites": [], "ratings": {}}
         client = get_client()
-        user_id = account.current_user.id
-        favorites: list[str] = []
-        ratings: dict = {}
-        try:
-            for row in select_all_pages(
-                lambda: client.table(FAVORITES_TABLE).select("function_id").eq("user_id", user_id)
-            ):
-                fid = row.get("function_id")
-                if fid:
-                    favorites.append(str(fid))
-        except Exception:
-            pass
-        try:
-            for row in select_all_pages(
-                lambda: client.table(RATINGS_TABLE).select("function_id, rating").eq("user_id", user_id)
-            ):
-                fid = row.get("function_id")
-                if fid:
-                    try:
-                        ratings[str(fid)] = int(row.get("rating"))
-                    except (TypeError, ValueError):
-                        continue
-        except Exception:
-            pass
+        favorites, ratings = fetch_engagement(
+            client, FAVORITES_TABLE, RATINGS_TABLE, "function_id", account.current_user.id)
         return {"favorites": favorites, "ratings": ratings}
 
     run_async(_fn, on_success=on_success, on_error=on_error)
@@ -639,11 +582,10 @@ def delete_user_function_engagement(
     to guest, so rows pointing at the player do not stay behind."""
 
     def _fn() -> bool:
-        if account is None or not account.is_authenticated() or account.current_user is None:
-            raise RuntimeError("Not logged in.")
+        user_id = require_user_id(account)
         client = get_client()
-        client.table(RATINGS_TABLE).delete().eq("user_id", account.current_user.id).execute()
-        client.table(FAVORITES_TABLE).delete().eq("user_id", account.current_user.id).execute()
+        client.table(RATINGS_TABLE).delete().eq("user_id", user_id).execute()
+        client.table(FAVORITES_TABLE).delete().eq("user_id", user_id).execute()
         return True
 
     run_async(_fn, on_success=on_success, on_error=on_error)
