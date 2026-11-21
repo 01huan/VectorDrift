@@ -27,6 +27,7 @@ import pygame
 from .. import config
 from ..config import px
 from ..ui import draw_text
+from ..sprites.common import blink_value
 
 # --- how long, how big, what colour --------------------------------------------
 ABILITY_FX_S = 0.8               # an ability's flash lasts this long (s)
@@ -174,7 +175,7 @@ def _glow(surface, center, radius, color, alpha):
 def _pulse(t):
     """A slow 0..1 breathing value: the flash pulses while it shows."""
     try:
-        value = 0.5 + 0.5 * math.sin(float(t) * 6.0)
+        value = blink_value(t, 6.0)
     except (TypeError, ValueError, OverflowError):
         return 0.5
     return value if math.isfinite(value) else 0.5

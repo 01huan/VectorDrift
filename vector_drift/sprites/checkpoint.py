@@ -5,7 +5,7 @@ import math
 import pygame
 
 from .. import config
-from .common import _cached
+from .common import _cached, blink_value
 from .common import load_image
 from ..render import soft_glow
 from .ship import draw_ship, ship_icon_surface
@@ -82,7 +82,7 @@ def draw_checkpoint_life(surface, center, radius, t, ship, fade=0.0):
         glow = _cached(("checkpoint-life-glow", r), lambda: soft_glow(
             0.6 * r, CHECKPOINT_LIFE_GLOW, max_alpha=255, extent=2.0, power=1.3).premul_alpha())
         icon = ship_icon_surface(ship, max(6, round(CHECKPOINT_LIFE_SIZE * r)))
-        pulse = 0.5 + 0.5 * math.sin(t * 3.0)
+        pulse = blink_value(t, 3.0)
         scale = 1.0 + 0.6 * fade
         bob = 0.05 * r * math.sin(t * 2.4)
         pos = (cx, cy - (CHECKPOINT_LIFE_LIFT + 0.5 * fade) * r + bob)

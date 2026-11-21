@@ -5,7 +5,7 @@ import math
 import pygame
 
 from .. import config
-from .common import SS, _cached
+from .common import SS, _cached, blink_value
 
 SHIELD = (120, 220, 255)
 PHASE = (150, 240, 220)
@@ -25,7 +25,7 @@ def _render_shield(radius):
 def draw_shield(surface, center, radius, t):
     radius = max(4, round(radius))
     img = _cached(("shield", radius), lambda: _render_shield(radius)).copy()
-    img.set_alpha(round(170 + 85 * (0.5 + 0.5 * math.sin(t * 5.0))))
+    img.set_alpha(round(170 + 85 * blink_value(t, 5.0)))
     try:
         surface.blit(img, img.get_rect(center=center))
     except (pygame.error, TypeError, ValueError, OverflowError):
@@ -67,7 +67,7 @@ def draw_phase(surface, center, radius, t):
         return
     radius = max(6, round(radius))
     img = _cached(("phase", radius), lambda: _render_phase(radius)).copy()
-    img.set_alpha(round(150 + 80 * (0.5 + 0.5 * math.sin(t * 6.0))))
+    img.set_alpha(round(150 + 80 * blink_value(t, 6.0)))
     try:
         rotated = pygame.transform.rotozoom(img, (t * 90.0) % 360.0, 1.0)
         surface.blit(rotated, rotated.get_rect(center=(round(cx), round(cy))))

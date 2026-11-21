@@ -8,7 +8,6 @@ ability or level buttons. The session's formulas, ship and level are
 put back on leaving, so no level's progress changes.
 """
 
-import math
 
 import pygame
 
@@ -16,6 +15,7 @@ from .. import config
 from ..config import px
 from ..tutorial import TUTORIAL_SHIP_ID
 from ..ui_fonts import draw_text, get_font
+from ..sprites.common import blink_value
 from .game import GameScene
 from .game_layout import ARRIVED
 
@@ -197,7 +197,7 @@ def rich_height(text, width, size=16):
 
 def draw_pointer(surface, tip, t, length=46):
     """A bobbing arrow from above, its point at ``tip``."""
-    bob = px(6) * (0.5 + 0.5 * math.sin(t * 5.0))
+    bob = px(6) * blink_value(t, 5.0)
     x, y = tip[0], tip[1] - px(14) - bob
     head = px(12)
     pygame.draw.line(surface, POINTER, (x, y - px(length)), (x, y - head // 2), max(3, px(4)))

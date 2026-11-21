@@ -2,14 +2,12 @@
 
 import logging
 import math
-import random
 
 import pygame
 
 from .. import config
 from .. import image_assets
 from .. import render
-from ..render import soft_glow
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +38,11 @@ def _shade(color, f):
     return tuple(max(0, min(255, round(c * f))) for c in color)
 
 
+def blink_value(t, freq, base=0.5, span=0.5):
+    """A gentle 0..1 pulse: ``base + span * sin(t * freq)``."""
+    return base + span * math.sin(t * freq)
+
+
 def _paint_cached_prop(surface, center, radius, t, cache_key, render_fn,
                        alpha_base=215, alpha_range=40, pulse_freq=3.0):
     """Shared boilerplate for cached prop painters (bumper, shockwave, ...).
@@ -68,7 +71,7 @@ def _paint_cached_prop(surface, center, radius, t, cache_key, render_fn,
         # Copy before set_alpha so the shared cache surface isn't mutated
         # (all same-radius props would otherwise be forced to one alpha).
         img = _cached((cache_key, radius), lambda: render_fn(radius))
-        pulse = 0.5 + 0.5 * math.sin(t * pulse_freq)
+        pulse = blink_value(t, pulse_freq)
         img = img.copy()
         img.set_alpha(round(alpha_base + alpha_range * pulse))
         surface.blit(img, img.get_rect(center=(cx, cy)))

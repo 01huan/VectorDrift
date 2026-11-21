@@ -4,7 +4,7 @@ import math
 
 import pygame
 
-from .common import SS, OUTLINE, _cached, _shade
+from .common import SS, OUTLINE, _cached, _shade, blink_value
 from .common import load_image
 from ..render import soft_glow
 
@@ -69,7 +69,7 @@ def draw_target(surface, center, radius, t, flash=0.0):
             pass
 
     glow = _cached(("glow", radius), lambda: _render_glow(radius))
-    pulse = 0.5 + 0.5 * math.sin(t * 2.2)
+    pulse = blink_value(t, 2.2)
     glow.set_alpha(round(140 + 115 * pulse))
     try:
         surface.blit(glow, glow.get_rect(center=center))
