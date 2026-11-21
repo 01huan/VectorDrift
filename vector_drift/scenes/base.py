@@ -9,6 +9,7 @@ import pygame
 from .. import config
 from ..data import is_community_level, is_custom_map
 from ..money import Money
+from ..account.models import ReplaysPropertiesMixin
 from ..config import px
 from ..desktop import set_cursor
 from ..ui import Button, draw_text
@@ -77,30 +78,6 @@ class Session:
         from ..function_library import find_function
 
         return find_function(self.function_library, self.imported_function_id)
-
-    @property
-    def launch_records(self):
-        return self.replays
-
-    @launch_records.setter
-    def launch_records(self, value):
-        self.replays = list(value or [])
-
-    @property
-    def replay_records(self):
-        return self.replays
-
-    @replay_records.setter
-    def replay_records(self, value):
-        self.replays = list(value or [])
-
-    @property
-    def launches(self):
-        return self.replays
-
-    @launches.setter
-    def launches(self, value):
-        self.replays = list(value or [])
 
     @property
     def unlocked_ships(self):

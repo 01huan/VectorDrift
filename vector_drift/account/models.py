@@ -16,18 +16,8 @@ class AccountUser:
     refresh_token: Optional[str] = None
 
 
-@dataclass
-class PlayerProfile:
-    user_id: str
-    display_name: Optional[str] = None
-    money: int = 0
-    owned_ships: Set[str] = field(default_factory=lambda: {"ship01"})
-    purchased_items: Set[str] = field(default_factory=set)
-    records: Dict[int, float] = field(default_factory=dict)
-    collected_money_pickups: Set[tuple[int, tuple[float, float]]] = field(default_factory=set)
-    stats: Dict[str, Any] = field(default_factory=dict)
-    updated_at: Optional[str] = None
-    replays: list = field(default_factory=list)
+class ReplaysPropertiesMixin:
+    """Back-compat aliases for the launch/replay records stored in ``replays``."""
 
     @property
     def launch_records(self):
@@ -52,6 +42,20 @@ class PlayerProfile:
     @launches.setter
     def launches(self, value):
         self.replays = list(value or [])
+
+
+@dataclass
+class PlayerProfile(ReplaysPropertiesMixin):
+    user_id: str
+    display_name: Optional[str] = None
+    money: int = 0
+    owned_ships: Set[str] = field(default_factory=lambda: {"ship01"})
+    purchased_items: Set[str] = field(default_factory=set)
+    records: Dict[int, float] = field(default_factory=dict)
+    collected_money_pickups: Set[tuple[int, tuple[float, float]]] = field(default_factory=set)
+    stats: Dict[str, Any] = field(default_factory=dict)
+    updated_at: Optional[str] = None
+    replays: list = field(default_factory=list)
 
 
     def to_row(self) -> dict:
