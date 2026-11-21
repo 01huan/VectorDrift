@@ -178,8 +178,19 @@ class PSOSolver(Solver):
         simulations: list = []
         best_spec: SimulationSpec | None = None
         best_score = -math.inf
+        best_coins = 0
         iterations = 0
         total_simulations = 0
+
+        # Total gold coins available on this level (best possible collection).
+        total_money = 0
+        for _p in getattr(level, "pickups", ()) or ():
+            if getattr(_p, "kind", None) == "money":
+                total_money += int(getattr(_p, "amount", 1) or 1)
+        for _s in getattr(level, "sections", ()) or ():
+            for _p in getattr(_s, "pickups", ()) or ():
+                if getattr(_p, "kind", None) == "money":
+                    total_money += int(getattr(_p, "amount", 1) or 1)
 
         particles: list[Particle] = []
         for _ in range(cfg.n_particles):
@@ -192,6 +203,7 @@ class PSOSolver(Solver):
 
         global_best_pos: list[float] | None = None
         global_best_score = -math.inf
+        global_best_money = 0
         # Tracks whether ANY candidate was ever verified REACHED, across the
         # restarts the search does after a success (which clear ``simulations``).
         any_success = False
@@ -260,7 +272,7 @@ class PSOSolver(Solver):
                     total_simulations=total_simulations,
                     solve_time_s=time.perf_counter() - start,
                     pso_iterations=iterations,
-                    message=f"{total_simulations} simulations; best score {global_best_score:.4f}",
+                    message=f"{total_simulations} simulations; best coins {global_best_money}",
                 )
                 progress_callback(res)
             except Exception:
@@ -334,6 +346,7 @@ class PSOSolver(Solver):
                 if score > global_best_score:
                     global_best_score = score
                     global_best_pos = list(p.pos)
+                    global_best_money = int(getattr(rec, "money", 0))
                     _publish_progress()
                     _publish_progress()
 
@@ -345,6 +358,7 @@ class PSOSolver(Solver):
             # Run PSO iterations until success, budget exhaustion, or timeout.
             while (max_sim is None or total_simulations < max_sim):
                 _check_cancel()
+                optimal_found = False
                 if (
                     time_budget is not None
                     and time.perf_counter() - start >= time_budget
@@ -395,15 +409,29 @@ class PSOSolver(Solver):
                     if score > global_best_score:
                         global_best_score = score
                         global_best_pos = list(p.pos)
+                        global_best_money = int(getattr(rec, "money", 0))
 
                     if rec.outcome == SimulationOutcome.REACHED:
                         success_found = True
+                        if int(getattr(rec, "money", 0)) >= total_money:
+                            optimal_found = True
 
                         # Preserve the original sequential early-stop behavior.
                         # Parallel batches may already have completed additional
                         # simulations before their results are collected.
-                        if cfg.early_stop_on_success:
+                        if cfg.early_stop_on_success or optimal_found:
                             break
+
+                # When the best possible solution (all gold coins + reached) is
+                # found, stop the whole search.
+                if optimal_found:
+                    _publish_progress()
+                    if max_sim is None:
+                        max_sim = total_simulations
+                    else:
+                        max_sim = min(max_sim, total_simulations)
+                    success_found = False
+                    continue
 
                 # When a solution is found, record best and restart PSO with a
                 # new seed to keep exploring for potentially better solutions.
@@ -478,6 +506,9 @@ class PSOSolver(Solver):
                 source="pso",
             )
             best_score = global_best_score
+            best_coins = global_best_money
+        else:
+            best_coins = 0
 
         solve_time = time.perf_counter() - start
         success = any_success
@@ -485,7 +516,7 @@ class PSOSolver(Solver):
         message = (
             f"{total_simulations} simulations over {iterations} "
             f"iterations in {solve_time:.2f}s; "
-            f"best score {best_score:.4f}"
+            f"best coins {best_coins}"
         )
         if success:
             message += "; SOLVED"
