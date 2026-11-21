@@ -91,6 +91,7 @@ class SimulationRecord:
 
     # ---- scoring ----------------------------------------------------
     score: float = 0.0
+    money: int = 0          # gold coins collected during the flight
     success: bool = False  # outcome == REACHED under formal rules
 
     # ---- solver metadata -------------------------------------------
@@ -157,6 +158,7 @@ def record_from_flight(
     min_dist_to_target: float,
     score: float,
     trajectory: list[TrajectoryPoint] | None,
+    money: int = 0,
     iteration: int = 0,
     particle_id: int | None = None,
     swarm_best_score: float = 0.0,
@@ -190,6 +192,7 @@ def record_from_flight(
         final_vel=tuple(final_vel),
         min_dist_to_target=float(min_dist_to_target),
         score=float(score),
+        money=int(money),
         success=outcome is Outcome.REACHED,
         trajectory=list(trajectory) if trajectory is not None else None,
         iteration=int(iteration),

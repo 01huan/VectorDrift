@@ -70,15 +70,15 @@ def _score(outcome: Outcome, steps: int, max_steps: int,
            min_dist: float, money: int = 0) -> float:
     """Score a finished flight.
 
-    Any REACHED outranks any non-REACHED.  Among REACHED, collected money is
-    ranked first, then faster is better (fewer steps): ``max_steps`` must be
-    the same for every candidate on a level (see _time_budget_steps).  Among
-    non-REACHED, closer to target is better (partial credit).
+    Any REACHED outranks any non-REACHED.  Among REACHED, collected money
+    (gold coins) is the only ranking: time no longer matters, so any flight
+    that reaches within the time limit scores the same for equal money.
+    Among non-REACHED, closer to target is better (partial credit).
     """
     if max_steps <= 0:
         max_steps = 1
     if outcome is Outcome.REACHED:
-        return 1.5 + float(money) + (1.0 - steps / max_steps) * 0.5  # (1.5, ...)
+        return 1.5 + float(money)
     # Non-reached: partial credit in [0, 0.5).
     closeness = max(0.0, 1.0 - min(min_dist, WORLD_DIAGONAL) / WORLD_DIAGONAL)
     return 0.5 * closeness
@@ -173,6 +173,7 @@ def evaluate_candidate(
         final_vel=(flight.vx, flight.vy),
         min_dist_to_target=min_dist,
         score=score,
+        money=money_collected,
         trajectory=trajectory if cfg.record_trajectory else None,
         iteration=iteration,
         particle_id=particle_id,
