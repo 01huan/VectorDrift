@@ -50,7 +50,7 @@ class PSOConfig:
     # and whether trajectories are recorded. The validator uses a short cap
     # so a "plausible solution" probe never dominates generation time.
     max_steps: int | None = None
-    record_trajectory: bool = True
+    record_trajectory: bool = False
     # Stall recovery: if the global best does not improve for this many
     # iterations, re-scatter part of the swarm to escape local optima.
     stall_limit: int = 25
@@ -153,10 +153,12 @@ class PSOSolver(Solver):
         def _check_cancel():
             if cancel_event is not None and cancel_event.is_set():
                 raise _Cancelled
-        if time_budget_s is not None:
-            cfg.time_budget_s = time_budget_s
-        if simulation_budget is not None:
-            cfg.simulation_budget = simulation_budget
+        # Budgets are local to this call: the solver instance may be reused
+        # across calls and must not inherit stale budgets from earlier ones.
+        time_budget = cfg.time_budget_s if time_budget_s is None else time_budget_s
+        simulation_budget = (cfg.simulation_budget
+                             if simulation_budget is None
+                             else simulation_budget)
 
         seed = rng_seed if rng_seed is not None else cfg.seed
         if seed is None:
@@ -219,10 +221,15 @@ class PSOSolver(Solver):
         # a time budget was set, which made it dead code on the game's
         # un-budgeted AI-assistant path.)
         max_sim = (
-            cfg.simulation_budget
-            if cfg.simulation_budget is not None
+            simulation_budget
+            if simulation_budget is not None
             else cfg.max_simulations
         )
+        if max_sim is not None and max_sim < 0:
+            # A negative simulation budget means no simulations at all (the
+            # particles[:max_sim] slices below would otherwise cut from the
+            # end of the swarm).
+            max_sim = 0
 
         success_found = False
         stall_count = 0
@@ -283,14 +290,11 @@ class PSOSolver(Solver):
                 n = len(batch_particles)
                 n_chunks = min(workers*8, n)
                 chunk_size = (n + n_chunks - 1) // n_chunks
-                chunks = [
-                    batch_particles[i:i + chunk_size]
-                    for i in range(0, n, chunk_size)
-                ]
-                chunk_payloads = [
-                    ([dict(zip(template.param_names, p.pos)) for p in chunk], iteration)
-                    for chunk in chunks
-                ]
+                chunk_payloads = []
+                for lo in range(0, n, chunk_size):
+                    params_list = [dict(zip(template.param_names, p.pos))
+                                   for p in batch_particles[lo:lo + chunk_size]]
+                    chunk_payloads.append((params_list, iteration))
 
                 if pool is not None:
                     futures = [pool.submit(_eval_chunk, payload) for payload in chunk_payloads]
@@ -298,6 +302,9 @@ class PSOSolver(Solver):
                     pending = set(futures)
                     while pending:
                         _check_cancel()
+                        if (time_budget is not None
+                                and time.perf_counter() - start >= time_budget):
+                            raise _Cancelled
                         _, pending = concurrent.futures.wait(pending, timeout=0.1)
                     records = [rec for f in futures for rec in f.result()]
                     simulations.extend(records)
@@ -339,14 +346,14 @@ class PSOSolver(Solver):
             while (max_sim is None or total_simulations < max_sim):
                 _check_cancel()
                 if (
-                    cfg.time_budget_s is not None
-                    and time.perf_counter() - start >= cfg.time_budget_s
+                    time_budget is not None
+                    and time.perf_counter() - start >= time_budget
                 ):
                     break
 
                 if (
-                    cfg.simulation_budget is not None
-                    and total_simulations >= cfg.simulation_budget
+                    simulation_budget is not None
+                    and total_simulations >= simulation_budget
                 ):
                     break
 
@@ -360,29 +367,15 @@ class PSOSolver(Solver):
                 r2 = [rng.random() for _ in range(n_dim)]
 
                 for p in particles:
+                    vel, pos, best = p.vel, p.pos, p.best_pos
                     for i in range(n_dim):
-                        cognitive_v = (
-                            cfg.cognitive
-                            * r1[i]
-                            * (p.best_pos[i] - p.pos[i])
-                        )
-                        social_v = (
-                            cfg.social
-                            * r2[i]
-                            * (global_best_pos[i] - p.pos[i])
-                        )
-
-                        p.vel[i] = (
-                            cfg.inertia * p.vel[i]
-                            + cognitive_v
-                            + social_v
-                        )
-
                         lo, hi = bounds[i]
                         vmax = (hi - lo) * cfg.velocity_scale
-                        p.vel[i] = max(-vmax, min(vmax, p.vel[i]))
-                        p.pos[i] = p.pos[i] + p.vel[i]
-                        p.pos[i] = max(lo, min(hi, p.pos[i]))
+                        v = (cfg.inertia * vel[i]
+                             + cfg.cognitive * r1[i] * (best[i] - pos[i])
+                             + cfg.social * r2[i] * (global_best_pos[i] - pos[i]))
+                        vel[i] = max(-vmax, min(vmax, v))
+                        pos[i] = max(lo, min(hi, pos[i] + vel[i]))
 
                 # Never submit more evaluations than the remaining budget.
                 batch_particles = (particles if remaining is None
@@ -416,8 +409,6 @@ class PSOSolver(Solver):
                 # new seed to keep exploring for potentially better solutions.
                 if success_found:
                     _publish_progress()
-                    if run_seed is None:
-                        run_seed = 0
                     run_seed += 1
                     rng = random.Random(run_seed)
                     particles = []
