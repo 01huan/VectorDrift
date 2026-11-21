@@ -91,8 +91,11 @@ def test_the_intro_counts_as_seen_and_is_saved_as_soon_as_it_starts():
 
 def test_the_cloud_profile_is_saved_too_when_signed_in():
     sent = []
+    # A fresh user id: earlier tests may have already uploaded an equal
+    # profile for "u1", and a no-change cloud upload is skipped now
+    # (integration._save_cloud_profile).
     account = SimpleNamespace(
-        is_authenticated=lambda: True, current_user=SimpleNamespace(id="u1"), is_busy=False,
+        is_authenticated=lambda: True, current_user=SimpleNamespace(id="u-intro"), is_busy=False,
         save_profile_async=lambda profile, on_success=None, on_error=None: sent.append(profile))
     menu = _menu(seen_intro=False, account=account)
     _click(menu, menu.start_button)
