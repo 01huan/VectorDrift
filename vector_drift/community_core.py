@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import difflib
 import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Optional, Sequence
@@ -46,6 +47,9 @@ MIN_MATCH_SCORE = 0.30
 # At least this share of the query has to be found in the text.  It keeps a
 # long query from matching a short, unrelated name by accident.
 MIN_COVERAGE = 0.50
+# Upper bound on the per-matcher text-score cache (the matcher itself is
+# kept in the smaller _MATCHER_CACHE).
+_MATCHER_TEXT_CACHE_MAX = 512
 
 
 # --- text helpers -----------------------------------------------------------
@@ -210,6 +214,8 @@ class FuzzyMatcher:
         cached = self._cache.get(key)
         if cached is not None:
             return cached
+        if len(self._cache) >= _MATCHER_TEXT_CACHE_MAX:
+            self._cache.clear()
         value = self._score(key)
         self._cache[key] = value
         return value
@@ -267,9 +273,10 @@ def fuzzy_score(query: Any, text: Any) -> float:
 
 
 # One matcher per query text, so its score cache survives a re-sort or a
-# change of the filters (only a new query has to be scored again).
-_MATCHER_CACHE: dict = {}
-_MATCHER_CACHE_LIMIT = 8
+# change of the filters (only a new query has to be scored again).  It is a
+# small LRU: a handful of queries is kept, older ones are evicted one by one.
+_MATCHER_CACHE: "OrderedDict[str, FuzzyMatcher]" = OrderedDict()
+_MATCHER_CACHE_LIMIT = 16
 
 
 def cached_matcher(query: Any) -> FuzzyMatcher:
@@ -278,11 +285,13 @@ def cached_matcher(query: Any) -> FuzzyMatcher:
     if not key:
         return FuzzyMatcher(query)
     matcher = _MATCHER_CACHE.get(key)
-    if matcher is None:
-        if len(_MATCHER_CACHE) >= _MATCHER_CACHE_LIMIT:
-            _MATCHER_CACHE.clear()
-        matcher = FuzzyMatcher(query)
-        _MATCHER_CACHE[key] = matcher
+    if matcher is not None:
+        _MATCHER_CACHE.move_to_end(key)
+        return matcher
+    if len(_MATCHER_CACHE) >= _MATCHER_CACHE_LIMIT:
+        _MATCHER_CACHE.popitem(last=False)
+    matcher = FuzzyMatcher(query)
+    _MATCHER_CACHE[key] = matcher
     return matcher
 
 
@@ -359,6 +368,7 @@ def filter_items(
     defaults = sort_table.default_descending
     key = sort_key if sort_key in keys else (keys[0] if keys else SORT_NEWEST)
     reverse = defaults.get(key, False) if descending is None else bool(descending)
+    query_active = name_matcher.active or uploader_matcher.active
 
     matched = []
     for info in infos or ():
@@ -380,11 +390,19 @@ def filter_items(
             if value <= 0.0:
                 continue
             score = min(score, value)
-        matched.append((score, info))
+        # The sort value is kept with the item so it can be the tie-breaker
+        # of a single sort below.
+        matched.append((score, info, sort_value(info, key)))
 
-    # First the requested order, then the closeness (a stable sort keeps the
-    # requested order inside equally close items).
-    matched.sort(key=lambda pair: sort_value(pair[1], key), reverse=reverse)
-    if name_matcher.active or uploader_matcher.active:
-        matched.sort(key=lambda pair: pair[0], reverse=True)
-    return [info for _score, info in matched]
+    if query_active:
+        # Two stable sorts (sort value, then closeness, descending) collapse
+        # into one: closeness descending first; ties break by the requested
+        # order direction.  (``-t[0]`` is only used when ``reverse`` is
+        # False: the closeness is still descending, the tie-break ascending.)
+        if reverse:
+            matched.sort(key=lambda t: (t[0], t[2]), reverse=True)
+        else:
+            matched.sort(key=lambda t: (-t[0], t[2]), reverse=False)
+    else:
+        matched.sort(key=lambda t: t[2], reverse=reverse)
+    return [info for _score, info, _sv in matched]
