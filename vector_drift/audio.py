@@ -71,11 +71,41 @@ class SoundBank:
     def play(self, name):
         sound = self.sounds.get(name)
         if sound and self._sfx_audible():
-            sound.play()
+            try:
+                sound.play()
+            except pygame.error:
+                pass
+
+    @staticmethod
+    def _loop_alive(channel):
+        """True when a loop channel still sounds (or cannot be queried)."""
+        busy = getattr(channel, "get_busy", None)
+        if not callable(busy):
+            return True
+        try:
+            if channel.get_busy():
+                return True
+        except Exception:
+            return True
+        paused = getattr(channel, "get_pause", None)
+        if callable(paused):
+            try:
+                if channel.get_pause():
+                    return True
+            except Exception:
+                pass
+        return False
 
     def start_loop(self, name):
         sound = self.sounds.get(name)
-        if sound and name not in self._loop_channels:
+        channel = self._loop_channels.get(name)
+        if channel is not None:
+            if self._loop_alive(channel):
+                return
+            # A dead loop channel would never restart: drop it so the sound
+            # plays again below.
+            self._loop_channels.pop(name, None)
+        if sound:
             channel = sound.play(loops=-1)
             if channel is not None:
                 channel.set_volume(1.0 if self._sfx_audible() else 0.0)
@@ -120,7 +150,7 @@ class SoundBank:
         try:
             pygame.mixer.music.load(str(path))
             pygame.mixer.music.set_volume(0.0)
-            pygame.mixer.music.play(loops=-1 if MUSIC_SLOTS[name] else 0)
+            pygame.mixer.music.play(loops=-1 if MUSIC_SLOTS.get(name, False) else 0)
         except pygame.error as exc:
             print(f"[audio] Could not play music: {exc}")
 
