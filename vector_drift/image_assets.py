@@ -139,6 +139,10 @@ register(AssetSpec("background.space", Path("background/space.png"), scale_mode=
 _sources: dict[str, pygame.Surface | None] = {}
 # (key, width, height) -> that image scaled once to exactly that real-pixel size.
 _cache: dict[tuple[str, int, int], pygame.Surface] = {}
+# The scaled cache can grow with a moving size (the unbound camera zooms
+# continually); a wholesale clear beyond this bound is safe (images are
+# re-scaled on the next request).
+_CACHE_MAX = 2048
 
 
 def clear_cache() -> None:
@@ -205,6 +209,8 @@ def load_image(key: str, size_px: tuple[int, int] | None = None) -> pygame.Surfa
     cache_key = (key, *size)
     if cache_key in _cache:
         return _cache[cache_key]
+    if len(_cache) >= _CACHE_MAX:
+        _cache.clear()
 
     # Scale once per size, cache the result.  Never re-scale per frame.
     surf = source
