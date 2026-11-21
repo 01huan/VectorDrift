@@ -9,6 +9,10 @@ from .physics_core import (
     ForceField, Outcome, reflect_velocity, segment_circle_first_hit,
     segment_hits_circle,
 )
+from .pickups import (
+    EXTRATIME_DURATION, SHIELD_DURATION, check_pickups_segment,
+    extratime_bonus_steps,
+)
 
 # --- safety limits -----------------------------------------------------------
 # Huge-but-finite forces (e.g. tan(pi/2) ~= 1.6e16) pass every isfinite() check
@@ -92,6 +96,14 @@ class Flight:
 
         if not math.isfinite(ship.mass) or ship.mass <= 0:
             raise ValueError("Ship mass must be a finite positive number")
+        try:
+            bounds_ok = (len(bounds) >= 2 and math.isfinite(bounds[0])
+                         and math.isfinite(bounds[1]) and bounds[0] > 0
+                         and bounds[1] > 0)
+        except (TypeError, IndexError, KeyError):
+            bounds_ok = False
+        if not bounds_ok:
+            raise ValueError("bounds must be a positive, finite (x, y) pair")
 
         self.field = field
         # Sub-expressions whose zeros may be points of infinite force (_pole_between).
@@ -242,8 +254,10 @@ class Flight:
             return self.outcome
 
         self._tick_effects()
- 
-        if not all(math.isfinite(v) for v in (nx, ny, vx, vy)):
+
+        nxy = (nx, ny)
+        if not (math.isfinite(nx) and math.isfinite(ny)
+                and math.isfinite(vx) and math.isfinite(vy)):
             self.outcome = Outcome.DIVERGED
             return self.outcome
 
@@ -262,12 +276,12 @@ class Flight:
         # over: its kicks are whatever the nearby samples happen to give.
         # Passing through one flings the ship off the field instead (unless
         # a bumper comes first).
-        pole = self._pole_between(p0, (nx, ny))
-        if pole is not None and not self._bumper_before(p0, (nx, ny), pole[0], solid):
-            self._fling(p0, (nx, ny), *pole)
+        pole = self._pole_between(p0, nxy)
+        if pole is not None and not self._bumper_before(p0, nxy, pole[0], solid):
+            self._fling(p0, nxy, *pole)
             return self.outcome
 
-        self.x, self.y = nx, ny
+        self.x, self.y = nxy
         # Pickups and the target see the piecewise path the ship flew
         # (p0 -> bounce contact -> ... -> final), not the open chord across it.
         # That path ends at the first black hole on it (see _bounce_along_path).
@@ -408,7 +422,8 @@ class Flight:
 
     def _take_pickups(self, p0, p1):
         """Trigger the pickups on p0->p1, apply them to this flight, keep the events."""
-        from .pickups import check_pickups_segment
+        if not self.pickups:
+            return
         events = check_pickups_segment(self.pickups, p0, p1, self.hull_radius, ctx=self)
         self._apply_pickup_events(events)
         self.pickup_events.extend(events)
@@ -432,8 +447,6 @@ class Flight:
         the edge, so crossing it does not use the shield, which stays for the
         bumpers.
         """
-        from .pickups import (EXTRATIME_DURATION, SHIELD_DURATION,
-                              extratime_bonus_steps)
         for event in events:
             kind = event.get("kind")
             if kind == "extratime":
@@ -441,7 +454,11 @@ class Flight:
                 self.max_steps = max(self.max_steps + extratime_bonus_steps(self.dt, duration),
                                      self.steps)
             elif kind == "shield":
-                self.shield_remaining = float(event.get("shield_duration", SHIELD_DURATION))
+                # A NaN duration leaves the shield dead (max(nan, 3.0) is
+                # nan) and inf would give an immortal shield: both are
+                # nonsense inputs, so clamp non-finite values out.
+                self.shield_remaining = max(
+                    0.0, float(event.get("shield_duration", SHIELD_DURATION)))
             elif kind == "unbound":
                 self.unbound = True
 
@@ -455,7 +472,10 @@ class Flight:
         reflecting there would only bounce it back and forth inside. Once
         out, hitting it again bounces as usual.
         """
-        return tuple(ob for ob in self.obstacles if math.dist(p0, ob[0]) >= ob[1])
+        # A fresh list (not a tuple copy): _bounce_along_path removes the
+        # bumper a shield breaks on, and the ship starts the next step
+        # inside it.
+        return [ob for ob in self.obstacles if math.dist(p0, ob[0]) >= ob[1]]
 
     def _bumper_before(self, p0, p1, t, obstacles):
         """True if the segment p0->p1 hits one of ``obstacles`` before parameter t.
@@ -539,9 +559,9 @@ class Flight:
             self.outcome = Outcome.DIVERGED
             return
         reach = max(0.0, min(
-            (bound - c * math.copysign(1.0, d)) / abs(d)
-            for c, d, bound in zip(pole, direction, self.bounds) if d
-        ))
+            ((bound - c * math.copysign(1.0, d)) / abs(d)
+             for c, d, bound in zip(pole, direction, self.bounds) if d),
+            default=0.0))
         dx, dy = direction
         self.x, self.y = pole[0] + dx * reach, pole[1] + dy * reach
         self.vx, self.vy = dx * reach / self.dt, dy * reach / self.dt   # all in one step
@@ -589,7 +609,8 @@ class Flight:
                 self.trail.append(end)
                 legs.append((p0, end))
             return legs, white
-        obstacles = list(obstacles)
+        if not isinstance(obstacles, list):
+            obstacles = list(obstacles)
         start = p0
         end = (self.x, self.y)
         for _ in range(max(1, len(obstacles) * 2) + 1):
@@ -703,7 +724,7 @@ class Flight:
             duration = float(duration)
         except (TypeError, ValueError):
             return False
-        if duration <= 0.0:
+        if not math.isfinite(duration) or duration <= 0.0:
             return False
         added_steps = max(1, round(duration / self.dt))
         self.time_freeze_remaining += duration

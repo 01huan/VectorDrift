@@ -37,8 +37,11 @@ def extratime_bonus_steps(dt, duration=EXTRATIME_DURATION):
     """Simulation steps one extratime pickup adds to a flight's limit.
 
     The one place that turns extratime seconds into steps: Flight uses it to
-    extend max_steps, the solver to size its per-level time budget.
+    extend max_steps, the solver to size its per-level time budget.  Non-finite
+    or negative durations grant no bonus.
     """
+    if not math.isfinite(duration) or duration <= 0.0:
+        return 0
     return int(round(duration / dt))
 
 
