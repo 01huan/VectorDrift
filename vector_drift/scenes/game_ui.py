@@ -526,7 +526,7 @@ class GameUIMixin:
             if revealed:                    # Fx / Fy stay hidden until this map is paid
                 rows.append(("Fx", best.fx_text))
                 rows.append(("Fy", best.fy_text))
-            rows.append(("Score", f"{self.ai_result.best_score:.3f}"))
+            rows.append(("Coins", f"{max(0, int(round(self.ai_result.best_score - 1.5)))}"))
         else:
             rows.append(("Status", self.ai_message or "Ready"))
 
