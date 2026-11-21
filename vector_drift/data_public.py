@@ -24,6 +24,12 @@ PUBLIC_LEVEL_MAX_HOLES = 50
 PUBLIC_LEVEL_MAX_RESTITUTION = 1.0
 
 
+def _check_in_range(field, value, lo, hi, unit=""):
+    """Raise when a scalar is outside ``[lo, hi]`` (the range checks in the validators)."""
+    if not lo <= value <= hi:
+        raise ValueError(f"{field} must be between {lo:g} and {hi:g}{unit}")
+
+
 def _public_number(value, field):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a number")
@@ -57,11 +63,7 @@ def _public_point(value, field):
 
 def _public_radius(value, field):
     radius = _public_number(value, field)
-    if not PUBLIC_LEVEL_MIN_RADIUS <= radius <= PUBLIC_LEVEL_MAX_RADIUS:
-        raise ValueError(
-            f"{field} must be between {PUBLIC_LEVEL_MIN_RADIUS:g} and "
-            f"{PUBLIC_LEVEL_MAX_RADIUS:g} m"
-        )
+    _check_in_range(field, radius, PUBLIC_LEVEL_MIN_RADIUS, PUBLIC_LEVEL_MAX_RADIUS, " m")
     return radius
 
 
@@ -90,16 +92,26 @@ def _supported_pickup_kinds():
     return frozenset(PICKUP_RENDERERS)
 
 
-def _public_obstacle(item, index):
-    field = f"obstacles[{index}]"
+def _public_center_radius(item, field, radius_default=None):
+    """Validate ``center``/``radius`` on a public prop dict; return both.
+
+    When ``radius`` is absent it must be present unless ``radius_default`` is
+    given, in which case that default is used.
+    """
     if not isinstance(item, dict):
         raise ValueError(f"{field} must be an object")
     if "center" not in item:
         raise ValueError(f"{field}.center is required")
-    if "radius" not in item:
+    if radius_default is None and "radius" not in item:
         raise ValueError(f"{field}.radius is required")
     center = _public_point(item["center"], f"{field}.center")
-    radius = _public_radius(item["radius"], f"{field}.radius")
+    radius = _public_radius(item.get("radius", radius_default), f"{field}.radius")
+    return center, radius
+
+
+def _public_obstacle(item, index):
+    field = f"obstacles[{index}]"
+    center, radius = _public_center_radius(item, field)
     restitution = _public_number(item.get("restitution", 1.0), f"{field}.restitution")
     if not 0.0 <= restitution <= PUBLIC_LEVEL_MAX_RESTITUTION:
         raise ValueError(f"{field}.restitution must be between 0 and 1")
@@ -111,12 +123,7 @@ def _public_obstacle(item, index):
 
 def _public_pickup(item, index):
     field = f"pickups[{index}]"
-    if not isinstance(item, dict):
-        raise ValueError(f"{field} must be an object")
-    if "center" not in item:
-        raise ValueError(f"{field}.center is required")
-    center = _public_point(item["center"], f"{field}.center")
-    radius = _public_radius(item.get("radius", 0.45), f"{field}.radius")
+    center, radius = _public_center_radius(item, field, 0.45)
     kind = item.get("kind", "shockwave")
     if not isinstance(kind, str) or kind not in _supported_pickup_kinds():
         raise ValueError(f"{field}.kind is not supported")
@@ -187,16 +194,10 @@ def level_spec_from_public(raw, level_id):
     if not isinstance(ship_id, str) or ship_id not in SHIPS:
         raise ValueError("ship_id is not supported")
     time_limit = _public_number(raw.get("time_limit", 10.0), "time_limit")
-    if not PUBLIC_LEVEL_MIN_TIME_LIMIT <= time_limit <= PUBLIC_LEVEL_MAX_TIME_LIMIT:
-        raise ValueError(
-            f"time_limit must be between {PUBLIC_LEVEL_MIN_TIME_LIMIT:g} and "
-            f"{PUBLIC_LEVEL_MAX_TIME_LIMIT:g} s"
-        )
+    _check_in_range("time_limit", time_limit, PUBLIC_LEVEL_MIN_TIME_LIMIT,
+                    PUBLIC_LEVEL_MAX_TIME_LIMIT, " s")
     lives = _public_int(raw.get("lives", 5), "lives")
-    if not PUBLIC_LEVEL_MIN_LIVES <= lives <= PUBLIC_LEVEL_MAX_LIVES:
-        raise ValueError(
-            f"lives must be between {PUBLIC_LEVEL_MIN_LIVES} and {PUBLIC_LEVEL_MAX_LIVES}"
-        )
+    _check_in_range("lives", lives, PUBLIC_LEVEL_MIN_LIVES, PUBLIC_LEVEL_MAX_LIVES)
 
     obstacles_raw = raw.get("obstacles", ())
     if not isinstance(obstacles_raw, (list, tuple)):
@@ -234,11 +235,8 @@ def level_spec_from_public(raw, level_id):
             s_target = _public_point(item["target_center"], f"sections[{i}].target_center")
             s_radius = _public_radius(item["target_radius"], f"sections[{i}].target_radius")
             s_time = _public_number(item.get("time_limit", time_limit), f"sections[{i}].time_limit")
-            if not PUBLIC_LEVEL_MIN_TIME_LIMIT <= s_time <= PUBLIC_LEVEL_MAX_TIME_LIMIT:
-                raise ValueError(
-                    f"sections[{i}].time_limit must be between {PUBLIC_LEVEL_MIN_TIME_LIMIT:g} and "
-                    f"{PUBLIC_LEVEL_MAX_TIME_LIMIT:g} s"
-                )
+            _check_in_range(f"sections[{i}].time_limit", s_time,
+                            PUBLIC_LEVEL_MIN_TIME_LIMIT, PUBLIC_LEVEL_MAX_TIME_LIMIT, " s")
             obs_raw = item.get("obstacles", ())
             if not isinstance(obs_raw, (list, tuple)):
                 raise ValueError(f"sections[{i}].obstacles must be a list")
