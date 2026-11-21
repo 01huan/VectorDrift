@@ -30,8 +30,8 @@ class GameUpdateMixin:
     def update(self, dt):
         self.t += dt
         if not self.hint_mode:
-            self._update_ai()
-            self._note_ai_answer_shown()
+            self._guarded("ai update", self._update_ai)
+            self._guarded("ai-answer note", self._note_ai_answer_shown)
         try:
             self.editor.update(dt)
         except _RENDER_ERRORS as exc:
@@ -39,14 +39,22 @@ class GameUpdateMixin:
         except Exception:  # noqa: BLE001 - last-resort guard: frame loop must live
             log.exception("unexpected editor failure")
         if self.pause_menu is None:     # paused: flight, banner and arrival wait
-            self.pickup_fx.update(dt)
-            self.ability_fx.update(dt)
-            self._update_flight(dt)
-            self._update_camera(dt)
+            self._guarded("pickup fx", self.pickup_fx.update, dt)
+            self._guarded("ability fx", self.ability_fx.update, dt)
+            self._guarded("flight update", self._update_flight, dt)
+            self._guarded("camera update", self._update_camera, dt)
             try:
                 self._prefetch_arrows()
             except _RENDER_ERRORS as exc:
                 log.warning("arrow prefetch contained: %r", exc)
+
+    def _guarded(self, what, fn, *args):
+        """Last-resort guard for per-frame scene work: a scene bug must not
+        take the whole game down (main.py's loop guard would stop the game)."""
+        try:
+            fn(*args)
+        except Exception:  # noqa: BLE001 - see update()
+            log.exception("unexpected failure during %s", what)
 
     def _camera_target(self):
         """(zoom the camera eases toward, most it may lag behind while zooming out).
