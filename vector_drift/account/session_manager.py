@@ -23,7 +23,7 @@ class SessionManager:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(
                 self._path,
-                json.dumps(data, ensure_ascii=False, indent=2),
+                json.dumps(data, ensure_ascii=False),
                 private=True,
             )
         except OSError as exc:

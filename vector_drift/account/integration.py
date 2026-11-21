@@ -16,6 +16,11 @@ from .profile_manager import _profile_updated_at, _ts_gte
 
 log = logging.getLogger(__name__)
 
+# The last profile uploaded to the cloud per user id: _save_cloud_profile()
+# skips a cloud upload whose game data is unchanged since the last one.
+_last_uploaded_profiles: dict = {}
+
+
 # Saves made before the story was removed carry the story lines already
 # shown in their stats; the key is dropped on load and no longer written.
 LEGACY_STORY_SEEN_KEY = "story_seen"
@@ -608,9 +613,14 @@ def _save_cloud_profile(account: Any, session: Any, local_error: Exception | Non
     except Exception:
         pass
     profile = session_to_profile(session, current_user.id)
+    if _last_uploaded_profiles.get(current_user.id) is not None and \
+            profiles_equal(_last_uploaded_profiles[current_user.id], profile):
+        # Unchanged since the last upload: the cloud already has this data.
+        return
     session.sync_status = "syncing"
 
     def _on_saved():
+        _last_uploaded_profiles[current_user.id] = profile
         if local_error is not None:
             _mark_sync_error(session, local_error)
         else:

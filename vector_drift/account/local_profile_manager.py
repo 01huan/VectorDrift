@@ -10,6 +10,10 @@ from .errors import ProfileError
 from .models import PlayerProfile
 from .persistence import atomic_write_text, default_dir
 
+# The last PlayerProfile written per path: LocalProfileManager.save() skips a
+# save whose game data equals it (see save()).
+_last_written: dict = {}
+
 
 def _storage_path() -> Path:
     return default_dir() / "guest_profile.json"
@@ -35,11 +39,20 @@ class LocalProfileManager:
         if profile is None:
             return
         try:
+            from .integration import profiles_equal
+        except Exception:
+            profiles_equal = None
+        if profiles_equal is not None:
+            last = _last_written.get(self.path)
+            if last is not None and profiles_equal(last, profile):
+                return  # nothing changed since the last write: skip it
+        try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(
                 self.path,
-                json.dumps(profile.to_row(), ensure_ascii=False, indent=2),
+                json.dumps(profile.to_row(), ensure_ascii=False),
             )
+            _last_written[self.path] = profile
         except OSError as exc:
             raise ProfileError(f"Failed to save local profile: {exc}") from exc
 
@@ -74,6 +87,7 @@ class LocalProfileManager:
                 self.path.unlink()
         except OSError:
             pass
+        _last_written.pop(self.path, None)
 
     def delete_profile(self) -> None:
         self.clear()
