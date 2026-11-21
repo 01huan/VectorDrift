@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 
 from . import config
 from .data import SHIPS
@@ -51,6 +52,17 @@ def _build_grid(obstacles, resolution=_RESOLUTION):
             for i in range(col0, col1 + 1):
                 blocked[row_base + i] = 1
     return blocked, w, h
+
+
+@lru_cache(maxsize=32)
+def _grid_for_discs(discs, resolution):
+    """The occupancy grid for a frozen obstacle set.
+
+    Grids are pure functions of the obstacle discs, so they are reused across
+    the repeated ``_reachable`` calls of one validation (the A* check, one
+    reachability query per required pickup, the bomb-ring checks, ...).
+    """
+    return _build_grid(discs, resolution)
 
 
 def _cell(point, resolution=_RESOLUTION):
@@ -126,7 +138,7 @@ def _astar(blocked, w, h, start, goal):
 def _reachable(level, obstacles, start, goal, resolution=_RESOLUTION,
                nearest=True):
     hull = SHIPS.get(level.ship_id, SHIPS["ship01"]).hull_radius
-    blocked, w, h = _build_grid(_as_discs(obstacles, hull), resolution)
+    blocked, w, h = _grid_for_discs(tuple(_as_discs(obstacles, hull)), resolution)
     start_cell = _nearest_free(blocked, w, h, _cell(start, resolution))
     goal_cell = (_nearest_free(blocked, w, h, _cell(goal, resolution))
                  if nearest else _cell(goal, resolution))
