@@ -41,6 +41,36 @@ def _outlined(surface, text, pos, size, color, anchor):
     draw_text(surface, text, pos, size, color, kind="bold", anchor=anchor)
 
 
+_SLOT_SURFACES: dict = {}
+_SLOT_SURFACES_MAX = 64
+
+
+def _ability_slot_surface(ability, rect, count):
+    """The ability slot sprite: cached by (ability, size, charge count).
+
+    A slot is drawn once per frame; its content only changes when the charge
+    count changes, so the icon + key + count draws become a dict lookup in
+    steady state.
+    """
+    key = (ability.id, rect.size, count)
+    slot = _SLOT_SURFACES.get(key)
+    if slot is not None:
+        return slot
+    if len(_SLOT_SURFACES) >= _SLOT_SURFACES_MAX:
+        _SLOT_SURFACES.clear()
+    slot = pygame.Surface(rect.size, pygame.SRCALPHA)
+    local = slot.get_rect()
+    draw_panel_box(slot, local, fill=config.BG)
+    draw_ability_icon(slot, ability.id, local.center, px(ABILITY_ICON))
+    _outlined(slot, ability.key, (px(3), px(1)), 9, config.TEXT, "topleft")
+    _outlined(slot, str(count), (local.right - px(3), local.bottom), 11,
+              config.TEXT if count else config.TEXT_DIM, "bottomright")
+    if count <= 0:
+        slot.set_alpha(ABILITY_EMPTY_ALPHA)
+    _SLOT_SURFACES[key] = slot
+    return slot
+
+
 class GameHudRenderMixin:
     # Tutorial scenes hide these (lives row; Hint / AI Solver and Lab buttons;
     # the ability slots, since abilities do nothing there).
@@ -137,15 +167,7 @@ class GameHudRenderMixin:
                   kind="bold", anchor="midleft")
         for ability, rect in self._ability_slots():
             count = charge_count(self.session, ability.id)
-            slot = pygame.Surface(rect.size, pygame.SRCALPHA)
-            local = slot.get_rect()
-            draw_panel_box(slot, local, fill=config.BG)
-            draw_ability_icon(slot, ability.id, local.center, px(ABILITY_ICON))
-            _outlined(slot, ability.key, (px(3), px(1)), 9, config.TEXT, "topleft")
-            _outlined(slot, str(count), (local.right - px(3), local.bottom), 11,
-                      config.TEXT if count else config.TEXT_DIM, "bottomright")
-            if count <= 0:
-                slot.set_alpha(ABILITY_EMPTY_ALPHA)
+            slot = _ability_slot_surface(ability, rect, count)
             surface.blit(slot, rect)
 
     def _hovered_ability(self):
