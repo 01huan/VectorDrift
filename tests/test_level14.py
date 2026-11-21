@@ -6,12 +6,16 @@ that only pushes up past the right edge, section 2 needs both the Shockwave
 and the Shield, section 3 combines a wormhole, a Shield and a switch at x = -2.
 """
 
+import dataclasses
+
 import pytest
 
 from vector_drift import config
 from vector_drift.data import (LEVELS, SHIPS, LevelSpec, all_levels, get_level, section_count,
                                section_level, section_shift)
+from vector_drift.expr_parser import parse_expression
 from vector_drift.level_presets import is_dynamic_level
+from vector_drift.physics import Flight, ForceField, Outcome
 from vector_drift.pickups import discs_overlap
 
 LEVEL = get_level(14)
@@ -118,3 +122,139 @@ def test_level_select_lists_level_fourteen():
 
 def test_level_fourteen_gives_its_xp():
     assert config.XP_FIXED_LEVEL_BASE[14] == 360
+
+
+# --- reference answers and near misses --------------------------------------------------
+# Section 1: a spring toward x = 4, and a push up only outside the right edge (x > 10).
+C1 = ("4 - x", "0.25((x - 10) + abs(x - 10))")
+# Section 2: straight up through the Shockwave, then bending right through the Shield.
+C2 = ("y + 7", "2")
+# Section 3: no sideways force left of the wall at x = -2, a push right past it.
+C3 = ("(x + 2) + abs(x + 2)", "3")
+ANSWERS = (C1, C2, C3)
+TIMES = (5.89, 3.60, 3.42)
+NEAR_MISSES = [
+    ("0", "5"),
+    ("5", "5"),
+    ("3", "3"),
+    ("-x", "2"),
+    ("4 - x", "0"),          # the spring without the switch
+    ("-2x + 8", "1"),        # a linear shortcut
+    ("y", "-x"),             # a swirl
+]
+
+
+def _fly(level, fx, fy):
+    field = ForceField.from_exprs(parse_expression(fx), parse_expression(fy))
+    flight = Flight(field, SHIP, level)
+    while flight.running:
+        flight.step()
+    return flight
+
+
+def _events(flight):
+    return [event.get("kind") for event in flight.pickup_events]
+
+
+def _lift(c):
+    return "4 - x", f"{c:g}((x - 10) + abs(x - 10))"
+
+
+def _bend(c=1, f=3):
+    fx = "(x + 2) + abs(x + 2)" if c == 1 else f"{c:g}((x + 2) + abs(x + 2))"
+    return fx, f"{f:g}"
+
+
+def _without(s, *kinds):
+    return dataclasses.replace(s, pickups=tuple(p for p in s.pickups if p.kind not in kinds))
+
+
+def test_the_helpers_write_the_reference_answers():
+    assert _lift(0.25) == C1
+    assert _bend() == C3
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=SECTION_IDS)
+def test_each_reference_answer_reaches_without_a_bounce(index):
+    flight = _fly(section(index), *ANSWERS[index])
+    assert flight.outcome is Outcome.REACHED
+    assert flight.bounces == 0
+    assert flight.time == pytest.approx(TIMES[index], abs=0.05)
+
+
+def test_section_one_takes_the_unbound():
+    assert "unbound" in _events(_fly(section(0), *C1))
+
+
+def test_section_two_takes_the_shockwave_and_the_shield_and_uses_it():
+    events = _events(_fly(section(1), *C2))
+    assert "shockwave" in events
+    assert "shield" in events and "shield_used" in events
+
+
+def test_section_three_goes_through_the_wormhole_and_uses_the_shield():
+    flight = _fly(section(2), *C3)
+    assert flight.teleports == 1
+    events = _events(flight)
+    assert "shield" in events and "shield_used" in events
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=SECTION_IDS)
+@pytest.mark.parametrize("answer", [0, 1, 2], ids=["C1", "C2", "C3"])
+def test_only_its_own_answer_clears_a_section(index, answer):
+    outcome = _fly(section(index), *ANSWERS[answer]).outcome
+    assert (outcome is Outcome.REACHED) == (answer == index)
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=SECTION_IDS)
+@pytest.mark.parametrize("field", NEAR_MISSES, ids=lambda f: f"({f[0]}, {f[1]})")
+def test_constant_linear_and_swirl_fields_do_not_clear_a_section(index, field):
+    assert _fly(section(index), *field).outcome is not Outcome.REACHED
+
+
+def test_section_one_needs_the_unbound():
+    assert _fly(_without(section(0), "unbound"), *C1).outcome is not Outcome.REACHED
+
+
+@pytest.mark.parametrize("kind", ["shockwave", "shield"])
+def test_section_two_needs_both_pickups(kind):
+    assert _fly(_without(section(1), kind), *C2).outcome is not Outcome.REACHED
+
+
+def test_section_three_needs_the_shield():
+    assert _fly(_without(section(2), "shield"), *C3).outcome is not Outcome.REACHED
+
+
+def test_section_three_needs_the_wormhole():
+    bare = dataclasses.replace(section(2), holes=())
+    assert _fly(bare, *C3).outcome is not Outcome.REACHED
+
+
+@pytest.mark.parametrize("c", [0.23, 0.24, 0.25, 0.26])
+def test_section_one_takes_a_narrow_range_of_lifts(c):
+    assert _fly(section(0), *_lift(c)).outcome is Outcome.REACHED
+
+
+@pytest.mark.parametrize("c", [0.2, 0.3])
+def test_section_one_misses_with_too_weak_or_too_strong_a_lift(c):
+    assert _fly(section(0), *_lift(c)).outcome is not Outcome.REACHED
+
+
+@pytest.mark.parametrize("field", [("2y + 14", "4"), ("0.5(y + 7)", "1")],
+                         ids=lambda f: f"({f[0]}, {f[1]})")
+def test_section_two_only_minds_the_ratio(field):
+    assert _fly(section(1), *field).outcome is Outcome.REACHED
+
+
+@pytest.mark.parametrize("fy", ["1.6", "2.4"])
+def test_section_two_misses_with_the_ratio_off(fy):
+    assert _fly(section(1), "y + 7", fy).outcome is not Outcome.REACHED
+
+
+@pytest.mark.parametrize("c, f", [(1, 2.6), (1, 3.4), (0.8, 3)])
+def test_section_three_takes_a_range_of_pushes(c, f):
+    assert _fly(section(2), *_bend(c, f)).outcome is Outcome.REACHED
+
+
+def test_section_three_misses_with_too_strong_a_push_right():
+    assert _fly(section(2), *_bend(1.2, 3)).outcome is not Outcome.REACHED
