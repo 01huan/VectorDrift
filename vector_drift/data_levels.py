@@ -494,6 +494,79 @@ LEVELS = [
             ),
         ),
     ),
+    # Chapter two's finale: three sections, two checkpoints; pan (0, 13) up,
+    # then (16, 13) up and to the right, world (-8, -6.5) -> (-7, 6) (checkpoint)
+    # -> (8, 19.5) (checkpoint) -> (23, 32). The screens share y >= 5.5 of
+    # section 1 (= y <= -5.5 of section 2) and x >= 6, y >= 5.5 of section 2
+    # (= x <= -6, y <= -5.5 of section 3), where only the checkpoints sit. No
+    # coins: the coin ids of a multi-section level do not carry the section
+    # number yet.
+    # It puts the abs switch together with everything chapter two has taught.
+    # - Section 1: a full row of rocks at y = -4.8 cuts the map in two, sealed
+    #   at both ends, so the only way round is outside the map. The reference
+    #   answer is F = (4 - x, 0.25((x - 10) + abs(x - 10))): a spring toward
+    #   x = 4 flings the ship along y = -6.5 out past the right edge (about
+    #   10.4 m/s), swings it out to x = 16 and back; the switch only pushes up
+    #   outside the map (x > 10), and inside the map there is no up or down
+    #   force, so both trips across the map are straight lines. The Fy of a
+    #   linear field cannot be 0 along two straight lines at different heights,
+    #   so the switch is a must. The other 3 rocks block the linear shortcuts.
+    # - Section 2: F = (y + 7, 2) goes straight up through the Shockwave, which
+    #   blasts the row at y = -2, then bends right through the Shield, which
+    #   breaks the upright wall at x = 4.
+    # - Section 3: F = ((x + 2) + abs(x + 2), 3): left of the wall at x = -2
+    #   there is no sideways force, so the ship rises straight into the black
+    #   hole; out of the white hole it bends right through the Shield and
+    #   crashes into the L-shaped wall round the planet.
+    # Each section is cleared only by its own answer (tests/test_level14.py).
+    multi_section_level(
+        id=14,
+        name="Boomerang",
+        ship_id="ship01",
+        sections=(
+            SectionSpec(
+                start=(-8.0, -6.5), target_center=(-7.0, 6.0), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, -4.8), radius=0.8)
+                    for x in (-9.6, -8.0, -6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.8, 6.4, 8.0, 9.6)
+                ) + (
+                    ObstacleSpec(center=(3.5, -1.5), radius=0.8),
+                    ObstacleSpec(center=(2.5, 4.25), radius=0.8),
+                    ObstacleSpec(center=(-3.75, 4.5), radius=0.8),
+                ),
+                pickups=(PickupSpec(center=(3.0, -6.5), radius=0.45, kind="unbound"),),
+            ),
+            SectionSpec(
+                start=(-7.0, -7.0), target_center=(8.0, 6.5), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(x, -2.0), radius=0.8)
+                    for x in (-9.6, -8.0, -6.4, -4.8, -3.2, -1.6, 0.0, 1.6, 3.2, 4.8, 6.4, 8.0, 9.6)
+                ) + tuple(
+                    ObstacleSpec(center=(4.0, y), radius=0.8)
+                    for y in (-0.4, 1.2, 2.8, 4.4, 6.0, 7.5)
+                ),
+                pickups=(
+                    PickupSpec(center=(-6.0, -3.5), radius=0.45, kind="shockwave"),
+                    PickupSpec(center=(1.5, 3.1), radius=0.45, kind="shield"),
+                ),
+            ),
+            SectionSpec(
+                start=(-8.0, -6.5), target_center=(7.0, 6.0), target_radius=1.0,
+                obstacles=tuple(
+                    ObstacleSpec(center=(-2.0, y), radius=0.8)
+                    for y in (-7.5, -6.0, -4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5, 6.0, 7.5)
+                ) + tuple(
+                    ObstacleSpec(center=(x, 2.0), radius=0.8)
+                    for x in (5.0, 6.7, 8.4, 10.1)
+                ) + tuple(
+                    ObstacleSpec(center=(5.0, y), radius=0.8)
+                    for y in (3.1, 5.0, 6.9)
+                ),
+                pickups=(PickupSpec(center=(3.0, 2.2), radius=0.45, kind="shield"),),
+                holes=(HoleSpec.from_centers((-8.0, 2.0), (1.0, -4.0), 0.5),),
+            ),
+        ),
+    ),
 ]
 
 

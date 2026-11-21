@@ -188,7 +188,7 @@ CLEAR_REWARD = 5                    # coins for reaching the target, once per fi
 # max(1, base // k) (see xp.xp_for_clear).
 XP_FIXED_LEVEL_BASE = {             # fixed level id -> XP for its first clear
     1: 100, 2: 120, 3: 140, 4: 160, 5: 180, 6: 200, 7: 220, 8: 240, 9: 260, 10: 280,
-    11: 300, 12: 320, 13: 340,
+    11: 300, 12: 320, 13: 340, 14: 360,
 }
 XP_RANDOM_MAP = 150                 # XP for the first clear of each random map
 XP_DAILY = 300                      # XP for a daily challenge clear (see xp.daily_clear_xp)
