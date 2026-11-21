@@ -56,8 +56,9 @@ class SolveResult:
         if self.best is None:
             return None
         for sim in self.simulations:
-            if sim.get("params") == self.best.params and sim.get("template") == self.best.template:
-                return sim.get("outcome")
+            if (getattr(sim, "params", None) == self.best.params
+                    and getattr(sim, "template", None) == self.best.template):
+                return getattr(sim, "outcome", None)
         return None
 
 
