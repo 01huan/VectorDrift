@@ -10,6 +10,7 @@ as a solution.
 from __future__ import annotations
 
 import math
+import uuid
 from dataclasses import dataclass
 
 from ..data import LevelSpec, SHIPS
@@ -135,7 +136,7 @@ def evaluate_candidate(
     if cfg.record_trajectory:
         trajectory.append(TrajectoryPoint(
             x=flight.x, y=flight.y, vx=flight.vx, vy=flight.vy, step=0))
-    min_dist = min(min_dist, math.dist((flight.x, flight.y), (tx, ty)))
+    min_dist = min(min_dist, math.hypot(flight.x - tx, flight.y - ty))
 
     while flight.running:
         flight.step()               # applies pickup effects (extratime, shield) itself
@@ -143,7 +144,7 @@ def evaluate_candidate(
             trajectory.append(TrajectoryPoint(
                 x=flight.x, y=flight.y,
                 vx=flight.vx, vy=flight.vy, step=flight.steps))
-        min_dist = min(min_dist, math.dist((flight.x, flight.y), (tx, ty)))
+        min_dist = min(min_dist, math.hypot(flight.x - tx, flight.y - ty))
         if flight.steps >= flight.max_steps:
             # Defensive: Flight already caps via max_steps/time_limit, but be safe.
             break
@@ -157,10 +158,9 @@ def evaluate_candidate(
                    _time_budget_steps(level, max_steps, dt), min_dist,
                    money_collected)
 
-    import uuid as _uuid
     record = record_from_flight(
-        record_id=record_id or _uuid.uuid4().hex,
-        run_id=run_id or _uuid.uuid4().hex,
+        record_id=record_id or uuid.uuid4().hex,
+        run_id=run_id or uuid.uuid4().hex,
         source=source,
         level=level,
         template=template.key,
