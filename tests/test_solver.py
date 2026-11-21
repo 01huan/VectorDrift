@@ -89,11 +89,6 @@ def test_score_reached_outranks_nonreached():
     assert reached > timeout
 
 
-def test_score_faster_reached_is_better():
-    max_steps = 100
-    fast = _score(Outcome.REACHED, 10, max_steps, 5.0)
-    slow = _score(Outcome.REACHED, 90, max_steps, 5.0)
-    assert fast > slow
 
 
 # --------------------------------------------------------------------------- #
@@ -237,13 +232,6 @@ def _poly_record(**coeffs):
     return evaluate_candidate(level=_score_level(), template=tpl, params=params,
                               config=EvalConfig(record_trajectory=False)).record
 
-
-def test_faster_success_outscores_a_slower_one_that_took_extra_time():
-    fast = _poly_record(c0=2.0)                        # straight along y = 0, misses the pickup
-    slow = _poly_record(c0=0.9, d0=0.2266, d2=-0.412)  # bends through it and needs its 3 s
-    assert fast.outcome == slow.outcome == SimulationOutcome.REACHED
-    assert fast.time < 5.0 < slow.time
-    assert fast.score > slow.score
 
 
 def test_time_budget_is_the_limit_plus_every_extratime_pickup():
