@@ -56,9 +56,15 @@ def _evaluate_power(a, b):
             if not math.isfinite(b) or b != math.floor(b):
                 raise ValueError("Negative base with non-integer exponent")
             return 1.0 if int(math.fmod(abs(b), 2.0)) == 0 else -1.0
+        if a < 0.0 and (not math.isfinite(b) or b != math.floor(b)):
+            # (-2)^2.5 has no real value; CPython returns a complex number
+            # that float() then rejects, so say what is wrong here.
+            raise ValueError("Negative base with non-integer exponent")
         if not (math.isfinite(a) and math.isfinite(b)):
             result = a ** b
-            if not math.isfinite(result) or abs(float(result)) > MAX_ABS_RESULT:
+            if not math.isfinite(result):
+                raise OverflowError("Result is not finite")
+            if abs(float(result)) > MAX_ABS_RESULT:
                 raise OverflowError("Result too large")
             return result
         log10_mag = math.log10(abs_a) * b
@@ -70,7 +76,7 @@ def _evaluate_power(a, b):
         return 0.0
     result = a ** b
     if not math.isfinite(result):
-        raise OverflowError("Result too large")
+        raise OverflowError("Result is not finite")
     if abs(float(result)) > MAX_ABS_RESULT:
         raise OverflowError("Result too large")
     return result

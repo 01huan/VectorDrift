@@ -3,6 +3,8 @@
 Produces the tuple node tree evaluated by :mod:`vector_drift.expr_evaluator`.
 """
 
+from functools import lru_cache
+
 from .expr_errors import ParseError
 from .expr_evaluator import Expression
 from .expr_lexer import tokenize
@@ -168,14 +170,24 @@ class Parser:
         return ("call", name, tuple(args))
 
 
-def parse_expression(text):
-    """Parse a general expression into an Expression object."""
-    if not isinstance(text, str):
-        raise ParseError("Expression must be text", 0)
+@lru_cache(maxsize=1024)
+def _parse_expression_cached(text: str):
     if len(text) > MAX_TEXT_LEN:
         raise ParseError("Expression too long", MAX_TEXT_LEN)
+    return Expression(Parser(text).parse())
+
+
+def parse_expression(text):
+    """Parse a general expression into an Expression object.
+
+    Parsed expressions are memoized (bounded LRU): the same expression text
+    is re-parsed on every call today (validation, solver, daily generation),
+    and a parsed ``Expression`` is immutable, so sharing it is safe.
+    """
+    if not isinstance(text, str):
+        raise ParseError("Expression must be text", 0)
     try:
-        return Expression(Parser(text).parse())
+        return _parse_expression_cached(text)
     except RecursionError as exc:
         raise ParseError("Expression is nested too deeply", 0) from exc
 
