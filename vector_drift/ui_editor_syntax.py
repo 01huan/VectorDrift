@@ -10,8 +10,21 @@ from .config import px
 _TOKEN_RE = re.compile(r"(\s+)|(\d+\.?\d*|\.\d*)|([A-Za-z_]+)|([+\-*/−])|(.)")
 
 
+_highlight_cache: dict = {}
+_HIGHLIGHT_CACHE_MAX = 1024
+
+
 def highlight(text):
-    """Split text into (chunk, color) pairs for syntax coloring."""
+    """Split text into (chunk, color) pairs for syntax coloring.
+
+    Cached by the line text: the editor re-highlights every line on every
+    frame while typing, and the returned pairs are only read.
+    """
+    cached = _highlight_cache.get(text)
+    if cached is not None:
+        return cached
+    if len(_highlight_cache) >= _HIGHLIGHT_CACHE_MAX:
+        _highlight_cache.clear()
     out = []
     for m in _TOKEN_RE.finditer(text):
         ws, num, word, op, _other = m.groups()
@@ -26,7 +39,9 @@ def highlight(text):
         else:
             color = config.SYN_PLAIN
         out.append((m.group(), color))
-    return out
+    result = tuple(out)
+    _highlight_cache[text] = result
+    return result
 
 
 def error_span(text, pos):

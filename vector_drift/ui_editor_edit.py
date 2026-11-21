@@ -66,6 +66,8 @@ class CodeEditTextMixin:
 
     def _goto(self, line, col, extend=False):
         """Move the cursor; with extend=True grow the selection (same line only)."""
+        if col is None:
+            col = 0
         line = max(0, min(self.n - 1, line))
         if extend and line == self.line:
             if self.anchor is None:

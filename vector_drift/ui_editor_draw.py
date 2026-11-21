@@ -94,13 +94,15 @@ class CodeEditorDrawMixin:
 
         err = self.errors[i]
         if err and self.enabled:
-            start, end = error_span(text, err[1])
-            x0 = area.x - scroll + self.font.size(text[:start])[0]
-            if end <= len(text):
-                x1 = area.x - scroll + self.font.size(text[:end])[0]
-            else:
-                x1 = area.x - scroll + self.font.size(text)[0] + self.font.size("0")[0]
-            draw_squiggle(surface, x0, x1, lr.bottom - px(6))
+            span = error_span(text, err[1])
+            if span is not None:
+                start, end = span
+                x0 = area.x - scroll + self.font.size(text[:start])[0]
+                if end <= len(text):
+                    x1 = area.x - scroll + self.font.size(text[:end])[0]
+                else:
+                    x1 = area.x - scroll + self.font.size(text)[0] + self.font.size("0")[0]
+                draw_squiggle(surface, x0, x1, lr.bottom - px(6))
 
         if is_cur and (self._blink % 1.0) < 0.55:
             cx = area.x - scroll + self.font.size(text[: self.col])[0]
