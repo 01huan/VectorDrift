@@ -16,8 +16,9 @@ Each slot tries `.ogg`, then `.wav`, then `.mp3`.
 | `win` | Ship reaches the target | Kenney *Music Jingles* |
 | `game_over` | Last life lost | Kenney *Music Jingles* |
 | `shield_break` | The shield breaks on the first rock it touches | Kenney *Sci-fi Sounds* |
-| `unbound` | The ship takes an Unbound pickup (no file yet: silent) | Kenney *Sci-fi Sounds* |
+| `unbound` | The ship takes an Unbound pickup (a lock clicks open, then a rising shimmer) | Kenney *Sci-fi Sounds* |
 | `achievement` | An achievement is unlocked (the popup chime) | Kenney *Music Jingles* |
+| `magnet` | The Magnet ability is used (a rising electric hum) | Kenney *Sci-fi Sounds* |
 
 ## Music: `assets/music/`
 

@@ -4,13 +4,18 @@ import pygame
 
 from .. import config
 from ..config import px
-from ..ui import Button, draw_icon_row, draw_text, wrap_text
+from ..ui import Button, draw_icon_row, draw_text, get_font, wrap_text
 
 CARD_W, CARD_H = 620, 420
 PAD = 28
 TEXT_SIZE = 17
 LINE_H = 26
 BUTTON_W, BUTTON_H = 120, 40
+ANSWER_ROW_H = 40       # one answer row: "Fx = ...    Fy = ..." on one line
+ANSWER_LINE_H = 22      # a row too long for one line puts Fy on a second line this far down
+ANSWER_TEXT_SIZE = 16   # mono
+ANSWER_TEXT_X = 12      # text inset from the row's left edge
+ANSWER_GAP = 12         # least room between the formulas and the Apply button
 
 SOLUTION_USED_TEXT = ("Showing the answer reveals the full formulas. Applying it resets the "
                       "current section to its start/checkpoint (your lives stay). The answer "
@@ -64,21 +69,32 @@ class HintPopup:
                                      style="danger", font_size=15)
         self.apply_buttons = [Button((0, 0, px(90), px(32)), "Apply", style="primary", font_size=14)
                               for _ in hint.answers]
+        self._answer_lines = [self._formula_lines(answer) for answer in hint.answers]
         self._answer_rows = self._layout_answers()
 
     def _text_lines(self, text):
         return wrap_text(text, TEXT_SIZE, self.card.width - 2 * px(PAD))
+
+    def _formula_lines(self, answer):
+        """The answer's formula text: one line if it clears the Apply button, else Fx / Fy."""
+        one_line = f"Fx = {answer.fx}    Fy = {answer.fy}"
+        room = (self.card.width - 2 * px(PAD) - px(ANSWER_TEXT_X) - px(4)
+                - self.apply_buttons[0].rect.width - px(ANSWER_GAP))
+        if get_font(ANSWER_TEXT_SIZE, "mono").size(one_line)[0] <= room:
+            return [one_line]
+        return [f"Fx = {answer.fx}", f"Fy = {answer.fy}"]
 
     def _layout_answers(self):
         """[(label_y, row_rect)] for the answer page; places the Apply buttons."""
         x = self.card.x + px(PAD)
         y = self.card.y + px(78) + len(self._text_lines(self.hint.answer_note)) * px(LINE_H) + px(10)
         rows = []
-        for answer, button in zip(self.hint.answers, self.apply_buttons):
+        for answer, button, lines in zip(self.hint.answers, self.apply_buttons, self._answer_lines):
             label_y = y
             if answer.label:
                 y += px(22)
-            row = pygame.Rect(x, y, self.card.width - 2 * px(PAD), px(40))
+            height = px(ANSWER_ROW_H) + (len(lines) - 1) * px(ANSWER_LINE_H)
+            row = pygame.Rect(x, y, self.card.width - 2 * px(PAD), height)
             button.rect.midright = (row.right - px(4), row.centery)
             rows.append((label_y, row))
             y = row.bottom + px(14)
@@ -155,9 +171,9 @@ class HintPopup:
 
         if self.on_answer_page:
             self._draw_paragraph(surface, self.hint.answer_note, y)
-            for answer, button, (label_y, row) in zip(self.hint.answers, self.apply_buttons,
-                                                      self._answer_rows):
-                self._draw_answer(surface, answer, button, label_y, row)
+            for answer, button, lines, (label_y, row) in zip(self.hint.answers, self.apply_buttons,
+                                                             self._answer_lines, self._answer_rows):
+                self._draw_answer(surface, answer, button, lines, label_y, row)
         else:
             self._draw_paragraph(surface, self.hint.steps[self.page], y)
             last = self.page + 1 == self.answer_page
@@ -177,11 +193,14 @@ class HintPopup:
             draw_text(surface, line, (self.card.x + px(PAD), y), TEXT_SIZE, config.TEXT)
             y += px(LINE_H)
 
-    def _draw_answer(self, surface, answer, button, label_y, row):
-        """One answer row: optional label, then Fx / Fy with Apply on the right."""
+    def _draw_answer(self, surface, answer, button, lines, label_y, row):
+        """One answer row: optional label, then Fx / Fy (one line or two) with Apply on the right."""
         if answer.label:
             draw_text(surface, answer.label, (row.x, label_y), 15, config.TEXT_DIM, kind="bold")
         pygame.draw.rect(surface, config.BG, row, border_radius=px(4))
-        draw_text(surface, f"Fx = {answer.fx}    Fy = {answer.fy}", (row.x + px(12), row.centery),
-                  16, config.TEXT, kind="mono", anchor="midleft")
+        y = row.centery - (len(lines) - 1) * px(ANSWER_LINE_H) // 2
+        for line in lines:
+            draw_text(surface, line, (row.x + px(ANSWER_TEXT_X), y), ANSWER_TEXT_SIZE, config.TEXT,
+                      kind="mono", anchor="midleft")
+            y += px(ANSWER_LINE_H)
         button.draw(surface)

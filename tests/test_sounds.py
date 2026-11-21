@@ -17,7 +17,7 @@ SOUNDS_DIR = config.ASSETS_DIR / "sounds"
 TOOL = config.ASSETS_DIR.parent / "tools" / "make_sounds.py"
 # Slots with no sound yet: the game stays silent for them, and the file checks
 # below skip them until tools/make_sounds.py makes their wav.
-SOUND_PENDING = {"unbound"}
+SOUND_PENDING = set()
 MADE_SLOTS = [name for name in SOUND_SLOTS if name not in SOUND_PENDING]
 
 

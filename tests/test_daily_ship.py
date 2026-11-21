@@ -9,7 +9,7 @@ import pytest
 
 from vector_drift import config, daily_level, image_assets, sprites
 from vector_drift.daily_level import DAILY_SHIP, daily_map, generate_daily
-from vector_drift.data import SHIPS, default_ship_id, level_ship_id
+from vector_drift.data import LEVELS, SHIPS, default_ship_id, level_ship_id
 from vector_drift.level_presets import RANDOM_LEVEL_ID
 from vector_drift.replay import ReplayRecord, normalize_records
 from vector_drift.scenes.base import SceneManager
@@ -19,6 +19,8 @@ from vector_drift.scenes.replay import ReplayScene
 pytestmark = pytest.mark.usefixtures("pygame_display")
 
 DAY = date(2026, 11, 19)
+# The random level is numbered right after the last campaign level.
+_LAST_FIXED = max(level.id for level in LEVELS)
 
 
 @pytest.fixture(autouse=True)
@@ -96,7 +98,8 @@ def test_the_daily_game_shows_daybreak_in_the_panel_and_lives(monkeypatch):
 # --- nothing else changes ---------------------------------------------------------
 
 @pytest.mark.parametrize("level_id, ship_id",
-                         [(n, f"ship{n:02d}") for n in range(1, 12)] + [(RANDOM_LEVEL_ID, "ship12")])
+                         [(n, f"ship{n:02d}") for n in range(1, _LAST_FIXED + 1)]
+                         + [(RANDOM_LEVEL_ID, f"ship{_LAST_FIXED + 1:02d}")])
 def test_fixed_and_random_levels_keep_their_ship(level_id, ship_id):
     assert level_ship_id(level_id) == ship_id
     assert _game(_manager(), level_id).ship.id == ship_id
