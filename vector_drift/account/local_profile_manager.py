@@ -3,32 +3,16 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Optional
 
 from .errors import ProfileError
 from .models import PlayerProfile
+from .persistence import atomic_write_text, default_dir
 
 
 def _storage_path() -> Path:
-    base = Path.home() / ".vector_drift"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "guest_profile.json"
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write ``text`` to ``path`` atomically (temp file + rename)."""
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
-    except OSError:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
-        raise
+    return default_dir() / "guest_profile.json"
 
 
 class LocalProfileManager:
@@ -52,7 +36,7 @@ class LocalProfileManager:
             return
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            _atomic_write_text(
+            atomic_write_text(
                 self.path,
                 json.dumps(profile.to_row(), ensure_ascii=False, indent=2),
             )

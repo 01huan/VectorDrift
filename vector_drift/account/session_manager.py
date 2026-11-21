@@ -3,36 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .errors import AccountError
+from .persistence import atomic_write_text, default_dir
 
 
 def _storage_path() -> Path:
-    base = Path.home() / ".vector_drift"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / "account_session.json"
-
-
-def _atomic_write_text(path: Path, text: str, private: bool = False) -> None:
-    """Write ``text`` to ``path`` atomically (temp file + rename).
-
-    ``private`` additionally restricts the file to the owner on POSIX.
-    """
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_text(text, encoding="utf-8")
-        if private and os.name == "posix":
-            os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
-    except OSError:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
-        raise
+    return default_dir() / "account_session.json"
 
 
 class SessionManager:
@@ -42,7 +21,7 @@ class SessionManager:
     def save(self, data: Dict[str, Any]) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            _atomic_write_text(
+            atomic_write_text(
                 self._path,
                 json.dumps(data, ensure_ascii=False, indent=2),
                 private=True,
