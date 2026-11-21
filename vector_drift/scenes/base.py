@@ -17,8 +17,21 @@ from ..ui import Button, draw_text
 log = logging.getLogger(__name__)
 
 
+def map_world_to_screen(preview, minx, miny, scale, off_x, off_y=0.0):
+    """World-metre to screen-pixel mapping for a preview rectangle.
+
+    Returns a ``to_screen(wx, wy)`` callable.  ``off_y`` shifts the preview
+    down when the layout is vertically centered (the level editor); the
+    community thumbnails use the default ``0.0``.
+    """
+    def to_screen(wx, wy):
+        return (preview.x + off_x + (wx - minx) * scale,
+                preview.bottom - off_y - (wy - miny) * scale)
+    return to_screen
+
+
 @dataclass
-class Session:
+class Session(ReplaysPropertiesMixin):
     """State shared between scenes during one run of the game."""
     level_id: int = 1
     ship_id: str | None = None                      # the ship the current level flies (set by GameScene)

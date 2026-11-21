@@ -35,6 +35,7 @@ from ..data import LevelSpec
 from ..image_assets import load_image
 from ..ui import Button, TextInput, draw_text, fit_text
 from ..account import community
+from .base import map_world_to_screen
 from .community_browser import (
     _EXTRA_W,
     _EXTRA_X,
@@ -403,9 +404,7 @@ class CommunityLevelsScene(CommunityBrowserScene):
         scale = min(preview.w / world_w, preview.h / world_h)
         off_x = (preview.w - world_w * scale) / 2.0
 
-        def to_screen(wx, wy):
-            return (preview.x + off_x + (wx - minx) * scale,
-                    preview.bottom - (wy - miny) * scale)
+        to_screen = map_world_to_screen(preview, minx, miny, scale, off_x)
 
         # 缩略图内对象半径上限：按最短边的 1/3 计算，避免障碍物/道具超出预览
         max_r = max(8, min(preview.w, preview.h) // 4)

@@ -6,7 +6,7 @@ from ..config import px
 from ..image_assets import load_image
 from ..ui import Button, draw_text
 from ..account import community
-from .base import Scene
+from .base import Scene, map_world_to_screen
 
 
 class LevelEditorMenuScene(Scene):
@@ -168,9 +168,7 @@ class LevelEditorMenuScene(Scene):
         off_x = (preview.w - world_w * scale) / 2.0
         off_y = (preview.h - world_h * scale) / 2.0
 
-        def to_screen(wx, wy):
-            return (preview.x + off_x + (wx - minx) * scale,
-                    preview.bottom - off_y - (wy - miny) * scale)
+        to_screen = map_world_to_screen(preview, minx, miny, scale, off_x, off_y)
 
         # Object radius cap so large objects do not overflow the preview.
         max_r = max(8, min(preview.w, preview.h) // 4)
