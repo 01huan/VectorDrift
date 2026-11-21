@@ -373,7 +373,6 @@ def test_reaching_a_checkpoint_at_full_lives_keeps_the_cap():
         assert scene.section_index == k + 1 and scene.lives == LEVEL.lives
 
 
-@pytest.mark.xfail(reason="level 14 hints pending", strict=True)
 @pytest.mark.usefixtures("pygame_display")
 def test_level_fourteen_answer_is_paid_once_for_all_three_sections():
     import pygame

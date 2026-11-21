@@ -241,3 +241,37 @@ answer_note = "Level 10's swirl, flipped upside down:"
 answers = [
   { fx = "y - 2.5", fy = "-x - 7" },
 ]
+
+[level.14.section.1]
+steps = [
+  "A row of rocks cuts the map in two at y = -4.8, from edge to edge. You start under it and the checkpoint is above it, so the only way round is outside the map: grab the Unbound in the tunnel and fly out past the right edge.",
+  "Fx = 4 - x is a spring toward x = 4. It flings the ship right along the tunnel and out past the edge at x = 10 at about 10.4 m/s; the ship swings out to x = 16 and comes back.",
+  "To come back higher you need an upward push that only works outside the map. (x - 10) + abs(x - 10) is 0 inside the map (x < 10) and 2(x - 10) outside it, so Fy = c((x - 10) + abs(x - 10)) lifts the ship only while it is out of sight. Inside the map there is no up or down force, so both trips across the map are straight lines.",
+  "c sets how high the ship comes back. c = 0.25 sends it back over the rocks and up to the checkpoint in the top-left corner. Only about 0.23 to 0.26 works, so change it in small steps.",
+]
+answer_note = "A spring toward x = 4, with a push up only outside the right edge:"
+answers = [
+  { fx = "4 - x", fy = "0.25((x - 10) + abs(x - 10))" },
+]
+
+[level.14.section.2]
+steps = [
+  "Two walls this time. The Shockwave above you blasts a hole in the wall across the map; the Shield on the way lets you crash through the upright wall into the checkpoint's corner.",
+  "No switch needed. Fx = y + 7 is 0 where you start (y = -7) and grows the higher you climb, while Fy = 2 pushes straight up. So the ship goes straight up through the Shockwave first, then bends right through the Shield and the wall.",
+  "Only the ratio matters: y + 7 against 2 bends the path just right. Doubling both, 2y + 14 and 4, flies the same path faster.",
+]
+answer_note = "Straight up first, then bending right:"
+answers = [
+  { fx = "y + 7", fy = "2" },
+]
+
+[level.14.section.3]
+steps = [
+  "The finale: a wall from top to bottom, a wormhole through it, and the planet sealed in by rocks in the top-right corner. Fly straight up into the black hole; from the white hole, grab the Shield and crash into the corner.",
+  "Left of the wall you need no sideways force; right of it, a push to the right. That is a switch at x = -2: (x + 2) + abs(x + 2) is 0 left of x = -2 and 2(x + 2) right of it.",
+  "Fy = 3 pushes up everywhere, so the ship rises straight into the black hole and leaves the white hole still moving up at about 6.9 m/s. Fx = (x + 2) + abs(x + 2) then bends it right through the Shield and the corner wall into the planet.",
+]
+answer_note = "A switch at x = -2 with a steady push up:"
+answers = [
+  { fx = "(x + 2) + abs(x + 2)", fy = "3" },
+]
