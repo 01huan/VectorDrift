@@ -22,7 +22,7 @@ from ..data import LevelSpec
 from .data import SimulationOutcome
 from .engine import EvalConfig, evaluate_candidate
 from .interface import Solver, SolveResult, SimulationSpec, SolverError
-from .templates import FieldTemplate, get_template
+from .templates import get_template
 
 
 @dataclass
@@ -193,7 +193,6 @@ class PSOSolver(Solver):
         # Tracks whether ANY candidate was ever verified REACHED, across the
         # restarts the search does after a success (which clear ``simulations``).
         any_success = False
-        global_best_outcome: str | None = None
 
         def _evaluate(particle: Particle, iteration: int):
             nonlocal total_simulations
@@ -328,7 +327,6 @@ class PSOSolver(Solver):
                 if score > global_best_score:
                     global_best_score = score
                     global_best_pos = list(p.pos)
-                    global_best_outcome = rec.outcome
                     _publish_progress()
                     _publish_progress()
 
@@ -404,7 +402,6 @@ class PSOSolver(Solver):
                     if score > global_best_score:
                         global_best_score = score
                         global_best_pos = list(p.pos)
-                        global_best_outcome = rec.outcome
 
                     if rec.outcome == SimulationOutcome.REACHED:
                         success_found = True
@@ -493,7 +490,6 @@ class PSOSolver(Solver):
 
         solve_time = time.perf_counter() - start
         success = any_success
-        best_outcome = SimulationOutcome.REACHED if success else global_best_outcome
 
         message = (
             f"{total_simulations} simulations over {iterations} "

@@ -13,7 +13,7 @@ scenes; the callers stay in charge of the layout.
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Tuple
 
 import pygame
 

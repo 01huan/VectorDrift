@@ -4,7 +4,7 @@ import math
 
 import pygame
 
-from .common import SS, OUTLINE, _cached, _paint_cached_prop
+from .common import SS, OUTLINE, _paint_cached_prop
 from .common import load_image
 
 from ..community_browse import PICKUP_KINDS

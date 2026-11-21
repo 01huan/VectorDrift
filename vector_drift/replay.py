@@ -6,7 +6,7 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import List, Optional
 
 MAX_REPLAYS = 10
 

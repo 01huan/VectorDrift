@@ -10,8 +10,7 @@ as a solution.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
 
 from ..data import LevelSpec, SHIPS
 from ..expr_parser import parse_expression
@@ -22,7 +21,7 @@ from .data import (
     TrajectoryPoint,
     record_from_flight,
 )
-from .templates import FieldTemplate, get_template
+from .templates import FieldTemplate
 
 WORLD_DIAGONAL = math.hypot(2 * 10.0, 2 * 7.5)  # WORLD_HALF_W/H from config
 

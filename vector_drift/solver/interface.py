@@ -8,10 +8,8 @@ baseline and later models can be swapped in behind the same call site.
 
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
 
 from ..data import LevelSpec
 

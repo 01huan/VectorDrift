@@ -35,8 +35,6 @@ def _build_grid(obstacles, resolution=_RESOLUTION):
     h = int(2 * config.WORLD_HALF_H / resolution) + 1
     blocked = bytearray(w * h)
     for (cx, cy), r in obstacles:
-        i0 = max(0, int((cx - r + config.WORLD_HALF_W) / resolution) - 1)
-        i1 = min(w - 1, int((cx + r + config.WORLD_HALF_W) / resolution) + 1)
         j0 = max(0, int((cy - r + config.WORLD_HALF_H) / resolution) - 1)
         j1 = min(h - 1, int((cy + r + config.WORLD_HALF_H) / resolution) + 1)
         r2 = r * r

@@ -220,7 +220,6 @@ def generate_random_level(level_id=RANDOM_LEVEL_ID, seed=None, preset=None, *,
 
     if best is None:
         # A module raised every attempt; fall back to an obstacle-free layout.
-        from .level_modules import GeneratedLayout
         start, target = sample_endpoints(random.Random(0), base_preset)
         level = _make_spec(start, target, (), base_preset)
         if return_report:

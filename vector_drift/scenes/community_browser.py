@@ -34,7 +34,7 @@ import pygame
 from .. import config
 from ..config import px
 from ..level_pages import can_next, can_prev, clamp_page, levels_on_page, page_count, wheel_step
-from ..ui import Button, Dropdown, TextInput, draw_text, fit_text
+from ..ui import Button, Dropdown, TextInput, draw_text
 from .base import Scene
 
 # Toolbar layout (logical pixels).
@@ -601,9 +601,6 @@ class CommunityBrowserScene(Scene):
     def _default_direction(sort_key: str) -> bool:
         return True
 
-    def _sort_label(self):
-        return self._sort_table().label(self.sort_key, self.descending)
-
     def _entries(self):
         """``(row, info)`` for every row, parsing each row only once."""
         entries = []
@@ -707,9 +704,6 @@ class CommunityBrowserScene(Scene):
         """Hook: create the content-specific widgets (the pickup button for
         levels, the tag field for functions)."""
 
-    def _extra_toolbar_x(self) -> int:
-        return _EXTRA_X
-
     def _draw_toolbar(self, surface):
         """The search bar: two searches, the sort order and the filters."""
         label_color = config.TEXT_DIM
@@ -749,9 +743,6 @@ class CommunityBrowserScene(Scene):
 
     def _draw_extra_filters(self, surface) -> None:
         """Hook: draw the extra control(s) on the filter row."""
-
-    def _extra_summary(self) -> str:
-        return ""
 
     # ------------------------------------------------------------------------
 

@@ -14,10 +14,10 @@ def set_mode(pygame, size, flags=0):
 
 
 def open_display():
-    import pygame
-    from vector_drift import config
     """Return (display, canvas, offset). The game draws on `canvas`, a
     WINDOW_W x WINDOW_H area centered on the display."""
+    import pygame
+    from vector_drift import config
     if config.FULLSCREEN:
         # A borderless window covering the desktop, not SDL's exclusive
         # fullscreen: the exclusive window gets special focus handling that

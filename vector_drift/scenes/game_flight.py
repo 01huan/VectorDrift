@@ -360,7 +360,6 @@ class GameFlightMixin:
         """Keep this launch in the session's replays."""
         try:
             from vector_drift.replay import normalize_records
-            from vector_drift.account.integration import session_to_profile
             rec = {
                 "level_id": self.level.id,
                 "ship_id": getattr(self.ship, "id", None),
@@ -435,7 +434,6 @@ class GameFlightMixin:
 
     def _level_has_rocks(self):
         """Whether the level (any section) was built with rocks, shockwaves or not."""
-        from ..data import get_level
         if is_daily_level(self.level.id):
             return bool(self.full_level.obstacles)      # the day's map, not a level id
         try:

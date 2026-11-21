@@ -238,7 +238,6 @@ def grid_lines(viewport):
     Minor/major lines + axes at the viewport's scale; zoomed far out the major
     step grows (grid_step) so the number of lines stays about the same.
     """
-    w, h = viewport.width, viewport.height
     ox, oy = viewport.left, viewport.top
     s = viewport.scale
 
@@ -341,7 +340,7 @@ def make_plot_labels(viewport):
 
 def draw_plot_labels(surf, viewport):
     """Tick labels onto ``surf`` (plot-sized, per-pixel alpha), plot-local pixels."""
-    w, h = viewport.width, viewport.height
+    w = viewport.width
     ox, oy = viewport.left, viewport.top
     s = viewport.scale
 

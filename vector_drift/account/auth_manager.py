@@ -5,7 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from .errors import AccountError, AuthenticationError
 from .models import AccountUser, PlayerProfile

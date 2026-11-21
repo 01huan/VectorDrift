@@ -15,11 +15,9 @@ Pure PSO is the baseline; later models are compared against these numbers.
 from __future__ import annotations
 
 import json
-import math
 import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from ..data import LevelSpec
 from ..level_presets import get_preset, is_dynamic_level

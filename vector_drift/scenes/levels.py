@@ -360,9 +360,6 @@ class LevelSelectScene(Scene):
     def _next_page(self):
         return self._turn(1)
 
-    def _prev_page(self):
-        return self._turn(-1)
-
     def page_dots(self):
         """((x, y), filled) per page: centred under the grid, filled for this page."""
         grid = self.grid_rect()

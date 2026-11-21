@@ -1,7 +1,5 @@
 """Hole sprites."""
 
-import math
-
 import pygame
 
 from .. import image_assets

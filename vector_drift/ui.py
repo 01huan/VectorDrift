@@ -15,8 +15,6 @@ from .ui_editor import (
     STEP_BREAKERS,
     CodeEditor,
     LineHistory,
-    _Step,
-    _TOKEN_RE,
     _dim,
     clipboard_get,
     clipboard_put,
@@ -27,9 +25,7 @@ from .ui_editor import (
 from .ui_fonts import (
     COIN_GOLD,
     Button,
-    _FONT_CHOICES,
     _font_cache,
-    _icon,
     coin_price_parts,
     draw_coins,
     draw_icon_row,
@@ -39,13 +35,7 @@ from .ui_fonts import (
     get_font,
     wrap_text,
 )
-from .ui_icons import (
-    IconButton,
-    _disc_cache,
-    _draw_disc,
-    _icon_cache,
-    icon_surface,
-)
+from .ui_icons import IconButton, icon_surface
 from .ui_input import Dropdown, TextInput
 
 

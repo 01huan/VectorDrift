@@ -102,13 +102,5 @@ class Money:
     def __sub__(self, other) -> "Money":
         return Money(self.amount - _coerce(other))
 
-    def __iadd__(self, other) -> "Money":
-        self.amount += _coerce(other)
-        return self
-
-    def __isub__(self, other) -> "Money":
-        self.amount -= _coerce(other)
-        return self
-
     def __repr__(self) -> str:
         return f"Money(amount={self.amount})"

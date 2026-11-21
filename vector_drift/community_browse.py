@@ -21,26 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
-from .community_core import (
-    MIN_COVERAGE,
-    MIN_MATCH_SCORE,
-    SORT_NEWEST,
-    SORT_OLDEST,
-    CommunityItemInfo,
-    FuzzyMatcher,
-    SortOption,
-    SortTable,
-    average_rating,
-    cached_matcher,
-    filter_items,
-    float_of,
-    fuzzy_score,
-    int_of,
-    normalize_text,
-    sort_label_for,
-    text_of,
-    timestamp_of,
-)
+from .community_core import (SORT_NEWEST, SORT_OLDEST, CommunityItemInfo, FuzzyMatcher, SortOption, SortTable, average_rating, cached_matcher, filter_items, float_of, fuzzy_score, int_of, normalize_text, sort_label_for, text_of, timestamp_of)
 
 __all__ = [
     "PICKUP_KINDS", "PICKUP_LABELS", "DEFAULT_PICKUP_KIND",

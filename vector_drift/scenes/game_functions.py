@@ -13,7 +13,7 @@ import pygame
 
 from .. import config
 from ..config import px
-from ..ui import Button, draw_text, fit_text
+from ..ui import (draw_text, fit_text)
 
 CARD_W, CARD_H = 560, 360
 ROW_H = 40

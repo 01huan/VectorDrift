@@ -7,7 +7,6 @@ from typing import Optional
 
 from .errors import ProfileError
 from .models import PlayerProfile
-from .supabase_client import get_client
 
 
 def _parse_ts(value) -> Optional[datetime]:

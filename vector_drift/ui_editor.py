@@ -18,16 +18,9 @@ from .ui_editor_history import (
     STEP_BREAKERS,
     CodeEditorHistoryMixin,
     LineHistory,
-    _Step,
 )
 from .ui_editor_input import CodeEditorInputMixin
-from .ui_editor_syntax import (
-    _TOKEN_RE,
-    _dim,
-    draw_squiggle,
-    error_span,
-    highlight,
-)
+from .ui_editor_syntax import (_dim, draw_squiggle, error_span, highlight)
 
 
 def clipboard_get():

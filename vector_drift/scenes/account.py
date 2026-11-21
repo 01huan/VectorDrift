@@ -11,7 +11,6 @@ from ..ui import Button, draw_icon_row, draw_text
 from .base import Scene
 from .auth import _TextInput
 from ..account import community
-from ..account.integration import session_to_profile, reset_session_to_guest
 
 
 class AccountScene(Scene):
@@ -165,10 +164,10 @@ class AccountScene(Scene):
             try:
                 account.delete_local_data(self.session)
             except Exception:
-                from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+                from vector_drift.account.integration import clear_guest_profile
                 clear_guest_profile(self.session)
         else:
-            from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+            from vector_drift.account.integration import clear_guest_profile
             clear_guest_profile(self.session)
         self.status = "Local data deleted."
 
@@ -239,7 +238,6 @@ class AccountScene(Scene):
         # 一般帳號頁面
         self.back_button.draw(surface)
         s = self.session
-        account = self.manager.account
         lines = [
             ("User", s.display_name or "—"),
             ("Status", s.auth_status),

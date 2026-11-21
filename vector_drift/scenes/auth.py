@@ -209,10 +209,10 @@ class LoginScene(Scene):
             try:
                 account.delete_local_data(self.session)
             except Exception:
-                from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+                from vector_drift.account.integration import clear_guest_profile
                 clear_guest_profile(self.session)
         else:
-            from vector_drift.account.integration import clear_guest_profile, reset_session_to_guest
+            from vector_drift.account.integration import clear_guest_profile
             clear_guest_profile(self.session)
         self._set_status("Local data deleted.")
 

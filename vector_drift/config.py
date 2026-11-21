@@ -179,9 +179,6 @@ MAX_ARROW_PX = 4000       # refuse to allocate arrow temp surfaces larger than t
 
 # --- Costs ---------------------------------------------------------------
 AI_SOLVER_COST = 10
-HINT_COST = 10
-
-MONEY_COST_PER_USE = 10
 FREE_ANSWER_LEVELS = (1, 2, 8)      # fixed levels whose Hint answer page is free
 HINT_ANSWER_COST = 10               # coins for the Hint answer page on other fixed levels
 CLEAR_REWARD = 5                    # coins for reaching the target, once per fixed level / random map

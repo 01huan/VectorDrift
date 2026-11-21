@@ -5,7 +5,6 @@ import random
 
 import pygame
 
-from .. import config
 from .common import (SS, OUTLINE, _cached, _paint_cached_prop)
 from ..image_assets import ROCK_KEYS, load_image
 

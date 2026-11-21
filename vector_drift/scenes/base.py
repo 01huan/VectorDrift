@@ -335,7 +335,7 @@ def back_label(session):
 
 def result_buttons(first_label, back="Levels"):
     'Three buttons under a result card.'
-    cx, cy = config.WINDOW_W // 2, config.WINDOW_H // 2
+    cx = config.WINDOW_W // 2
     w, h, gap = px(150), px(46), px(14)
     left = cx - (3 * w + 2 * gap) // 2
     labels = (first_label, back, "Main Menu")

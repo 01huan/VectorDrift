@@ -8,7 +8,7 @@ owned-ship list, which is no longer used.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
+from typing import Callable
 
 
 from .accessors import owned_ship_ids as _owned_ship_ids

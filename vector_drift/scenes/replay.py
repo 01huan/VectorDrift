@@ -18,8 +18,7 @@ from .base import Scene
 from ..replay import ReplayPlayer, normalize_ability_events, section_index_from
 from .replay_camera import ReplayCameraMixin
 # Re-exported for callers/tests that historically imported these names here.
-from .replay_data import (JUMP_SLACK_M, START_MARKER_RADIUS_M, _get, _is_jump,
-                          trail_strokes)
+from .replay_data import _get, trail_strokes
 from .replay_render import ReplayRenderMixin
 from .replay_timeline import ReplayTimelineMixin
 

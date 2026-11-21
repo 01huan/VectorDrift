@@ -82,7 +82,7 @@ def _custom_levels_to_rows(levels: Any) -> list[dict]:
 
 def _restore_custom_levels(session: Any, rows: Any) -> None:
     from vector_drift import data
-    from vector_drift.data import LevelSpec, ObstacleSpec, PickupSpec
+    from vector_drift.data import LevelSpec
 
     levels = []
     for row in rows if isinstance(rows, list) else ():

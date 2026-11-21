@@ -220,7 +220,6 @@ class LevelEditorScene(Scene):
 
     def add_checkpoint(self):
         self._save_current_section()
-        prev_target = tuple(self.sections[self.section_index]["target"]) if self.sections else tuple(self.target)
         new_state = {
             "start": (-7.0, 0.0),
             "target": (7.0, 0.0),
