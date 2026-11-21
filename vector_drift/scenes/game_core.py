@@ -1,35 +1,23 @@
 """Split from scenes/game.py to keep files manageable."""
 import logging
 import math
-from dataclasses import replace
 
 import pygame
 
 from .. import config, daily_level, render, sprites
 from ..config import px
 from ..desktop import set_cursor
-from ..background import BackgroundBuilder
-from ..coords import Viewport, fit_zoom
+from ..coords import Viewport
 from ..daily_level import is_daily_level
-from ..data import (DEFAULT_SHIP_ID, SHIPS, custom_level_to_snapshot, get_level,
-                    is_custom_map, level_holes, level_ship_id, section_count, section_level,
-                    section_shift)
+from ..data import (DEFAULT_SHIP_ID, SHIPS, is_custom_map, level_holes, level_ship_id, section_count, section_level)
 from ..expr_parser import diagnose_expression
-from ..hints import get_hint
 from ..level_presets import is_dynamic_level
-from ..physics import Flight, ForceField, Outcome
-from ..pickups import EXTRATIME_DURATION, extratime_bonus_steps
-from ..image_assets import COIN_BALANCE
-from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
-                  draw_panel_box, draw_text, icon_surface)
-from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
+from ..physics import ForceField
+from ..ui import (Button, CodeEditor, IconButton)
+from ..solver import (PSOSolver, Solver)
 from ..solver.interface import SolveResult
-from .base import Scene
-from .hint_popup import HintPopup, confirm_text
-from .pause_menu import PauseMenu
 from . import ability_effects as afx
 from . import pickup_effects as pfx
-from .game_section_pan import SectionPan
 log = logging.getLogger(__name__)
 
 # Physics-expected failures (bad user expression, overflow, huge-finite clamp).
@@ -342,9 +330,7 @@ class GameCoreMixin:
         set_cursor("text" if over_text else "arrow")
 
 
-import sys as _sys
-def _gm():
-    return _sys.modules["vector_drift.scenes.game"]
+from ._delegation import _gm
 def PSOConfig(*a, **k):
     return _gm().PSOConfig(*a, **k)
 def draw_coins(*a, **k):

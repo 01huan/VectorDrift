@@ -1,35 +1,15 @@
 """Split from scenes/game.py to keep files manageable."""
 import logging
-import math
-from dataclasses import replace
 
 import pygame
 
-from .. import config, daily_records, render, sprites
-from ..config import px
-from ..desktop import set_cursor
-from ..background import BackgroundBuilder
-from ..coords import Viewport, fit_zoom
-from ..data import (SHIPS, custom_level_to_snapshot, default_ship_id, get_level,
-                    is_custom_map, level_holes, section_count, section_level, section_shift,
-                    ship_unlocked)
-from ..expr_parser import diagnose_expression
+from .. import (config, daily_records)
+from ..data import (custom_level_to_snapshot, is_custom_map, section_level, section_shift)
 from .. import achievements, progression, xp
-from ..hints import get_hint
 from ..daily_level import is_daily_level
 from ..level_presets import is_dynamic_level
-from ..physics import Flight, ForceField, Outcome
-from ..pickups import EXTRATIME_DURATION, extratime_bonus_steps
-from ..image_assets import COIN_BALANCE
-from ..ui import (Button, CodeEditor, IconButton, coin_price_parts, draw_coins, draw_icon_row,
-                  draw_panel_box, draw_text, icon_surface)
-from ..solver import PSOSolver, PSOConfig, Solver, run_solver_async
-from ..solver.interface import SolveResult
-from .base import Scene
-from .hint_popup import HintPopup, confirm_text
-from .pause_menu import PauseMenu
+from ..physics import (Flight, Outcome)
 from . import game_functions as gfunc
-from . import pickup_effects as pfx
 from .game_section_pan import SectionPan
 log = logging.getLogger(__name__)
 
@@ -609,9 +589,7 @@ class GameFlightMixin:
         self._trail_count = end
 
 
-import sys as _sys
-def _gm():
-    return _sys.modules["vector_drift.scenes.game"]
+from ._delegation import _gm
 def PSOConfig(*a, **k):
     return _gm().PSOConfig(*a, **k)
 def draw_coins(*a, **k):
