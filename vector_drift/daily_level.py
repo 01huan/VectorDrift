@@ -146,8 +146,14 @@ class DailyField:
     fx: str
     fy: str
 
+    @functools.lru_cache(maxsize=64)
     def force_field(self):
-        """The field exactly as the game builds it from the typed answer."""
+        """The field exactly as the game builds it from the typed answer.
+
+        Memoized: the same reference answer is built once per generation
+        attempt and flown again in the final acceptance check, and
+        ``parse_expression`` is itself memoized now.
+        """
         return ForceField.from_exprs(parse_expression(self.fx), parse_expression(self.fy))
 
 
@@ -216,7 +222,12 @@ def _enters_target_once(path, target):
     hit_radius = TARGET_RADIUS + DAILY_SHIP.hull_radius
     touching = [segment_hits_circle(path[i], path[i + 1], target, hit_radius)
                 for i in range(len(path) - 1)]
-    first = touching.index(True)        # the last step always ends on the target
+    try:
+        first = touching.index(True)    # the last step always ends on the target
+    except ValueError:
+        # Defensive: a path with no segment touching the target circle means
+        # the route is refused instead of raising ValueError out of generation.
+        return False
     return all(touching[first:])
 
 
