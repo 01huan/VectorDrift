@@ -163,8 +163,6 @@ def record_from_flight(
     timestamp: str | None = None,
 ) -> SimulationRecord:
     """Factory: build a :class:`SimulationRecord` from a finished :class:`Flight`."""
-    import datetime as _dt
-
     return SimulationRecord(
         record_id=record_id,
         run_id=run_id,
@@ -197,6 +195,6 @@ def record_from_flight(
         iteration=int(iteration),
         particle_id=particle_id,
         swarm_best_score=float(swarm_best_score),
-        timestamp=timestamp or _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        timestamp=timestamp or datetime.now(timezone.utc).isoformat(),
     )
 
