@@ -1,7 +1,10 @@
 """Vector Drift - entry point.  Run:  python main.py"""
 
+import logging
 import os
 import sys
+
+log = logging.getLogger(__name__)
 
 
 def set_mode(pygame, size, flags=0):
@@ -138,15 +141,25 @@ def main():
     manager.switch(MenuScene(manager))
 
     while manager.running:
-        dt = clock.tick(config.FPS) / 1000.0
-        for event in pygame.event.get():
-            if event.type == pygame.WINDOWFOCUSGAINED:
-                disable_ime()          # keep the IME detached after alt-tab
-            manager.handle_event(to_canvas(event, offset))
-            if not manager.running:
-                break
-        manager.update(dt)
-        manager.draw(screen)
+        try:
+            dt = clock.tick(config.FPS) / 1000.0
+            for event in pygame.event.get():
+                if event.type == pygame.WINDOWFOCUSGAINED:
+                    disable_ime()          # keep the IME detached after alt-tab
+                manager.handle_event(to_canvas(event, offset))
+                if not manager.running:
+                    break
+            manager.update(dt)
+            manager.draw(screen)
+        except Exception:
+            # A scene bug must not kill the game: log it and quit cleanly
+            # (save_progress runs as part of the quit path).
+            log.exception("game loop stopped by an unexpected error")
+            try:
+                manager.quit()
+            except Exception:
+                pass
+            break
         for rect in margins:
             display.fill(config.BG, rect)
         pygame.display.flip()
