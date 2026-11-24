@@ -202,3 +202,10 @@ def draw_pointer(surface, tip, t, length=46):
     head = px(12)
     pygame.draw.line(surface, POINTER, (x, y - px(length)), (x, y - head // 2), max(3, px(4)))
     pygame.draw.polygon(surface, POINTER, [(x, y), (x - head, y - head), (x + head, y - head)])
+
+
+def draw_attention_ring(surface, rect, t, pad=6, width=2):
+    """A pulsing outline in the pointer colour around a control."""
+    grow = px(pad) + round(px(2) * blink_value(t, 4.0))
+    ring = rect.inflate(grow * 2, grow * 2)
+    pygame.draw.rect(surface, POINTER, ring, max(2, px(width)), border_radius=px(6))

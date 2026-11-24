@@ -33,7 +33,7 @@ title = "Fly home"
 placeholders = ["5", "0"]
 text = """Your ship has no engine. You can't push it - but you can shape the space around it.
 Fx and Fy are the two parts of the force at every point of the map. The arrows show that force. The ship starts at rest and follows the arrows.
-Type **Fx = 5** and **Fy = 0**, then press **Play**."""
+Type **Fx = 5** and **Fy = 0**, then press the green **Play** button at the top right of the Fx/Fy box."""
 success = "Home! Reach the planet to clear a level."
 map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
 
@@ -43,7 +43,7 @@ title = "Time's up"
 force = ["1", "0"]
 map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 4.0 }
 beat = [
-  { launch = true, point = "ship", text = """Time's up. Every launch has a time limit (the timer).
+  { launch = true, point = "ship", text = """Time's up. Every launch has a time limit (the timer at the top left).
 When it runs out, the next launch starts right here, at rest.""" },
   { launch = true, point = "", text = "It flew on from where it stopped." },
 ]
@@ -66,7 +66,7 @@ point = "hint"
 button = "Start playing"
 text = """Stuck? **Hint** gives step-by-step tips for the level.
 Press **Esc** at any time for the menu (restart, levels, quit).
-Want to know what a rock, portal or pickup does? Click it in the list on the right."""
+Want to know what a rock, portal or pickup does? Click it in the **Element guide** on the right."""
 map = { start = [-7.0, 0.0], target = [7.0, 0.0], target_radius = 1.0, time_limit = 10.0 }
 
 # --- Element demos (the list on the tutorial screen) -----------------------

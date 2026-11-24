@@ -24,8 +24,9 @@ from ..config import px
 from ..tutorial import tutorial
 from ..ui import Button
 from ..ui_fonts import draw_text
-from .game_layout import ARRIVED, FLIGHT, SETUP
-from .tutorial_play import TutorialGameScene, draw_pointer, draw_rich, rich_height
+from .game_layout import ARRIVED, FLIGHT, RUN_GREEN, SETUP
+from .tutorial_play import (TutorialGameScene, draw_attention_ring, draw_pointer, draw_rich,
+                            rich_height)
 
 HOLD = "tutorial_hold"          # a demo flight ended: its last frame stays until Next
 AUTO_LAUNCH_S = 0.8             # a demo flies this long after the step opens
@@ -210,6 +211,7 @@ class BasicsScene(TutorialGameScene):
             self.next_button.rect.bottomright = (box.right - px(BOX_PAD), box.bottom - px(12))
             self.next_button.draw(surface)
         self._draw_point(surface)
+        self._draw_play_marker(surface)
 
     def _draw_box(self, surface, box):
         layer = pygame.Surface(box.size, pygame.SRCALPHA)
@@ -225,6 +227,17 @@ class BasicsScene(TutorialGameScene):
             draw_pointer(surface, self.world_to_screen(where), self.t)
         elif point == "start":
             draw_pointer(surface, self.world_to_screen(self.level.start), self.t)
+
+    def _draw_play_marker(self, surface):
+        """A play step marks the Play button (and says so) until it is cleared."""
+        if self.step.kind != "play" or self.done or self.state != SETUP:
+            return
+        button = self.run_button.rect
+        draw_attention_ring(surface, button, self.t, pad=4)
+        draw_text(surface, "Play", (button.left - px(8), button.centery), 14, RUN_GREEN,
+                  kind="bold", anchor="midright")
+        if self.run_button.enabled:
+            draw_pointer(surface, button.midtop, self.t, length=34)
 
     def _draw_card(self, surface, plot):
         # The Hint button, marked but not usable (hidden everywhere else in the tutorial).

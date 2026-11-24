@@ -68,7 +68,7 @@ def test_no_ability_in_the_guide():
 def test_texts_match_the_spec():
     assert step(1).placeholders == ("5", "0")
     assert step(1).success == "Home! Reach the planet to clear a level."
-    assert "Type **Fx = 5** and **Fy = 0**, then press **Play**." in step(1).text
+    assert "Type **Fx = 5** and **Fy = 0**, then press the green **Play** button" in step(1).text
     assert step(2).beats[1].text == "It flew on from where it stopped."
     assert step(3).beats[0].text == "Out of bounds. The ship left the map."
     assert step(4).button == "Start playing" and step(4).point == "hint"

@@ -275,6 +275,18 @@ def test_clicking_a_list_item_opens_its_demo_popup():
     _draw(scene)
 
 
+def test_the_element_guide_is_titled_and_marked_until_its_first_demo(monkeypatch):
+    drawn = []
+    real = ts.draw_text
+    monkeypatch.setattr(ts, "draw_text", lambda s, text, *a, **k: drawn.append(text) or real(s, text, *a, **k))
+    _, scene = _open()
+    _draw(scene)
+    assert "ELEMENT GUIDE" in drawn and "Click a row to watch" in drawn
+    assert not scene.seen_popup
+    _click(scene, _row(scene, "Rock").center)
+    assert scene.seen_popup
+
+
 def test_the_list_works_on_every_step():
     for index in range(4):
         _, scene = _open(index)
@@ -521,6 +533,6 @@ def test_the_same_demos_would_count_outside_the_tutorial(monkeypatch):
 
 def test_the_help_card_points_at_the_list():
     help_card = tutorial().basics[3]
-    assert ("Want to know what a rock, portal or pickup does? Click it in the list on the right."
+    assert ("Want to know what a rock, portal or pickup does? Click it in the **Element guide** on the right."
             in help_card.text)
     assert "Tutorial menu" not in help_card.text and "Field guide" not in help_card.text

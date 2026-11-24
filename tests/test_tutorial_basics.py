@@ -56,6 +56,21 @@ def test_step1_starts_empty_with_grey_placeholders():
     _draw(scene)
 
 
+def test_step1_marks_the_play_button_until_it_is_ready_to_launch(monkeypatch):
+    from vector_drift.scenes import tutorial_basics as tb
+    _, scene = _open(0)
+    drawn, pointers = [], []
+    real = tb.draw_text
+    monkeypatch.setattr(tb, "draw_text",
+                        lambda s, text, *a, **k: drawn.append(text) or real(s, text, *a, **k))
+    monkeypatch.setattr(tb, "draw_pointer", lambda *a, **k: pointers.append(a))
+    _draw(scene)
+    assert "Play" in drawn and not pointers         # named, but not pointing at it yet
+    _type(scene, "5", "0")
+    _draw(scene)
+    assert pointers                                   # ready: an arrow points at Play
+
+
 def test_step1_play_is_off_while_a_line_is_empty():
     _, scene = _open(0)
     assert not scene.run_button.enabled

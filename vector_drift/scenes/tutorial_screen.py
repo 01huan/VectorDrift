@@ -12,8 +12,9 @@ from the Tutorial button on level select.
             positions are mapped back to full-size coordinates before the
             walkthrough sees them. Ordinary levels never go through this.
   list    - the elements of tutorial.toml's [guide] (rocks, portals, pickups),
-            grouped by category, each with its card icon and name. Usable on
-            every step.
+            grouped by category, each with its card icon and name under the
+            "Element guide" title; marked until its first demo opens. Usable
+            on every step.
   popup   - clicking an element opens its demo (DemoPopup) left of the list,
             a small triangle pointing at the row: a title bar with the name
             and a close button, a 4:3 clip (field_guide.GuideDemoScene: the
@@ -50,13 +51,14 @@ from .base import Scene
 from .field_guide import GuideDemoScene, draw_card_icon
 from .game_layout import FLIGHT, R, fmt_clock
 from .tutorial_basics import BasicsScene
-from .tutorial_play import give_back_session
+from .tutorial_play import draw_attention_ring, give_back_session
 
 FRAME = (20, 66, 1030, 580)     # logical px: the shrunk walkthrough
 LIST = (1066, 66, 194, 580)     # logical px: the element list
 HEADER_Y = 40                   # centre line of the header row
 EXIT_SIZE = (96, 34)
 LIST_PAD = 10
+LIST_TITLE_H = 46               # "Element guide" + "Click a row to watch"
 LIST_HEADER_H = 28              # a category name
 LIST_ROW_H = 44                 # one element
 LIST_GAP = 10                   # between categories
@@ -121,6 +123,7 @@ class TutorialScene(Scene):
         self.items = []                 # (guide item, row rect)
         self._layout_list()
         self.hover = None
+        self.seen_popup = False         # the list is marked until its first demo opens
         self.popup = None               # the open DemoPopup, else None
         self._mouse = (-1, -1)
         self.t = 0.0
@@ -132,7 +135,7 @@ class TutorialScene(Scene):
 
     def _layout_list(self):
         x, w = self.list_rect.x + px(LIST_PAD), self.list_rect.w - 2 * px(LIST_PAD)
-        y = self.list_rect.y + px(LIST_PAD)
+        y = self.list_rect.y + px(LIST_PAD) + px(LIST_TITLE_H)
         for k, cat in enumerate(tutorial().guide):
             if k:
                 y += px(LIST_GAP)
@@ -175,6 +178,7 @@ class TutorialScene(Scene):
     # --- the popup --------------------------------------------------------------------
     def open_item(self, item):
         """Open ``item``'s demo (closing any other); the walkthrough waits."""
+        self.seen_popup = True
         if self.popup is None:
             self._render_inner()                # the frame that stays while paused, dimmed once
             veil = pygame.Surface(self.frame.size, pygame.SRCALPHA)
@@ -291,6 +295,14 @@ class TutorialScene(Scene):
     def _draw_list(self, surface):
         pygame.draw.rect(surface, config.PANEL_BG, self.list_rect, border_radius=px(6))
         pygame.draw.rect(surface, config.EDITOR_BORDER, self.list_rect, max(1, px(1)), border_radius=px(6))
+        if not self.seen_popup:
+            draw_attention_ring(surface, self.list_rect, self.t, pad=3)
+        x = self.list_rect.x + px(LIST_PAD + 4)
+        y = self.list_rect.y + px(LIST_PAD)
+        draw_text(surface, "ELEMENT GUIDE", (x, y + px(12)), 13, config.ACCENT, kind="bold",
+                  anchor="midleft")
+        draw_text(surface, "Click a row to watch", (x, y + px(28)), 11, config.TEXT_DIM,
+                  anchor="midleft")
         for name, pos in self.headers:
             draw_text(surface, name, pos, 13, config.ACCENT, kind="bold", anchor="midleft")
         for item, rect in self.items:
