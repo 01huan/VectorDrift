@@ -26,7 +26,7 @@ Design a vector field, launch the ship, and see where the physics takes it. Reac
 - **Custom level editor** — create, edit, save, and play your own layouts.
 - **Community levels and functions** — browse, search and sort public content (fuzzy search by name and uploader; click the dropdown to pick a sort), favorite and rate it (five stars on the card), and publish or delete your own uploads through an optional Supabase backend.
 - **Replays** — review the latest ten launches, including the formulas, trajectory, force and velocity data, and the state of the level.
-- **Progression and persistence** — earn coins and [experience points](#experience-and-levels) that raise your player level, buy abilities, keep best times, and save progress locally or to an optional online account.
+- **Progression and persistence** — earn coins and experience points that raise your player level, buy abilities, keep best times, and save progress locally or to an optional online account.
 - **Music and art** — music, sound effects, and replaceable image/audio assets.
 
 ## Current game content
@@ -72,7 +72,7 @@ The modules:
 - **Corridor (Random Drift I / II)** — the original hidden-waypoint route. Obstacles are placed outside a clearance corridor around a hidden route and block the direct start-to-target line, so a straight-line solution is not enough. Template I uses a 10-second limit, 5 lives, 5–20 obstacles with money, extra-time, life and Unbound pickups and two black/white wormhole pairs; template II uses a 12-second limit, 3 lives, 10–18 obstacles and groups of shockwave, extra-time, shield, life, money and Unbound pickups.
 - **Wormhole network (Random Drift III)** — full-height walls of bumper rocks seal the map behind gates. Each gate is a black/white wormhole pair and the hidden route chains through them, so the only way through a sealed sector is by teleporting. 12 seconds, 4 lives, money, life and Unbound pickups.
 - **Maze (Random Drift IV)** — a braided perfect maze (randomized depth-first search with extra loops knocked out) whose walls are bumper rocks; the start and target sit in opposite corner cells. 15 seconds, 5 lives, money, extra-time, life and Unbound pickups.
-- **Extreme time (Random Drift V)** — a winding slalom route against a very tight 6-second limit, with extra-time pickups placed along the route. 3 lives, extra-time, money and Unbound pickups.
+- **Extreme time (Random Drift V)** — a winding slalom route against a very tight 0.5 s limit, with extra-time pickups along the route. 2 lives, extra-time, money and Unbound pickups.
 
 Each template lists the pickup groups it places; the groups are drawn at random inside their range, so the number of pickups on a screen scales with the screen's difficulty instead of being fixed. A screen never ends up empty-handed and never turns into a treasure hunt.
 
@@ -634,6 +634,7 @@ The game comes with a default Supabase configuration, so players can use online 
 Players who prefer to use their own Supabase backend can override the default configuration by creating a .env file in the project root.
 
 ### Use the default Supabase backend
+
 No additional configuration is required. Simply launch the game, and the built-in Supabase configuration will be used automatically.
 
 ### Use your own Supabase project
