@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from . import config
+from .expr_evaluator import evaluate_node
 
 # Huge-but-finite forces (e.g. tan(pi/2) ~= 1.6e16) pass every isfinite() check
 # yet tunnel through the target in one step (REACHED) and then crash pygame
@@ -113,6 +114,34 @@ class ForceField:
             except ArithmeticError:
                 bad.append(i)
         return tuple(bad)
+
+    def excessive_components(self, x, y):
+        """Indices of components whose force is finite but above MAX_FORCE.
+
+        Distinct from :meth:`invalid_components` (which also flags
+        non-finite values and evaluation failures) so callers can tell
+        "too large" apart from "undefined".  A magnitude overflow that
+        ``Expression.evaluate`` rejects as a result that is too large
+        still counts: the value really is large, just unrepresentable.
+        """
+        out = []
+        for i, expr in enumerate((self.fx_expr, self.fy_expr)):
+            if expr is None:
+                continue
+            try:
+                if hasattr(expr, "_node"):
+                    value = evaluate_node(expr._node, {"x": x, "y": y})
+                else:
+                    value = expr(x, y)
+            except OverflowError:
+                out.append(i)
+                continue
+            except (ArithmeticError, ValueError, TypeError,
+                    RecursionError, MemoryError):
+                continue
+            if math.isfinite(value) and abs(value) > MAX_FORCE:
+                out.append(i)
+        return tuple(out)
 
 
 def segment_hits_circle(p0, p1, center, radius):

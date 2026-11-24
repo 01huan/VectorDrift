@@ -303,7 +303,10 @@ class GameCoreMixin:
         bad = self.field.invalid_components(x, y)
         if not bad:
             return
-        msg = f"Undefined at launch point ({x:.2f}, {y:.2f})"
+        if self.field.excessive_components(x, y):
+            msg = "Number too large at launch point"
+        else:
+            msg = f"Undefined at launch point ({x:.2f}, {y:.2f})"
         self.editor.set_errors([(msg, 0) if i in bad else None
                                 for i in range(self.editor.n)])
         self.valid = False
