@@ -473,6 +473,8 @@ class LevelEditorScene(Scene):
     def _move_selected(self, pos):
         world = self._screen_to_world(pos)
         center = (world[0] + self.move_offset[0], world[1] + self.move_offset[1])
+        if not self._in_playfield(self.viewport.to_screen(*center)):
+            return
         if not self._overlaps(center, self._object_radius(self.moving), ignore=self.moving):
             self._set_object_center(self.moving, center)
             self.message = ""
