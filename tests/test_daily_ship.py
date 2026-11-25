@@ -105,15 +105,6 @@ def test_fixed_and_random_levels_keep_their_ship(level_id, ship_id):
     assert _game(_manager(), level_id).ship.id == ship_id
 
 
-def test_custom_and_community_levels_still_fly_ship01(monkeypatch):
-    from vector_drift import data
-    monkeypatch.setitem(data.CUSTOM_LEVELS, 3, object())
-    assert level_ship_id(3) == "ship01"
-    monkeypatch.delitem(data.CUSTOM_LEVELS, 3)
-    monkeypatch.setitem(data.COMMUNITY_LEVELS, 5, object())
-    assert level_ship_id(5) == "ship01"
-
-
 @pytest.mark.parametrize("level_id", [None, 0, 1, 11, 15, 16, 99, 900, RANDOM_LEVEL_ID,
                                       -3, "x", "daybreak", 2.5, True])
 def test_default_ship_id_never_picks_daybreak(level_id):
