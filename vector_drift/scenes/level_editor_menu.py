@@ -1,4 +1,4 @@
-"""Level editor menu: list of player-created levels + new button."""
+"""Level editor menu: list of player-created levels + a New card."""
 import pygame
 
 from .. import config, data
@@ -16,12 +16,10 @@ class LevelEditorMenuScene(Scene):
         super().__init__(manager)
         self.back_button = Button((px(40), config.WINDOW_H - px(86), px(180), px(46)), "Levels",
                                   style="plain", font_size=17)
-        self.new_button = Button((config.WINDOW_W - px(200), px(20), px(180), px(40)), "New",
-                                 style="primary", font_size=17)
         self.community_button = Button((px(60), px(20), px(200), px(40)), "Public Levels",
                                        style="plain", font_size=17)
         self.cards = []
-        self.delete_rects = []        # parallel to self.cards: delete button per local custom level
+        self.delete_rects = []        # parallel to self.cards: delete button per level; the NEW card gets an empty slot
         self.message = ""
         self.message_timer = 0.0
         self.page = 0
@@ -49,6 +47,12 @@ class LevelEditorMenuScene(Scene):
                 pygame.Rect(rect.right - px(22), rect.y + px(6), px(16), px(16))
             )
 
+        # NEW is itself the last card: it takes the slot after the level cards.
+        new_rect = pygame.Rect(x + (len(self.cards) % 4) * px(260),
+                               y + (len(self.cards) // 4) * px(180), px(240), px(160))
+        self.cards.append((None, new_rect, None))
+        self.delete_rects.append(pygame.Rect(-1, -1, 0, 0))
+
         if self.page_count > 1:
             self.prev_button = Button((px(260), config.WINDOW_H - px(86), px(100), px(46)), "Prev", style="plain", font_size=17)
             self.next_button = Button((config.WINDOW_W - px(160), config.WINDOW_H - px(86), px(100), px(46)), "Next", style="plain", font_size=17)
@@ -69,11 +73,6 @@ class LevelEditorMenuScene(Scene):
             self.page += 1
             self._rebuild()
             return
-        if self.new_button.handle_event(event) == "click":
-            self.audio.play("click")
-            from .level_editor import LevelEditorScene
-            self.manager.switch(LevelEditorScene(self.manager))
-            return
         if self.community_button.handle_event(event) == "click":
             self.audio.play("click")
             from .community import open_community
@@ -89,15 +88,22 @@ class LevelEditorMenuScene(Scene):
             for lv, rect, _preview in self.cards:
                 if rect.collidepoint(event.pos):
                     self.audio.play("click")
-                    self.session.level_id = lv.id
-                    self.session.fx_text = self.session.fy_text = ""
-                    self.session.random_seed = None
-                    self.session.level_source = "level_editor"
-                    from .game import GameScene
-                    self.manager.switch(GameScene(self.manager))
+                    if lv is None:
+                        # The NEW card: open the editor as a new level.
+                        from .level_editor import LevelEditorScene
+                        self.manager.switch(LevelEditorScene(self.manager))
+                    else:
+                        self.session.level_id = lv.id
+                        self.session.fx_text = self.session.fy_text = ""
+                        self.session.random_seed = None
+                        self.session.level_source = "level_editor"
+                        from .game import GameScene
+                        self.manager.switch(GameScene(self.manager))
                     return
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
             for lv, rect, _preview in self.cards:
+                if lv is None:      # the NEW card has nothing to edit
+                    continue
                 if rect.collidepoint(event.pos):
                     # right click: edit
                     self.audio.play("click")
@@ -246,7 +252,6 @@ class LevelEditorMenuScene(Scene):
     def draw(self, surface):
         surface.fill(config.BG)
         self.back_button.draw(surface)
-        self.new_button.draw(surface)
         self.community_button.draw(surface)
         if self.prev_button:
             self.prev_button.draw(surface)
@@ -256,8 +261,12 @@ class LevelEditorMenuScene(Scene):
         if self.page_count > 1:
             draw_text(surface, f"Page {self.page + 1} / {self.page_count}", (config.WINDOW_W // 2, config.WINDOW_H - px(60)), 15, config.TEXT, anchor="center")
         for (lv, rect, preview), del_rect in zip(self.cards, self.delete_rects):
-            pygame.draw.rect(surface, config.PANEL_BG, rect, border_radius=px(6))
+            card_bg = config.ACCENT if lv is None else config.PANEL_BG  # the NEW card stands out
+            pygame.draw.rect(surface, card_bg, rect, border_radius=px(6))
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, width=max(1, px(1)), border_radius=px(6))
+            if lv is None:           # the NEW card
+                draw_text(surface, "New", rect.center, 40, config.TEXT, kind="bold", anchor="center")
+                continue
             self._draw_level_preview(surface, lv, preview)
             draw_text(surface, getattr(lv, "name", f"Level {lv.id}"),
                       (rect.x + px(90), rect.y + px(10)), 16, config.TEXT, kind="bold")

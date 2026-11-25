@@ -126,7 +126,8 @@ def test_a_community_level_is_not_listed_in_the_level_editor(monkeypatch):
     _open_card(monkeypatch, mgr, _row())
 
     menu = LevelEditorMenuScene(mgr)
-    assert menu.cards == []
+    # The only card is the NEW card; the community level is not listed.
+    assert [lv for lv, _rect, _preview in menu.cards if lv is not None] == []
     assert mgr.session.custom_levels == []
 
 

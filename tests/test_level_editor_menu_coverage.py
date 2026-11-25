@@ -48,8 +48,9 @@ def test_menu_init_empty():
     mgr = _Manager()
     scene = LevelEditorMenuScene(mgr)
     scene.update(0.0)
-    assert scene.cards == []
-    assert scene.delete_rects == []
+    # With no levels the only card is the NEW card.
+    assert [lv for lv, _rect, _preview in scene.cards] == [None]
+    assert len(scene.delete_rects) == 1
     scene.update(0.1)
     assert scene.message == ""
     assert scene.message_timer <= 0.0
@@ -57,9 +58,10 @@ def test_menu_init_empty():
 
 def test_rebuild_with_level():
     scene, mgr, level = _make_scene()
-    assert len(scene.cards) == 1
-    assert len(scene.delete_rects) == 1
+    assert len(scene.cards) == 2
+    assert len(scene.delete_rects) == 2
     assert scene.cards[0][0] is level
+    assert scene.cards[-1][0] is None   # the NEW card is the last card
 
 
 def test_update_counts_down_message():
@@ -81,11 +83,11 @@ def test_back_button_switches_to_level_select(monkeypatch):
     assert isinstance(mgr.scene, LevelSelectScene)
 
 
-def test_new_button_switches_to_editor(monkeypatch):
+def test_new_card_switches_to_editor(monkeypatch):
     monkeypatch.setattr(level_editor_module, "LevelEditorScene", _FakeScene)
     scene, mgr, level = _make_scene()
-    scene.new_button.handle_event = lambda ev: "click"
-    scene.handle_event(_event(pygame.MOUSEBUTTONDOWN, button=1, pos=(0, 0)))
+    rect = scene.cards[-1][1]
+    scene.handle_event(_event(pygame.MOUSEBUTTONDOWN, button=1, pos=rect.center))
     assert mgr.scene is not None
 
 
@@ -109,9 +111,9 @@ def test_delete_local_level_via_event(monkeypatch):
     mgr.session.custom_level_ids = {level.id}
     scene = LevelEditorMenuScene(mgr)
     scene.update(0.0)
-    assert len(scene.delete_rects) == 1
+    assert len(scene.delete_rects) == 2
 
-    for btn in (scene.back_button, scene.new_button, scene.community_button):
+    for btn in (scene.back_button, scene.community_button):
         btn.handle_event = lambda ev: None
 
     pos = scene.delete_rects[0].center
@@ -144,7 +146,7 @@ def test_delete_local_level_direct(monkeypatch):
 def test_open_card_switches_to_game(monkeypatch):
     monkeypatch.setattr(game_module, "GameScene", _FakeScene)
     scene, mgr, level = _make_scene()
-    for btn in (scene.back_button, scene.new_button, scene.community_button):
+    for btn in (scene.back_button, scene.community_button):
         btn.handle_event = lambda ev: None
 
     rect = scene.cards[0][1]
@@ -155,7 +157,7 @@ def test_open_card_switches_to_game(monkeypatch):
 def test_right_click_edits_level(monkeypatch):
     monkeypatch.setattr(level_editor_module, "LevelEditorScene", _FakeScene)
     scene, mgr, level = _make_scene()
-    for btn in (scene.back_button, scene.new_button, scene.community_button):
+    for btn in (scene.back_button, scene.community_button):
         btn.handle_event = lambda ev: None
 
     rect = scene.cards[0][1]
