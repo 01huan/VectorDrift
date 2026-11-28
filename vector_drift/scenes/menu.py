@@ -46,6 +46,8 @@ class MenuScene(Scene):
         self.replay_button = Button((cx - px(110), px(600), px(220), px(46)), "Replays", style="plain", font_size=18)
         self.achievements_button = Button((px(20), px(20), px(160), px(40)), "Achievements", style="plain",
                                           font_size=16)
+        self.settings_button = Button((config.WINDOW_W - px(180), px(20), px(160), px(40)), "Settings",
+                                      style="plain", font_size=16)
         self.t = 0.0
 
     def _make_swirl(self):
@@ -87,6 +89,10 @@ class MenuScene(Scene):
             self.audio.play("click")
             from .achievements_page import AchievementsScene
             self.manager.switch(AchievementsScene(self.manager))
+        elif self.settings_button.handle_event(event) == "click":
+            self.audio.play("click")
+            from .settings import SettingsScene
+            self.manager.switch(SettingsScene(self.manager))
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_l:
             self.audio.play("click")
             account = self.manager.account
@@ -126,6 +132,7 @@ class MenuScene(Scene):
         self.login_menu_button.draw(surface)
         self.replay_button.draw(surface)
         self.achievements_button.draw(surface)
+        self.settings_button.draw(surface)
         if account is not None and account.is_authenticated() and account.current_user is not None:
             s = self.session
             draw_text(surface, s.display_name or "—",
