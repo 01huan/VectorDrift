@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Mapping
 
 from .translations import ZH_TW
+from .translations_ja import JA
+from .translations_ko import KO
 
 DEFAULT_LANGUAGE = "en"
 
@@ -23,14 +25,26 @@ DEFAULT_LANGUAGE = "en"
 LANGUAGES: dict[str, str] = {
     "en": "English",
     "zh-TW": "繁體中文",
+    "ja": "日本語",
+    "ko": "한국어",
 }
 SUPPORTED_LANGUAGES: tuple[str, ...] = tuple(LANGUAGES)
 # Backwards-compatible alias; same mapping as LANGUAGES.
 LANGUAGE_NAMES = LANGUAGES
-# Languages written in a script the bundled Latin font cannot render.  These
-# use a platform CJK face and character-based wrapping (no spaces between
-# words).  Add new CJK locales here when they are added to LANGUAGES.
-CJK_LANGUAGES: frozenset[str] = frozenset({"zh-TW"})
+# Languages whose script the bundled Latin face cannot render: they get a
+# platform CJK face and character-based wrapping (no spaces between words).
+# Add new locales here, plus a font list in CJK_FONTS, when adding a language.
+CJK_LANGUAGES: frozenset[str] = frozenset({"zh-TW", "ja", "ko"})
+# Comma-separated system font candidates per CJK language, used in order until
+# one exists (pygame's SysFont falls back to its built-in face if none do).
+CJK_FONTS: dict[str, str] = {
+    "zh-TW": "microsoftjhenghei,microsoftjhengheiui,pingfangtc,notosanscjktc,"
+             "notosanscjk,notosans",
+    "ja": "yu gothic,yugothic,meiryo,hiragino kaku gothic pron,hiraginosans,"
+          "notosanscjkjp,ms gothic,notosans",
+    "ko": "malgun gothic,applesdgothicneo,notosanscjkr,nanumgothic,gulim,"
+          "notosans",
+}
 
 # Parameterized text that cannot be listed as exact catalog keys.  Each
 # language maps to (pattern, replacement) pairs; named groups keep the
@@ -64,6 +78,54 @@ _PATTERNS: dict[str, tuple[tuple[str, str], ...]] = {
          "{avg} · {count} 則評分 · 你的評分：{mine}"),
         (r"(?P<avg>\d+\.\d) · (?P<count>\d+) ratings?", "{avg} · {count} 則評分"),
     ),
+    "ja": (
+        # "Level N" is ambiguous; callers use t() templates instead.
+        (r"Lv (?P<level>\d+)", "レベル {level}"),
+        (r"Daily (?P<day>\d{4}-\d{2}-\d{2})", "デイリー {day}"),
+        (r"Ln (?P<line>\d+)", "{line} 行目"),
+        (r"Hint (?P<page>\d+) / (?P<total>\d+)", "ヒント {page} / {total}"),
+        (r"Page (?P<page>\d+) / (?P<total>\d+)", "{page} / {total} ページ"),
+        (r"Tutorial (?P<step>\d+) / (?P<total>\d+)", "チュートリアル {step} / {total}"),
+        (r"Section (?P<section>\d+) / (?P<total>\d+)", "セクション {section} / {total}"),
+        (r"LV(?P<level>\d+)", "レベル {level}"),
+        (r"Mass: (?P<mass>[\d.]+) kg", "質量：{mass} kg"),
+        (r"Streak bonus \+(?P<xp>\d+) \((?P<days>\d+) days?\)", "連続ボーナス +{xp}（{days} 日）"),
+        (r"(?P<n>\d+) lives? left · back to start", "残り {n} 機 · スタート地点へ戻る"),
+        (r"(?P<n>\d+) lives? left · resume from \((?P<x>-?[\d.]+), (?P<y>-?[\d.]+)\)",
+         "残り {n} 機 · ({x}, {y}) から再開"),
+        (r"Daily (?P<day>\d{4}-\d{2}-\d{2}) · section (?P<n>\d+)/(?P<total>\d+)",
+         "デイリー {day} · セクション {n}/{total}"),
+        (r"uses (?P<uses>\d+) · users (?P<users>\d+)", "使用 {uses} 回 · ユーザー {users} 人"),
+        (r"Uses (?P<uses>\d+) · successful (?P<ok>\d+) \((?P<pct>\d+)%\)",
+         "使用 {uses} 回 · 成功 {ok} 回（{pct}%）"),
+        (r"(?P<avg>\d+\.\d) · (?P<count>\d+) ratings? · you: (?P<mine>\d+)",
+         "{avg} · {count} 件の評価 · あなた：{mine}"),
+        (r"(?P<avg>\d+\.\d) · (?P<count>\d+) ratings?", "{avg} · {count} 件の評価"),
+    ),
+    "ko": (
+        # "Level N" is ambiguous; callers use t() templates instead.
+        (r"Lv (?P<level>\d+)", "레벨 {level}"),
+        (r"Daily (?P<day>\d{4}-\d{2}-\d{2})", "데일리 {day}"),
+        (r"Ln (?P<line>\d+)", "{line} 행"),
+        (r"Hint (?P<page>\d+) / (?P<total>\d+)", "힌트 {page} / {total}"),
+        (r"Page (?P<page>\d+) / (?P<total>\d+)", "{page} / {total} 페이지"),
+        (r"Tutorial (?P<step>\d+) / (?P<total>\d+)", "튜토리얼 {step} / {total}"),
+        (r"Section (?P<section>\d+) / (?P<total>\d+)", "섹션 {section} / {total}"),
+        (r"LV(?P<level>\d+)", "레벨 {level}"),
+        (r"Mass: (?P<mass>[\d.]+) kg", "질량: {mass} kg"),
+        (r"Streak bonus \+(?P<xp>\d+) \((?P<days>\d+) days?\)", "연속 보너스 +{xp} ({days}일)"),
+        (r"(?P<n>\d+) lives? left · back to start", "남은 목숨 {n}개 · 시작 지점으로"),
+        (r"(?P<n>\d+) lives? left · resume from \((?P<x>-?[\d.]+), (?P<y>-?[\d.]+)\)",
+         "남은 목숨 {n}개 · ({x}, {y})에서 다시 시작"),
+        (r"Daily (?P<day>\d{4}-\d{2}-\d{2}) · section (?P<n>\d+)/(?P<total>\d+)",
+         "데일리 {day} · 섹션 {n}/{total}"),
+        (r"uses (?P<uses>\d+) · users (?P<users>\d+)", "사용 {uses}회 · 사용자 {users}명"),
+        (r"Uses (?P<uses>\d+) · successful (?P<ok>\d+) \((?P<pct>\d+)%\)",
+         "사용 {uses}회 · 성공 {ok}회 ({pct}%)"),
+        (r"(?P<avg>\d+\.\d) · (?P<count>\d+) ratings? · you: (?P<mine>\d+)",
+         "{avg} · {count}개 평가 · 내 평점: {mine}"),
+        (r"(?P<avg>\d+\.\d) · (?P<count>\d+) ratings?", "{avg} · {count}개 평가"),
+    ),
 }
 
 # Add new locales here.  Missing entries deliberately fall back to the
@@ -88,6 +150,7 @@ _CATALOGS: dict[str, Mapping[str, str]] = {
         "Apply": "套用", "Shape the field, guide the ship": "塑造力場，引導飛船",
         "Enter: launch   L: login/account   Ctrl+M: mute": "Enter：開始   L：登入／帳號   Ctrl+M：靜音",
         "English": "English", "繁體中文": "繁體中文",
+        "日本語": "日本語", "한국어": "한국어",   # native names, never translated
         "ACCOUNT": "帳號", "SHOP": "商店", "REPLAY": "重播", "REPLAYS": "重播紀錄",
         "MISSION COMPLETE": "任務完成", "ACHIEVEMENT UNLOCKED": "解鎖成就",
         "LEVEL UP": "等級提升", "Level": "關卡", "Time": "時間", "Position": "位置",
@@ -153,6 +216,8 @@ _CATALOGS: dict[str, Mapping[str, str]] = {
         "plays {plays} · clears {clears} · players {players}":
             "遊玩 {plays} 次 · 通關 {clears} 次 · 玩家 {players} 人",
     },
+    "ja": JA,
+    "ko": KO,
 }
 
 
@@ -196,6 +261,10 @@ def _match_language(candidate: object) -> str | None:
         for code in SUPPORTED_LANGUAGES:
             if code.lower().startswith("zh"):
                 return code
+    # Two-letter locale spellings some platforms use for Japanese/Korean.
+    aliases = {"jp": "ja", "kr": "ko"}
+    if base in aliases and aliases[base] in supported:
+        return supported[aliases[base]]
     return None
 
 
