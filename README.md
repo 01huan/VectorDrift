@@ -556,14 +556,6 @@ The formula editor detaches from the operating-system input method while the gam
 
 The formula editor also supports paired-parenthesis editing: typing `(` around a selection wraps it; typing `(` at the end of an expression (or before a space) inserts a matching `)` and places the cursor inside; typing `)` before an existing matching close parenthesis moves past it; Backspace inside an empty `()` removes the pair. `Fx` and `Fy` maintain separate edit histories.
 
-## Language
-
-Vector Drift starts in the language of your operating system when it has no saved choice, then remembers your selection. Click **Settings** in the main menu (top-right) and pick a language to switch immediately — the whole interface, including menus, hints, tutorials and story text, changes without restarting.
-
-The choice is stored in `~/.vector_drift/settings.json` and, when you sign in, travels with your cloud profile so the same language follows you to another device. Language is an app preference, not game progress: a language-only difference never triggers the "local and cloud data differ" choice at login. If a save comes from an older version without a language, your current choice is kept and written back on the next save.
-
-Adding a language is a two-step change: add its code and native name to `LANGUAGES` in `vector_drift/i18n.py` (plus `CJK_LANGUAGES` if it needs a CJK font), then add its translations to `vector_drift/translations.py`. Any string missing from a catalog deliberately stays in English rather than breaking the interface.
-
 ### In the Function Lab
 
 | Input | Action |
@@ -598,6 +590,14 @@ Adding a language is a two-step change: add its code and native name to `LANGUAG
 | Mouse wheel | Resize the selected resizable object. |
 | `+` / `-` | Increase / decrease the selected object's radius. |
 | `Delete` / `Backspace` | Delete the selected object. |
+
+## Language
+
+Vector Drift supports English, 繁體中文, 日本語 and 한국어. It starts in the language of your operating system when it has no saved choice, then remembers your selection. Click **Settings** in the main menu (top-right) and pick a language to switch immediately — the whole interface, including menus, hints, tutorials and story text, changes without restarting.
+
+The choice is stored in `~/.vector_drift/settings.json` and, when you sign in, travels with your cloud profile so the same language follows you to another device. Language is an app preference, not game progress: a language-only difference never triggers the "local and cloud data differ" choice at login. If a save comes from an older version without a language, your current choice is kept and written back on the next save.
+
+Adding a language means: add its code and native name to `LANGUAGES` in `vector_drift/i18n.py`; add a catalog module (see `translations.py`, `translations_ja.py`, `translations_ko.py`) and wire it into `_CATALOGS`; add its parameterized patterns to `_PATTERNS`; and, for scripts the bundled Latin font cannot draw, add the locale to `CJK_LANGUAGES` and a font list to `CJK_FONTS`. Any string missing from a catalog deliberately stays in English rather than breaking the interface.
 
 ## Formula Language
 
