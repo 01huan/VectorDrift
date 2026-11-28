@@ -35,15 +35,28 @@ def _system_font(names, size, bold):
 
 
 def _needs_cjk_font(text):
-    """Whether ``text`` contains CJK characters unsupported by bundled fonts."""
-    return isinstance(text, str) and any("\u3400" <= char <= "\u9fff" for char in text)
+    """Whether ``text`` contains glyphs the bundled Latin face cannot draw.
+
+    Covers CJK ideographs (Chinese/Japanese kanji), kana and Hangul so mono
+    labels and mixed strings use a CJK-capable font too.
+    """
+    if not isinstance(text, str):
+        return False
+    return any(
+        "\u3040" <= char <= "\u30ff"      # hiragana / katakana
+        or "\u3400" <= char <= "\u9fff"   # CJK ideographs
+        or "\uac00" <= char <= "\ud7af"   # Hangul syllables
+        or "\u1100" <= char <= "\u11ff"   # Hangul jamo
+        for char in text
+    )
 
 
 def get_font(size, kind="ui", *, cjk=False):
     """Font at a logical size (scaled to real pixels)."""
-    # The bundled Latin face does not contain CJK glyphs.  For Chinese use a
-    # platform CJK face first so translated text never renders as empty boxes.
-    from .i18n import CJK_LANGUAGES, preferences
+    # The bundled Latin face does not contain CJK glyphs.  For Chinese,
+    # Japanese or Korean use a platform CJK face first so translated text
+    # never renders as empty boxes.
+    from .i18n import CJK_FONTS, CJK_LANGUAGES, preferences
     language = preferences().language
     use_cjk = cjk or (language in CJK_LANGUAGES and kind in ("ui", "bold"))
     key = (kind, size, language, use_cjk)
@@ -55,8 +68,10 @@ def get_font(size, kind="ui", *, cjk=False):
             font = pygame.font.Font(str(path), px(size))
         else:
             if use_cjk:
-                sys_names = ("microsoftjhenghei,microsoftjhengheiui,pingfangtc,"
-                             "notosanscjktc,notosanscjk,notosans," + sys_names)
+                # Language-specific faces first (Japanese and Korean need
+                # different fonts from Traditional Chinese), then the usual
+                # Latin fallbacks for digits and formulas.
+                sys_names = CJK_FONTS.get(language, "notosans") + "," + sys_names
             font = _system_font(sys_names, px(size), bold=(kind == "bold"))
         _font_cache[key] = font
     return font
