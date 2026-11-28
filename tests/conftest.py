@@ -42,6 +42,22 @@ def guest_save_in_tmp(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_i18n(tmp_path, monkeypatch):
+    """Keep language tests independent of the machine locale and real settings.
+
+    Tests run with a fresh English preference stored in a temp file, never
+    reading or writing ~/.vector_drift/settings.json, and the module-level
+    singleton is reset afterwards.  Tests that need another language patch
+    i18n._preferences themselves.
+    """
+    from vector_drift import i18n
+    settings = tmp_path / "vector_drift_settings.json"
+    monkeypatch.setattr(i18n, "_settings_path", lambda: settings)
+    monkeypatch.setattr(i18n, "_preferences",
+                        i18n.LanguagePreferences(settings, system_locale=lambda: "en"))
+
+
+@pytest.fixture(autouse=True)
 def no_solver(monkeypatch, request):
     """Keep the heavy offline AI solver (PSO + process pool) out of scene tests."""
     from types import SimpleNamespace
