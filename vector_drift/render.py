@@ -370,7 +370,10 @@ def draw_plot_labels(surf, viewport):
         return round(viewport.cy - oy - y * s)
 
     def label(text, pos, anchor):
-        img = get_font(13).render(text, True, config.TICK_TEXT)
+        from .i18n import translate
+        from .ui_fonts import _needs_cjk_font
+        text = translate(text)
+        img = get_font(13, cjk=_needs_cjk_font(text)).render(text, True, config.TICK_TEXT)
         rect = img.get_rect(**{anchor: pos})
         pygame.draw.rect(surf, (*config.BG, 200), rect.inflate(px(6), 0), border_radius=px(4))
         surf.blit(img, rect)

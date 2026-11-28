@@ -4,7 +4,7 @@ import pygame
 
 from . import config
 from .config import px
-from .ui_fonts import get_font, draw_text
+from .ui_fonts import get_font, draw_text, _needs_cjk_font
 from .ui_editor_syntax import _dim, draw_squiggle, error_span, highlight
 
 
@@ -44,8 +44,11 @@ class CodeEditorDrawMixin:
         pygame.draw.rect(surface, config.EDITOR_TABBAR, bar)
         pygame.draw.line(surface, config.ACCENT if active else config.EDITOR_GUTTER,
                          bar.topleft, (bar.right - 1, bar.top), max(2, px(2)))
+        from .i18n import translate
         icon = self.small_mono.render("{}", True, config.SYN_NUMBER)
-        label = get_font(13).render(self.title, True, config.TEXT if self.enabled else config.TEXT_DIM)
+        title = translate(self.title)
+        label = get_font(13, cjk=_needs_cjk_font(title)).render(
+            title, True, config.TEXT if self.enabled else config.TEXT_DIM)
         surface.blit(icon, icon.get_rect(midleft=(bar.x + px(10), bar.centery)))
         surface.blit(label, label.get_rect(midleft=(bar.x + px(16) + icon.get_width(), bar.centery)))
 
@@ -86,7 +89,9 @@ class CodeEditorDrawMixin:
                 surface.blit(img, img.get_rect(midleft=(cx, lr.centery)))
                 cx += img.get_width()
         elif self.placeholder(i) is not None:
-            img = self.font.render(self.placeholder(i), True, config.TEXT_FAINT)
+            from .i18n import translate
+            placeholder = translate(self.placeholder(i))
+            img = self.font.render(placeholder, True, config.TEXT_FAINT)
             surface.blit(img, img.get_rect(midleft=(area.x, lr.centery)))
         elif not is_cur:
             img = self.font.render("0", True, config.EDITOR_GUTTER)
@@ -135,11 +140,15 @@ class CodeEditorDrawMixin:
             pygame.draw.circle(surface, config.SQUIGGLE, ic, px(5))
             pygame.draw.line(surface, (255, 255, 255), (ic[0] - d, ic[1] - d), (ic[0] + d, ic[1] + d), lw)
             pygame.draw.line(surface, (255, 255, 255), (ic[0] - d, ic[1] + d), (ic[0] + d, ic[1] - d), lw)
-            loc = self.small_mono.render(f"Ln {i + 1}  ", True, config.EDITOR_GUTTER)
+            from .i18n import translate
+            loc = self.small_mono.render(translate(f"Ln {i + 1}") + "  ", True, config.EDITOR_GUTTER)
             surface.blit(loc, loc.get_rect(midleft=(pr.x + px(28), pr.centery)))
             text_x = pr.x + px(28) + loc.get_width()
             room = pr.right - px(8) - text_x
+            # Measure the translated message: a Chinese error is a different
+            # width from its English source and must not overflow the panel.
+            measured = translate(msg)
             size = 12
-            while size > 9 and get_font(size).size(msg)[0] > room:
+            while size > 9 and get_font(size, cjk=_needs_cjk_font(measured)).size(measured)[0] > room:
                 size -= 1
             draw_text(surface, msg, (text_x, pr.centery), size, config.TEXT, anchor="midleft")

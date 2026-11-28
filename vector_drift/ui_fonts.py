@@ -34,23 +34,38 @@ def _system_font(names, size, bold):
         return pygame.font.SysFont(names, size, bold=bold)
 
 
-def get_font(size, kind="ui"):
+def _needs_cjk_font(text):
+    """Whether ``text`` contains CJK characters unsupported by bundled fonts."""
+    return isinstance(text, str) and any("\u3400" <= char <= "\u9fff" for char in text)
+
+
+def get_font(size, kind="ui", *, cjk=False):
     """Font at a logical size (scaled to real pixels)."""
-    key = (kind, size)
+    # The bundled Latin face does not contain CJK glyphs.  For Chinese use a
+    # platform CJK face first so translated text never renders as empty boxes.
+    from .i18n import CJK_LANGUAGES, preferences
+    language = preferences().language
+    use_cjk = cjk or (language in CJK_LANGUAGES and kind in ("ui", "bold"))
+    key = (kind, size, language, use_cjk)
     font = _font_cache.get(key)
     if font is None:
         filename, sys_names = _FONT_CHOICES[kind]
         path = config.ASSETS_DIR / "fonts" / filename
-        if path.exists():
+        if path.exists() and not use_cjk:
             font = pygame.font.Font(str(path), px(size))
         else:
+            if use_cjk:
+                sys_names = ("microsoftjhenghei,microsoftjhengheiui,pingfangtc,"
+                             "notosanscjktc,notosanscjk,notosans," + sys_names)
             font = _system_font(sys_names, px(size), bold=(kind == "bold"))
         _font_cache[key] = font
     return font
 
 
 def draw_text(surface, text, pos, size=16, color=config.TEXT, kind="ui", anchor="topleft"):
-    img = get_font(size, kind).render(text, True, color)
+    from .i18n import translate
+    text = translate(text)
+    img = get_font(size, kind, cjk=_needs_cjk_font(text)).render(text, True, color)
     rect = img.get_rect(**{anchor: pos})
     surface.blit(img, rect)
     return rect
@@ -63,10 +78,11 @@ def fit_text(text, max_width, size=16, kind="ui"):
     and must not spill out of their panel.  The cut is estimated first, so a
     long name does not need one font measurement per character.
     """
-    text = "" if text is None else str(text)
+    from .i18n import translate
+    text = translate("" if text is None else str(text))
     if max_width <= 0:
         return ""
-    font = get_font(size, kind)
+    font = get_font(size, kind, cjk=_needs_cjk_font(text))
     width = font.size(text)[0]
     if width <= max_width:
         return text
@@ -88,10 +104,16 @@ def wrap_text(text, size, max_width, kind="ui"):
 
     A single word wider than `max_width` keeps a line of its own.
     """
-    font = get_font(size, kind)
+    from .i18n import translate
+    text = translate(text)
+    cjk = _needs_cjk_font(text)
+    font = get_font(size, kind, cjk=cjk)
     lines, line = [], ""
-    for word in text.split():
-        trial = f"{line} {word}" if line else word
+    # CJK languages do not use spaces between words, so split them at
+    # characters rather than returning one over-wide unbreakable line.
+    words = list(text) if cjk else text.split()
+    for word in words:
+        trial = f"{line}{word}" if cjk or not line else f"{line} {word}"
         if line and font.size(trial)[0] > max_width:
             lines.append(line)
             line = word
@@ -121,9 +143,11 @@ def draw_icon_row(surface, parts, pos, size=16, kind="bold", anchor="topleft", g
     ``parts`` holds ``(text, color)`` pairs and image keys (str) for icons,
     which are drawn at the font's height.  Returns the rect of the whole row.
     """
-    font = get_font(size, kind)
+    from .i18n import translate
+    cjk = any(_needs_cjk_font(translate(p[0])) for p in parts if not isinstance(p, str))
+    font = get_font(size, kind, cjk=cjk)
     side = font.get_height()
-    pieces = [_icon(p, side) if isinstance(p, str) else font.render(str(p[0]), True, p[1])
+    pieces = [_icon(p, side) if isinstance(p, str) else font.render(str(translate(p[0])), True, p[1])
               for p in parts]
     space = px(gap)
     rect = pygame.Rect(0, 0, sum(s.get_width() for s in pieces) + space * (len(pieces) - 1),

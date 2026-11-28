@@ -341,8 +341,12 @@ class Dropdown:
         self._button.hover = False
 
     def _label(self) -> str:
+        from .i18n import translate
         label = self.label_of(self._value) if self.items else ""
-        return f"{self.prefix}{label}" if self.prefix else label
+        # Translate each part: the composed "Sort: Newest" would not match any
+        # catalog key, while "Sort: " and "Newest" do.
+        label = translate(label)
+        return f"{translate(self.prefix)}{label}" if self.prefix else label
 
     # ------------------------------------------------------------------ events
 
