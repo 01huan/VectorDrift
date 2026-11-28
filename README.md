@@ -535,6 +535,7 @@ The formula editor detaches from the operating-system input method while the gam
 | `Esc` or Back on the Daily Challenge page | Return to the level selector. |
 | `<` / `>` arrows or `←` / `→` on the Daily Challenge page | Previous / next month of the calendar. |
 | Replays button | Open saved launch replays. |
+| Settings button (top-right) | Open language settings. |
 
 ### In a level
 
@@ -554,6 +555,14 @@ The formula editor detaches from the operating-system input method while the gam
 | `Ctrl+Shift+Z` or `Ctrl+Y` | Redo in the active formula line. |
 
 The formula editor also supports paired-parenthesis editing: typing `(` around a selection wraps it; typing `(` at the end of an expression (or before a space) inserts a matching `)` and places the cursor inside; typing `)` before an existing matching close parenthesis moves past it; Backspace inside an empty `()` removes the pair. `Fx` and `Fy` maintain separate edit histories.
+
+## Language
+
+Vector Drift starts in the language of your operating system when it has no saved choice, then remembers your selection. Click **Settings** in the main menu (top-right) and pick a language to switch immediately — the whole interface, including menus, hints, tutorials and story text, changes without restarting.
+
+The choice is stored in `~/.vector_drift/settings.json` and, when you sign in, travels with your cloud profile so the same language follows you to another device. Language is an app preference, not game progress: a language-only difference never triggers the "local and cloud data differ" choice at login. If a save comes from an older version without a language, your current choice is kept and written back on the next save.
+
+Adding a language is a two-step change: add its code and native name to `LANGUAGES` in `vector_drift/i18n.py` (plus `CJK_LANGUAGES` if it needs a CJK font), then add its translations to `vector_drift/translations.py`. Any string missing from a catalog deliberately stays in English rather than breaking the interface.
 
 ### In the Function Lab
 
