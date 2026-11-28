@@ -44,7 +44,7 @@ class LocalProfileManager:
             profiles_equal = None
         if profiles_equal is not None:
             last = _last_written.get(self.path)
-            if last is not None and profiles_equal(last, profile):
+            if last is not None and profiles_equal(last, profile, include_preferences=True):
                 return  # nothing changed since the last write: skip it
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)

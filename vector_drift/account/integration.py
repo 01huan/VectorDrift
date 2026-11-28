@@ -79,6 +79,8 @@ RANDOM_MAPS_CLEARED_KEY = "random_maps_cleared"
 # the achievements, applying a save replaces the session's with that copy's;
 # a save without the key (made before the daily challenge) has none.
 DAILY_RECORDS_KEY = "daily_records"
+# Application preferences that must travel with a user's cloud/guest profile.
+LANGUAGE_KEY = "language"
 
 
 def _custom_levels_to_rows(levels: Any) -> list[dict]:
@@ -190,6 +192,17 @@ def _session_class():
 def _apply_profile_stats(session: Any, stats: dict | None) -> None:
     stats = dict(stats or {})
     stats.pop(LEGACY_STORY_SEEN_KEY, None)
+    saved_language = stats.pop(LANGUAGE_KEY, None)
+    from .. import i18n
+    matched = i18n.match_language(saved_language)
+    if matched is not None:
+        session.language = matched
+        i18n.set_language(matched)
+    else:
+        # A legacy (missing) or unknown code must not overwrite the active
+        # preference.  Mirror the preference into the session so the next
+        # save writes the language actually in use, not a stale session copy.
+        session.language = i18n.preferences().language
     rewarded = set()
     for lid in stats.pop(CLEAR_REWARDED_KEY, None) or ():
         try:
@@ -329,11 +342,15 @@ def apply_profile_to_session(session: Any, profile: PlayerProfile, user_id: str,
         pass
     _backfill_xp(session)
 
-def profiles_equal(a: Any, b: Any) -> bool:
+def profiles_equal(a: Any, b: Any, *, include_preferences: bool = False) -> bool:
     """Return True when two profiles carry the same game data.
 
     Timestamps (``updated_at``) are ignored: only the actual progress matters
-    for deciding whether the local and cloud copies disagree.
+    for deciding whether the local and cloud copies disagree.  Preferences
+    such as the language live in ``stats`` but are not progress: by default
+    they are ignored, so a language-only difference never triggers a
+    "local and cloud data differ" conflict.  Save deduplication passes
+    ``include_preferences=True`` so a language change is still written.
     """
     if a is None or b is None:
         return False
@@ -351,6 +368,11 @@ def profiles_equal(a: Any, b: Any) -> bool:
         # seen_intro is merged (either side True), so it never needs a choice.
         stats = dict(getattr(profile, "stats", {}) or {})
         stats.pop(SEEN_INTRO_KEY, None)
+        if not include_preferences:
+            # Language is an app preference, not progress.  Ignoring it here
+            # prevents a false conflict when one device has a newer language
+            # code than the other device's save.
+            stats.pop(LANGUAGE_KEY, None)
         # The player id is an installation detail, not game progress: two
         # devices signed into the same account each generate their own id and
         # must not be treated as a local/cloud conflict.
@@ -435,6 +457,11 @@ def session_to_profile(session: Any, user_id: str) -> PlayerProfile:
                  **(session.stats.get(ABILITY_CHARGES_KEY, {}) if isinstance(getattr(session, "stats", None), dict) else {}),
                  **(getattr(session, "ability_charges", {}) or {}),
              }}
+    language = getattr(session, "language", None)
+    from .. import i18n
+    matched = i18n.match_language(language)
+    if matched is not None:
+        stats[LANGUAGE_KEY] = matched
     player_key = getattr(session, "player_key", None)
     if player_key:
         stats[PLAYER_KEY_KEY] = str(player_key)
@@ -614,7 +641,8 @@ def _save_cloud_profile(account: Any, session: Any, local_error: Exception | Non
         pass
     profile = session_to_profile(session, current_user.id)
     if _last_uploaded_profiles.get(current_user.id) is not None and \
-            profiles_equal(_last_uploaded_profiles[current_user.id], profile):
+            profiles_equal(_last_uploaded_profiles[current_user.id], profile,
+                           include_preferences=True):
         # Unchanged since the last upload: the cloud already has this data.
         return
     session.sync_status = "syncing"

@@ -84,6 +84,7 @@ class Session(ReplaysPropertiesMixin):
     sync_status: str = "idle"           # idle | syncing | error
     cloud_save_pending: bool = False    # deferred cloud upload while account busy
     last_sync_error: str | None = None
+    language: str | None = None       # synced app preference; None means legacy profile
 
     @property
     def imported_function(self):
@@ -226,6 +227,8 @@ class SceneManager:
         self.audio = audio
         self.account = account_manager
         self.session = Session()
+        from .. import i18n
+        self.session.language = i18n.preferences().language
         self.scene = None
         self.running = True
         self.time = 0.0
