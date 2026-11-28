@@ -74,6 +74,31 @@ def test_locale_spellings_resolve_to_the_supported_language(code):
     assert i18n.normalize_language(code) == "zh-TW"
 
 
+@pytest.mark.parametrize("code, expected", [
+    ("ja", "ja"), ("ja-JP", "ja"), ("ja_JP", "ja"), ("jp", "ja"),
+    ("ko", "ko"), ("ko-KR", "ko"), ("ko_KR", "ko"), ("kr", "ko"),
+])
+def test_japanese_and_korean_locales_resolve(code, expected):
+    assert i18n.match_language(code) == expected
+    assert i18n.normalize_language(code) == expected
+
+
+@pytest.mark.parametrize("language, cjk", [("zh-TW", True), ("ja", True), ("ko", True)])
+def test_cjk_languages_have_a_font_list(language, cjk):
+    assert (language in i18n.CJK_LANGUAGES) is cjk
+    assert i18n.CJK_FONTS.get(language)
+
+
+def test_wide_glyph_detection_covers_kana_and_hangul():
+    from vector_drift.ui_fonts import _needs_cjk_font
+
+    assert _needs_cjk_font("こんにちは")
+    assert _needs_cjk_font("カタカナ")
+    assert _needs_cjk_font("안녕하세요")
+    assert _needs_cjk_font("漢字")
+    assert not _needs_cjk_font("Start")
+
+
 def test_unsupported_language_is_not_mistaken_for_a_valid_preference():
     assert i18n.match_language("fr") is None
     assert i18n.match_language(None) is None
@@ -166,13 +191,50 @@ def test_dynamic_strings_are_translated_precisely(monkeypatch, tmp_path):
     assert i18n.translate("uses 5 · users 3") == "使用 5 次 · 玩家 3 人"
 
 
+@pytest.mark.parametrize("language", ["ja", "ko"])
+def test_japanese_and_korean_catalogs_translate_and_keep_native_names(monkeypatch, tmp_path, language):
+    prefs = i18n.LanguagePreferences(tmp_path / "settings.json", system_locale=lambda: language)
+    monkeypatch.setattr(i18n, "_preferences", prefs)
+
+    assert "Start" in i18n._CATALOGS[language]
+    assert i18n.translate("Start") != "Start"
+    for name in ("English", "繁體中文", "日本語", "한국어"):
+        assert i18n.translate(name) == name
+
+
+@pytest.mark.parametrize("language, level, hint, page", [
+    ("ja", "レベル 5", "ヒント 2 / 4", "2 / 4 ページ"),
+    ("ko", "레벨 5", "힌트 2 / 4", "2 / 4 페이지"),
+])
+def test_japanese_and_korean_dynamic_patterns(monkeypatch, tmp_path, language, level, hint, page):
+    prefs = i18n.LanguagePreferences(tmp_path / "settings.json", system_locale=lambda: language)
+    monkeypatch.setattr(i18n, "_preferences", prefs)
+    assert i18n.translate("Lv 5") == level
+    assert i18n.translate("Hint 2 / 4") == hint
+    assert i18n.translate("Page 2 / 4") == page
+
+
+def test_settings_scene_offers_every_language(monkeypatch, pygame_display):
+    from types import SimpleNamespace
+
+    from vector_drift.scenes.base import SceneManager
+    from vector_drift.scenes.settings import SettingsScene
+
+    manager = SceneManager(SimpleNamespace(play=lambda *a, **k: None))
+    scene = SettingsScene(manager)
+    assert [code for code, _button in scene.language_buttons] == list(i18n.SUPPORTED_LANGUAGES)
+
+
 def test_parameterized_templates_fall_back_to_english(monkeypatch, tmp_path):
     prefs = i18n.LanguagePreferences(tmp_path / "settings.json", system_locale=lambda: "en_US")
     monkeypatch.setattr(i18n, "_preferences", prefs)
     assert i18n.t("Player level {level}", level=5) == "Player level 5"
 
 
-def test_chinese_ui_draws_without_errors(monkeypatch, pygame_display, tmp_path):
+@pytest.mark.parametrize("locale, code", [
+    ("en_US", "en"), ("zh_TW", "zh-TW"), ("ja_JP", "ja"), ("ko_KR", "ko"),
+])
+def test_ui_draws_in_every_language(monkeypatch, pygame_display, tmp_path, locale, code):
     from types import SimpleNamespace
 
     from vector_drift import config
@@ -180,7 +242,7 @@ def test_chinese_ui_draws_without_errors(monkeypatch, pygame_display, tmp_path):
     from vector_drift.scenes.menu import MenuScene
     from vector_drift.scenes.settings import SettingsScene
 
-    prefs = i18n.LanguagePreferences(tmp_path / "settings.json", system_locale=lambda: "zh_TW")
+    prefs = i18n.LanguagePreferences(tmp_path / "settings.json", system_locale=lambda: locale)
     monkeypatch.setattr(i18n, "_preferences", prefs)
     audio = SimpleNamespace(play=lambda *a, **k: None, set_music=lambda *a, **k: None)
     manager = SceneManager(audio)
@@ -189,7 +251,7 @@ def test_chinese_ui_draws_without_errors(monkeypatch, pygame_display, tmp_path):
     manager.draw(surface)
     manager.switch(SettingsScene(manager))
     manager.draw(surface)
-    assert i18n.current_language() == "zh-TW"
+    assert i18n.current_language() == code
 
 
 def test_rendered_menu_changes_with_language(monkeypatch, pygame_display, tmp_path):
