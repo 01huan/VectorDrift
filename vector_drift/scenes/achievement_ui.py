@@ -219,7 +219,12 @@ def _draw_level_up(surface, card, icon, toast):
     draw_text(surface, number, (icon.centerx, icon.centery + px(6)), size, config.ACCENT, kind="bold",
               anchor="center")
     tx = icon.right + px(12)
-    # "LEVEL UP" on top: "Level 5" alone could read as level 5 of the campaign.
+    # "LEVEL UP" on top: "Level 5" alone could read as level 5 of the campaign,
+    # so translate it through the player-level template (等級 5, not 第 5 關).
+    # The English rendering stays exactly "Level 5".
+    from ..i18n import t
     draw_text(surface, "LEVEL UP", (tx, card.y + px(12)), 11, config.TEXT_DIM, kind="bold")
-    draw_text(surface, f"Level {toast.level}", (tx, card.y + px(27)), 17, config.TEXT, kind="bold")
-    draw_icon_row(surface, [COIN_TRADE, (f"+{toast.coins} coins", config.TEXT)], (tx, card.y + px(50)), 13)
+    draw_text(surface, t("Level {level}", level=toast.level),
+              (tx, card.y + px(27)), 17, config.TEXT, kind="bold")
+    draw_icon_row(surface, [COIN_TRADE, (t("+{coins} coins", coins=toast.coins), config.TEXT)],
+                  (tx, card.y + px(50)), 13)

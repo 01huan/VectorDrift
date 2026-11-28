@@ -268,7 +268,8 @@ class LevelEditorMenuScene(Scene):
                 draw_text(surface, "New", rect.center, 40, config.TEXT, kind="bold", anchor="center")
                 continue
             self._draw_level_preview(surface, lv, preview)
-            draw_text(surface, getattr(lv, "name", f"Level {lv.id}"),
+            from ..i18n import t
+            draw_text(surface, getattr(lv, "name", t("Campaign level {level}", level=lv.id)),
                       (rect.x + px(90), rect.y + px(10)), 16, config.TEXT, kind="bold")
             hover = del_rect.collidepoint(pygame.mouse.get_pos())
             bg = config.DANGER if hover else (140, 60, 70)

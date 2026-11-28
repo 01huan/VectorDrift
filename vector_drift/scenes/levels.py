@@ -385,7 +385,9 @@ class LevelSelectScene(Scene):
             pygame.draw.rect(surface, config.PANEL_EDGE, rect, line_w, border_radius=px(6))
             lock = icon_surface("lock", px(34), config.TEXT_FAINT)
             surface.blit(lock, lock.get_rect(center=(rect.centerx, rect.y + px(52))))
-            draw_text(surface, f"Level {self.level_numbers.get(lid, lid)}", (rect.centerx, rect.y + px(94)),
+            from ..i18n import t
+            draw_text(surface, t("Campaign level {level}", level=self.level_numbers.get(lid, lid)),
+                      (rect.centerx, rect.y + px(94)),
                       16, config.TEXT_FAINT,
                       kind="bold", anchor="center")
             draw_text(surface, "Coming soon", (rect.centerx, rect.y + px(118)), 13, config.TEXT_FAINT,
