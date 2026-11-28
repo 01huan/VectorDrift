@@ -57,11 +57,20 @@ class ShopScene(Scene):
         self.buy_buttons = []
         self.desc_lines = {}
         self.items = shop_module.all_items()
+        self._language = None
         self._rebuild_cards()
+
+    def _sync_language(self):
+        """Card heights depend on wrapped, translated descriptions."""
+        from .. import i18n
+        if i18n.current_language() != self._language:
+            self._rebuild_cards()
 
     def _rebuild_cards(self):
         self.cards = []
         self.buy_buttons = []
+        from .. import i18n
+        self._language = i18n.current_language()
         text_w = px(CARD_W - 2 * CARD_PAD)
         self.desc_lines = {item.id: wrap_text(item.description, DESC_SIZE, text_w)
                            for item in self.items}
@@ -101,6 +110,7 @@ class ShopScene(Scene):
         self.manager.switch(LevelSelectScene(self.manager))
 
     def handle_event(self, event):
+        self._sync_language()
         if event.type == pygame.MOUSEMOTION:
             self.back_button.handle_event(event)
             for _item, btn in self.buy_buttons:
@@ -169,10 +179,12 @@ class ShopScene(Scene):
                                 (item.price, config.DANGER if short else config.TEXT)],
                       (rect.x + px(CARD_PAD), price_y), PRICE_SIZE, anchor="midleft")
         count = self.owned_count(item)
-        draw_text(surface, f"Owned ×{count}", (rect.right - px(CARD_PAD), price_y), PRICE_SIZE,
+        from ..i18n import t
+        draw_text(surface, t("Owned ×{count}", count=count), (rect.right - px(CARD_PAD), price_y), PRICE_SIZE,
                   config.TEXT if count else config.TEXT_DIM, kind="bold", anchor="midright")
 
     def draw(self, surface):
+        self._sync_language()
         surface.blit(self.background, (0, 0))
         draw_coins(surface, int(self.session.money), (px(12), px(12)), 16, config.TEXT,
                    icon=COIN_BALANCE)

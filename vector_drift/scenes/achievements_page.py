@@ -27,8 +27,15 @@ PIP_R, PIP_GAP = 4, 11
 
 
 def _fit(text, size, width, kind="ui"):
-    """``text`` cut with an ellipsis to fit ``width`` real pixels."""
-    font = get_font(size, kind)
+    """``text`` cut with an ellipsis to fit ``width`` real pixels.
+
+    Translate first: cutting the English source and translating the fragment
+    would not match any catalog key and could overflow the card.
+    """
+    from ..i18n import translate
+    from ..ui_fonts import _needs_cjk_font
+    text = translate(text)
+    font = get_font(size, kind, cjk=_needs_cjk_font(text))
     if font.size(text)[0] <= width:
         return text
     while text and font.size(text + "…")[0] > width:

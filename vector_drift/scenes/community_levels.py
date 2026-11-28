@@ -536,8 +536,10 @@ class CommunityLevelsScene(CommunityBrowserScene):
                   config.TEXT_FAINT if not info.favorite_count else config.TEXT_DIM)
 
         # Line B: the counters on the left, the interactive rating stars right.
-        stats = (f"plays {info.play_count} · clears {info.clear_count}"
-                 f" · players {info.clear_player_count}")
+        from ..i18n import t
+        stats = t("plays {plays} · clears {clears} · players {players}",
+                  plays=info.play_count, clears=info.clear_count,
+                  players=info.clear_player_count)
         draw_text(surface, fit_text(stats, rect.w - px(84), 10),
                   (rect.x + px(10), rect.y + px(150)), 10, config.TEXT_DIM)
         if stars:

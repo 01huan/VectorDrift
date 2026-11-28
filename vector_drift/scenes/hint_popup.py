@@ -69,8 +69,20 @@ class HintPopup:
                                      style="danger", font_size=15)
         self.apply_buttons = [Button((0, 0, px(90), px(32)), "Apply", style="primary", font_size=14)
                               for _ in hint.answers]
-        self._answer_lines = [self._formula_lines(answer) for answer in hint.answers]
+        self._language = None
+        self._rebuild_layout()
+
+    def _rebuild_layout(self):
+        """Rebuild cached, translated answer lines and their row geometry."""
+        from .. import i18n
+        self._language = i18n.current_language()
+        self._answer_lines = [self._formula_lines(answer) for answer in self.hint.answers]
         self._answer_rows = self._layout_answers()
+
+    def _sync_language(self):
+        from .. import i18n
+        if i18n.current_language() != self._language:
+            self._rebuild_layout()
 
     def _text_lines(self, text):
         return wrap_text(text, TEXT_SIZE, self.card.width - 2 * px(PAD))
@@ -120,6 +132,8 @@ class HintPopup:
         return pairs
 
     def handle_event(self, event):
+        if event.type != pygame.KEYDOWN:
+            self._sync_language()   # Apply button positions depend on wrapped text
         if event.type == pygame.KEYDOWN:
             if self.confirming:
                 if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -142,6 +156,7 @@ class HintPopup:
 
     # ------------------------------------------------------------------ draw
     def draw(self, surface):
+        self._sync_language()
         shade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
         shade.fill((5, 8, 18, 200))
         surface.blit(shade, (0, 0))

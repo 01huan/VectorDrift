@@ -9,12 +9,14 @@ put back on leaving, so no level's progress changes.
 """
 
 
+import re
+
 import pygame
 
 from .. import config
 from ..config import px
 from ..tutorial import TUTORIAL_SHIP_ID
-from ..ui_fonts import draw_text, get_font
+from ..ui_fonts import draw_text, get_font, _needs_cjk_font
 from ..sprites.common import blink_value
 from .game import GameScene
 from .game_layout import ARRIVED
@@ -149,22 +151,31 @@ def _segments(word, bold):
     return segs, bold
 
 
-def _width(segs, size):
-    return sum(get_font(size, "bold" if b else "ui").size(t)[0] for t, b in segs)
+def _width(segs, size, cjk=False):
+    return sum(get_font(size, "bold" if b else "ui", cjk=cjk).size(t)[0] for t, b in segs)
 
 
 def rich_lines(text, size, width):
     """Wrap ``text`` (paragraphs split by newlines, **bold** marked) into lines
-    of words, each word a list of (text, bold) pieces, no wider than ``width``."""
+    of words, each word a list of (text, bold) pieces, no wider than ``width``.
+
+    Translate the whole paragraph before splitting it: translating each word
+    separately never matches a sentence in the catalog.  CJK text has no
+    spaces, so it is wrapped per character with ``**`` kept as a bold marker.
+    """
+    from ..i18n import translate
+    text = translate(text)
+    cjk = _needs_cjk_font(text)
+    space = 0 if cjk else get_font(size).size(" ")[0]
     lines = []
-    space = get_font(size).size(" ")[0]
     for paragraph in text.splitlines():
+        words = re.findall(r"\*\*|.", paragraph) if cjk else paragraph.split(" ")
         line, line_w, bold = [], 0, False
-        for raw in paragraph.split(" "):
+        for raw in words:
             segs, bold = _segments(raw, bold)
             if not segs:
                 continue
-            w = _width(segs, size)
+            w = _width(segs, size, cjk)
             if line and line_w + space + w > width:
                 lines.append(line)
                 line, line_w = [], 0
@@ -176,8 +187,11 @@ def rich_lines(text, size, width):
 
 def draw_rich(surface, text, pos, width, size=16, color=config.TEXT, bold_color=config.ACCENT):
     """Draw wrapped rich text from its top-left; returns the height used."""
+    from ..i18n import translate
+    text = translate(text)
+    cjk = _needs_cjk_font(text)
     x0, y = pos
-    space = get_font(size).size(" ")[0]
+    space = 0 if cjk else get_font(size).size(" ")[0]
     step = px(size + 7)
     for line in rich_lines(text, size, width):
         x = x0
@@ -185,7 +199,7 @@ def draw_rich(surface, text, pos, width, size=16, color=config.TEXT, bold_color=
             for piece, bold in segs:
                 kind = "bold" if bold else "ui"
                 draw_text(surface, piece, (x, y), size, bold_color if bold else color, kind=kind)
-                x += get_font(size, kind).size(piece)[0]
+                x += get_font(size, kind, cjk=cjk).size(piece)[0]
             x += space
         y += step
     return y - pos[1]
